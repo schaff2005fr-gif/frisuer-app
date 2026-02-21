@@ -1,0 +1,189 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  BARBER
+}
+
+enum BookingStatus {
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum NotificationType {
+  BOOKING_CANCELLED
+  BOOKING_STATUS_CHANGED
+}
+
+model User {
+  id           Int    @id @default(autoincrement())
+  email        String @unique
+  passwordHash String
+  role         Role   @default(CUSTOMER)
+
+  customerId Int?      @unique
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  barberId Int?    @unique
+  barber   Barber? @relation(fields: [barberId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  createdAt DateTime @default(now())
+
+  user          User?
+  bookings      Booking[]
+  notifications Notification[]
+}
+
+model Barber {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  phone     String?
+  isActive  Boolean  @default(true)
+
+  
+  bio        String?
+  street     String?
+  postalCode String?
+  city       String?
+  instagram  String?
+  website    String?
+
+  createdAt DateTime @default(now())
+
+  user            User?
+  services        Service[]
+  bookings        Booking[]
+  recurringBlocks RecurringBlock[]
+  timeBlocks      TimeBlock[]
+  settings        AppSetting[]
+}
+
+model Service {
+  id          Int    @id @default(autoincrement())
+  barberId    Int
+  barber      Barber @relation(fields: [barberId], references: [id])
+
+  key         String
+  name        String
+  durationMin Int
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  bookings Booking[]
+
+  @@unique([barberId, key])
+}
+
+model Booking {
+  id Int @id @default(autoincrement())
+
+  barberId Int
+  barber   Barber @relation(fields: [barberId], references: [id])
+
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  // Für Public Booking ohne Login:
+  guestName  String?
+  guestPhone String?
+
+  serviceId Int
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  date        DateTime
+  windowStart Int
+  windowEnd   Int
+
+  durationMin Int
+  exactTime   Int?
+  note        String?
+
+  status BookingStatus @default(CONFIRMED)
+
+  createdAt DateTime @default(now())
+
+  notifications Notification[]
+
+  @@index([barberId, date])
+}
+
+model RecurringBlock {
+  id       Int @id @default(autoincrement())
+  barberId Int
+  barber   Barber @relation(fields: [barberId], references: [id])
+
+  weekday  Int
+  startMin Int
+  endMin   Int
+  reason   String?
+  enabled  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([barberId, weekday])
+}
+
+model TimeBlock {
+  id       Int @id @default(autoincrement())
+  barberId Int
+  barber   Barber @relation(fields: [barberId], references: [id])
+
+  date     DateTime
+  startMin Int
+  endMin   Int
+  reason   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([barberId, date])
+}
+
+model AppSetting {
+  id       Int @id @default(autoincrement())
+  barberId Int
+  barber   Barber @relation(fields: [barberId], references: [id])
+
+  key   String
+  value String
+
+  createdAt DateTime @default(now())
+
+  @@unique([barberId, key])
+}
+
+model Notification {
+  id         Int      @id @default(autoincrement())
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  type       NotificationType
+  title      String
+  message    String
+
+  bookingId  Int?
+  booking    Booking? @relation(fields: [bookingId], references: [id])
+
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([customerId, readAt])
+}

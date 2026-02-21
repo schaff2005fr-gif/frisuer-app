@@ -1,0 +1,536 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+
+const API_BASE = "http://localhost:3001";
+
+type Service = { key: string; name: string; durationMin: number };
+type Barber = { id: number; name: string; slug: string; phone: string | null };
+
+type Me = {
+  id: number;
+  email: string;
+  role: "CUSTOMER" | "BARBER";
+  customer: { id: number; name: string; phone: string | null } | null;
+};
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+function minToHHMM(min: number) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+function todayYYYYMMDD() {
+  return new Date().toISOString().slice(0, 10);
+}
+function getTokenSafe() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem("token") || "";
+}
+
+export default function BarberBookPage() {
+  const params = useParams<{ slug: string }>();
+  const slug = String(params?.slug ?? "");
+
+  const sp = useSearchParams();
+  const presetServiceKey = sp.get("serviceKey") || "";
+
+  const today = todayYYYYMMDD();
+
+  const [barber, setBarber] = useState<Barber | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [me, setMe] = useState<Me | null>(null);
+
+  const [selectedServiceKey, setSelectedServiceKey] = useState(presetServiceKey);
+  const [selectedDate, setSelectedDate] = useState(today);
+
+  const [availableTimes, setAvailableTimes] = useState<number[]>([]);
+  const [selectedTimeMin, setSelectedTimeMin] = useState<number | null>(null);
+
+  const [note, setNote] = useState("");
+
+  const [busyTimes, setBusyTimes] = useState(false);
+  const [busyBooking, setBusyBooking] = useState(false);
+
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  // ✅ wenn URL ?serviceKey=... sich ändert, übernehmen
+  useEffect(() => {
+    if (presetServiceKey) setSelectedServiceKey(presetServiceKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetServiceKey]);
+
+  // ✅ token nur im Client lesen
+  const token = getTokenSafe();
+  const isLoggedIn = Boolean(token);
+
+  const isCustomer = me?.role === "CUSTOMER";
+  const isAuthedCustomer = isLoggedIn && isCustomer;
+
+  const customerName = (me?.customer?.name ?? "").trim();
+  const customerPhone = (me?.customer?.phone ?? "").trim();
+
+  // load barber + services
+  useEffect(() => {
+    if (!slug) return;
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    fetch(`${API_BASE}/barbers/${encodeURIComponent(slug)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.error) throw new Error(d.error);
+        setBarber(d.barber);
+        setServices(Array.isArray(d.services) ? d.services : []);
+      })
+      .catch((e) => setError(e?.message || "Fehler"))
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  // load me (optional)
+  useEffect(() => {
+    const t = getTokenSafe();
+    if (!t) return;
+
+    fetch(`${API_BASE}/me`, { headers: { Authorization: `Bearer ${t}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setMe(d as Me);
+      })
+      .catch(() => null);
+  }, []);
+
+  const selectedService = useMemo(
+    () => services.find((s) => s.key === selectedServiceKey) ?? null,
+    [services, selectedServiceKey]
+  );
+
+  const canLoadTimes = Boolean(selectedServiceKey && selectedDate);
+
+  const canBookCustomer = Boolean(
+    selectedServiceKey &&
+      selectedDate &&
+      selectedTimeMin != null &&
+      customerName &&
+      customerPhone &&
+      isAuthedCustomer
+  );
+
+  const canBook = canBookCustomer;
+
+  async function loadTimes() {
+    setBusyTimes(true);
+    setError("");
+    setMessage("");
+    setSelectedTimeMin(null);
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/public/available-times?barberSlug=${encodeURIComponent(slug)}&date=${encodeURIComponent(
+          selectedDate
+        )}&serviceKey=${encodeURIComponent(selectedServiceKey)}`
+      );
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Fehler beim Laden");
+
+      setAvailableTimes(Array.isArray(data?.times) ? data.times : []);
+    } catch (e: any) {
+      setError(e?.message ?? "Fehler");
+      setAvailableTimes([]);
+    } finally {
+      setBusyTimes(false);
+    }
+  }
+
+  // auto-load times when selection changes
+  useEffect(() => {
+    if (canLoadTimes) loadTimes();
+    else {
+      setAvailableTimes([]);
+      setSelectedTimeMin(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedServiceKey, selectedDate]);
+
+  async function bookNow() {
+    setBusyBooking(true);
+    setError("");
+    setMessage("");
+
+    try {
+      if (!isAuthedCustomer) {
+        throw new Error("Buchung nur mit Kunden-Login möglich. Bitte einloggen oder registrieren.");
+      }
+
+      const t = getTokenSafe();
+      const res = await fetch(`${API_BASE}/bookings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${t}`,
+        },
+        body: JSON.stringify({
+          barberSlug: slug,
+          date: selectedDate,
+          serviceKey: selectedServiceKey,
+          exactTime: selectedTimeMin,
+          note: note.trim() ? note.trim() : null,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Buchung fehlgeschlagen");
+
+      setMessage(`✅ Gebucht: ${selectedDate} um ${minToHHMM(selectedTimeMin!)}`);
+      setNote("");
+      await loadTimes();
+    } catch (e: any) {
+      setError(e?.message ?? "Fehler beim Buchen");
+    } finally {
+      setBusyBooking(false);
+    }
+  }
+
+  if (loading) return <div style={{ padding: 20 }}>Lade...</div>;
+  if (error && !barber)
+    return (
+      <div style={{ padding: 20, color: "crimson" }}>
+        <b>{error}</b>
+      </div>
+    );
+  if (!barber) return <div style={{ padding: 20 }}>Nicht gefunden.</div>;
+
+  return (
+    <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+        <div>
+          <a href={`/b/${barber.slug}`} style={{ textDecoration: "none", color: "#111", fontWeight: 900 }}>
+            ← Zurück zum Profil
+          </a>
+          <h1 style={{ margin: "10px 0 4px" }}>Termin buchen</h1>
+          <div style={{ color: "#666" }}>
+            Friseur: <b>{barber.name}</b>
+          </div>
+        </div>
+
+        <a
+          href="/my-bookings"
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #ddd",
+            background: "#fff",
+            color: "#111",
+            fontWeight: 900,
+            textDecoration: "none",
+          }}
+        >
+          Meine Termine
+        </a>
+      </div>
+
+      {message ? (
+        <div
+          style={{
+            marginTop: 12,
+            padding: 12,
+            border: "1px solid #b7ebc6",
+            background: "#f0fff4",
+            borderRadius: 12,
+            color: "#1f7a37",
+          }}
+        >
+          <b>{message}</b>
+        </div>
+      ) : null}
+
+      {error ? (
+        <div
+          style={{
+            marginTop: 12,
+            padding: 12,
+            border: "1px solid #f2c6c6",
+            background: "#fff5f5",
+            borderRadius: 12,
+            color: "#8a1c1c",
+          }}
+        >
+          <b>{error}</b>
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 16, alignItems: "start" }}>
+        {/* LEFT */}
+        <div style={{ display: "grid", gap: 16 }}>
+          {/* Kontakt */}
+          <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Kontakt</h2>
+
+            {isAuthedCustomer ? (
+              <>
+                <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    <div style={{ color: "#666", fontSize: 12 }}>
+                      Eingeloggt als: <b>{me?.email}</b>
+                    </div>
+                    <a
+                      href="/settings"
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: 10,
+                        border: "1px solid #ddd",
+                        background: "#fff",
+                        color: "#111",
+                        fontWeight: 900,
+                        textDecoration: "none",
+                        fontSize: 12,
+                      }}
+                    >
+                      Profil bearbeiten →
+                    </a>
+                  </div>
+
+                  <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
+                    <div>
+                      Name: <b>{customerName || "—"}</b>
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      Telefon: <b>{customerPhone || "—"}</b>
+                    </div>
+
+                    {!customerName || !customerPhone ? (
+                      <div style={{ marginTop: 10, color: "crimson", fontWeight: 900, fontSize: 12 }}>
+                        Bitte Profil vervollständigen (Name + Telefon), sonst kannst du nicht buchen.
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginTop: 10, color: "#666" }}>
+                  Buchung nur mit Kunden-Login möglich. Bitte einloggen oder registrieren.
+                </div>
+
+                <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <a
+                    href="/login"
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #111",
+                      background: "#111",
+                      color: "#fff",
+                      fontWeight: 900,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Login
+                  </a>
+                  <a
+                    href="/register"
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #ddd",
+                      background: "#fff",
+                      color: "#111",
+                      fontWeight: 900,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Registrieren
+                  </a>
+                </div>
+
+                {isLoggedIn && me?.role === "BARBER" ? (
+                  <div style={{ marginTop: 10, fontSize: 12, color: "crimson", fontWeight: 900 }}>
+                    Du bist als Friseur eingeloggt. Zum Buchen bitte als Kunde einloggen oder ausloggen.
+                  </div>
+                ) : null}
+              </>
+            )}
+          </section>
+
+          {/* Termin */}
+          <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Termin</h2>
+
+            <div style={{ marginTop: 10, display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+              <div>
+                <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Service</div>
+                <select
+                  value={selectedServiceKey}
+                  onChange={(e) => {
+                    setSelectedServiceKey(e.target.value);
+                    setMessage("");
+                    setError("");
+                  }}
+                  style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+                >
+                  <option value="">Bitte wählen</option>
+                  {services.map((s) => (
+                    <option key={s.key} value={s.key}>
+                      {s.name} – {s.durationMin} min
+                    </option>
+                  ))}
+                </select>
+
+                {selectedService ? (
+                  <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
+                    Dauer: <b>{selectedService.durationMin} min</b>
+                  </div>
+                ) : null}
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Datum</div>
+                <input
+                  type="date"
+                  min={today}
+                  value={selectedDate}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setMessage("");
+                    setError("");
+                  }}
+                  style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontWeight: 900 }}>Uhrzeit</div>
+                <div style={{ fontSize: 12, color: "#666" }}>
+                  {!canLoadTimes ? "Service + Datum wählen" : busyTimes ? "lädt…" : `${availableTimes.length} Slots`}
+                </div>
+              </div>
+
+              {!canLoadTimes ? (
+                <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>Bitte zuerst Service und Datum auswählen.</div>
+              ) : busyTimes ? (
+                <div style={{ marginTop: 8, color: "#666" }}>Verfügbare Zeiten werden geladen…</div>
+              ) : availableTimes.length === 0 ? (
+                <div style={{ marginTop: 8, color: "#666" }}>Keine freien Zeiten. Versuch ein anderes Datum/Service.</div>
+              ) : (
+                <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {availableTimes.map((min) => {
+                    const selected = selectedTimeMin === min;
+                    return (
+                      <button
+                        key={min}
+                        onClick={() => setSelectedTimeMin(min)}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          border: selected ? "1px solid #111" : "1px solid #ddd",
+                          background: selected ? "#111" : "#fff",
+                          color: selected ? "#fff" : "#111",
+                          fontWeight: 900,
+                          cursor: "pointer",
+                          fontSize: 13,
+                        }}
+                      >
+                        {minToHHMM(min)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Notiz (optional)</div>
+                <input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="z.B. Seiten kurz"
+                  style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+                />
+              </div>
+
+              <button
+                onClick={bookNow}
+                disabled={!canBook || busyBooking || (isLoggedIn && me?.role === "BARBER")}
+                style={{
+                  marginTop: 12,
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  border: "1px solid #111",
+                  background: "#111",
+                  color: "#fff",
+                  fontWeight: 900,
+                  cursor: busyBooking ? "not-allowed" : "pointer",
+                  opacity: !canBook || busyBooking || (isLoggedIn && me?.role === "BARBER") ? 0.7 : 1,
+                }}
+              >
+                {busyBooking ? "Buche..." : "Termin buchen"}
+              </button>
+            </div>
+          </section>
+        </div>
+
+        {/* RIGHT */}
+        <aside style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff", position: "sticky", top: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 16 }}>Zusammenfassung</h2>
+
+          <div style={{ marginTop: 12, display: "grid", gap: 10, fontSize: 13 }}>
+            <div>
+              <div style={{ color: "#666", fontSize: 12 }}>Friseur</div>
+              <div style={{ fontWeight: 900 }}>{barber.name}</div>
+            </div>
+
+            <div>
+              <div style={{ color: "#666", fontSize: 12 }}>Service</div>
+              <div style={{ fontWeight: 700 }}>
+                {selectedService ? `${selectedService.name} (${selectedService.durationMin} min)` : "—"}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ color: "#666", fontSize: 12 }}>Datum</div>
+              <div style={{ fontWeight: 700 }}>{selectedDate || "—"}</div>
+            </div>
+
+            <div>
+              <div style={{ color: "#666", fontSize: 12 }}>Uhrzeit</div>
+              <div style={{ fontWeight: 700 }}>{selectedTimeMin != null ? minToHHMM(selectedTimeMin) : "—"}</div>
+            </div>
+
+            <div style={{ borderTop: "1px solid #eee", paddingTop: 10 }}>
+              <div style={{ color: "#666", fontSize: 12 }}>Kontakt</div>
+              <div style={{ marginTop: 6 }}>
+                Name: <b>{isAuthedCustomer ? (customerName || "—") : "—"}</b>
+              </div>
+              <div>
+                Telefon: <b>{isAuthedCustomer ? (customerPhone || "—") : "—"}</b>
+              </div>
+            </div>
+
+            {note.trim() ? (
+              <div style={{ borderTop: "1px solid #eee", paddingTop: 10 }}>
+                <div style={{ color: "#666", fontSize: 12 }}>Notiz</div>
+                <div style={{ fontWeight: 700 }}>{note.trim()}</div>
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
+            Hinweis: Buchung nur mit Login möglich. Name/Telefon kommen aus deinem Profil.
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
