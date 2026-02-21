@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminNav from "../AdminNav";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://frisuer-app.onrender.com";
 
 type Role = "CUSTOMER" | "BARBER";
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://frisuer-app.onrender.com";
 
 type Service = { key: string; name: string; durationMin: number };
 

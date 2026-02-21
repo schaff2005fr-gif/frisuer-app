@@ -51,10 +51,25 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN || "http://localhost:3000";
 
 app.use(
   cors({
-    origin: [WEB_ORIGIN, "http://localhost:3000"],
+    origin: (origin, cb) => {
+      // erlauben: Server-to-Server / Postman / curl (kein Origin-Header)
+      if (!origin) return cb(null, true);
+
+      const allowed = new Set([
+        "http://localhost:3000",
+        WEB_ORIGIN, // z.B. deine Vercel-URL
+      ]);
+
+      // zusätzlich: alle Vercel-Preview-Deployments erlauben (optional, aber praktisch)
+      const isVercelPreview = /^https:\/\/.*\.vercel\.app$/.test(origin);
+
+      if (allowed.has(origin) || isVercelPreview) return cb(null, true);
+      return cb(new Error(`CORS blocked: ${origin}`), false);
+    },
     credentials: true,
   })
 );
+
 app.use(express.json());
 
 /* ------------------------- helpers ------------------------- */

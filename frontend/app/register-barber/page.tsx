@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://frisuer-app.onrender.com";
 
 export default function RegisterBarberPage() {
   const router = useRouter();

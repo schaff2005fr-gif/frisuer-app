@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://frisuer-app.onrender.com";
 
 type Me = {
   id: number;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://frisuer-app.onrender.com";
 const GET_MY_BOOKINGS_URL = `${API_BASE}/my-bookings`;
 const DELETE_BOOKING_URL = (id: number) => `${API_BASE}/bookings/${id}`;
 
