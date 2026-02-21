@@ -83,7 +83,7 @@ export default function AdminSettingsPage() {
   const [copied, setCopied] = useState<"" | "profile" | "book">("");
 
 function publicBaseUrl() {
-  if (typeof window === "undefined") return "http://localhost:3000";
+  if (typeof window === "undefined") return "https://frisuer-app.onrender.com";
   // nimmt automatisch die aktuelle Domain (später live super)
   return window.location.origin;
 }

@@ -1,4 +1,10 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const RAW =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://frisuer-app.onrender.com";
+
+// trailing slash entfernen
+const API_URL = RAW.replace(/\/+$/, "");
 
 export type MeResponse = {
   id: number;
