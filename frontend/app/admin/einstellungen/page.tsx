@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminNav from "../AdminNav";
 
+
 const API_BASE = "https://frisuer-app.onrender.com";
 
 type Role = "CUSTOMER" | "BARBER";
@@ -115,6 +116,14 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
     return localStorage.getItem("token") || "";
   }
 
+  function logout() {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  }
+  router.replace("/login");
+  router.refresh();
+}
   async function apiFetch(path: string, init?: RequestInit) {
     const token = getToken();
     if (!token) throw new Error("Kein Token. Bitte als BARBER einloggen.");
@@ -314,8 +323,23 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
         </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <AdminNav />
-        </div>
+  <AdminNav />
+  <button
+    type="button"
+    onClick={logout}
+    style={{
+      padding: "10px 12px",
+      borderRadius: 10,
+      border: "1px solid #ddd",
+      background: "#fff",
+      color: "#111",
+      fontWeight: 900,
+      cursor: "pointer",
+    }}
+  >
+    Ausloggen
+  </button>
+</div>
       </div>
 
       {message && (
