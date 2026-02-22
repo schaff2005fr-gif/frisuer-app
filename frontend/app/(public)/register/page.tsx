@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 const API_BASE = "https://frisuer-app.onrender.com";
@@ -8,19 +8,26 @@ const API_BASE = "https://frisuer-app.onrender.com";
 function safeNextPath(raw: string | null) {
   if (!raw) return "";
   const s = String(raw).trim();
+  if (!s) return "";
   if (!s.startsWith("/")) return "";
   if (s.startsWith("//")) return "";
   return s;
 }
 
 export default function RegisterCustomerPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 20, maxWidth: 520, margin: "0 auto", color: "#666" }}>Lade…</div>}>
+      <RegisterCustomerInner />
+    </Suspense>
+  );
+}
+
+function RegisterCustomerInner() {
   const sp = useSearchParams();
   const nextRaw = sp.get("next");
   const nextPath = useMemo(() => safeNextPath(nextRaw), [nextRaw]);
 
-  const loginHref = nextPath
-    ? `/login?next=${encodeURIComponent(nextPath)}`
-    : "/login";
+  const loginHref = nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login";
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -74,9 +81,7 @@ export default function RegisterCustomerPage() {
     <div style={{ padding: 20, maxWidth: 520, margin: "0 auto" }}>
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ margin: 0 }}>Konto erstellen</h1>
-        <div style={{ marginTop: 6, color: "#666" }}>
-          Erstelle dein Kundenkonto, um Termine zu buchen.
-        </div>
+        <div style={{ marginTop: 6, color: "#666" }}>Erstelle dein Kundenkonto, um Termine zu buchen.</div>
       </div>
 
       {nextPath ? (
@@ -91,8 +96,7 @@ export default function RegisterCustomerPage() {
             fontWeight: 900,
           }}
         >
-          Nach der Registrierung geht’s weiter zu:{" "}
-          <span style={{ opacity: 0.8 }}>{nextPath}</span>
+          Nach der Registrierung geht’s weiter zu: <span style={{ opacity: 0.8 }}>{nextPath}</span>
         </div>
       ) : null}
 
@@ -111,37 +115,22 @@ export default function RegisterCustomerPage() {
         </div>
       )}
 
-      <div
-        style={{
-          border: "1px solid #eee",
-          borderRadius: 14,
-          padding: 14,
-          background: "#fff",
-        }}
-      >
+      <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>
-              Name
-            </div>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>Name</div>
             <input
               placeholder="Max Mustermann"
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
               required
-              style={{
-                padding: 10,
-                border: "1px solid #ddd",
-                borderRadius: 10,
-              }}
+              style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
             />
           </div>
 
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>
-              E-Mail
-            </div>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>E-Mail</div>
             <input
               type="email"
               placeholder="max.mustermann@email.de"
@@ -149,35 +138,23 @@ export default function RegisterCustomerPage() {
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
               required
-              style={{
-                padding: 10,
-                border: "1px solid #ddd",
-                borderRadius: 10,
-              }}
+              style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
             />
           </div>
 
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>
-              Telefon (optional)
-            </div>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>Telefon (optional)</div>
             <input
               placeholder="0151 23456789"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               autoComplete="tel"
-              style={{
-                padding: 10,
-                border: "1px solid #ddd",
-                borderRadius: 10,
-              }}
+              style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
             />
           </div>
 
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>
-              Passwort
-            </div>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>Passwort</div>
             <input
               type="password"
               placeholder="Mindestens 8 Zeichen"
@@ -186,15 +163,9 @@ export default function RegisterCustomerPage() {
               minLength={8}
               required
               autoComplete="new-password"
-              style={{
-                padding: 10,
-                border: "1px solid #ddd",
-                borderRadius: 10,
-              }}
+              style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
             />
-            <div style={{ fontSize: 11, color: "#666" }}>
-              Mindestens 8 Zeichen.
-            </div>
+            <div style={{ fontSize: 11, color: "#666" }}>Mindestens 8 Zeichen.</div>
           </div>
 
           <button

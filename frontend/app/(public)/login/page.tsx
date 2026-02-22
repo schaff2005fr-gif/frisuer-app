@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type Role = "CUSTOMER" | "BARBER";
@@ -15,7 +15,6 @@ function normalizeBase(url: string) {
 }
 
 function safeNextPath(raw: string | null) {
-  // Sicherheits-Check: nur interne Pfade erlauben (kein http://...)
   if (!raw) return "";
   const s = String(raw).trim();
   if (!s) return "";
@@ -24,7 +23,16 @@ function safeNextPath(raw: string | null) {
   return s;
 }
 
+/** ✅ Page wrapper: keine useSearchParams hier! */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 20, maxWidth: 520, margin: "0 auto", color: "#666" }}>Lade…</div>}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const sp = useSearchParams();
   const nextRaw = sp.get("next");
   const nextPath = useMemo(() => safeNextPath(nextRaw), [nextRaw]);
@@ -72,12 +80,8 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(user));
 
       const role = (user.role as Role) || "CUSTOMER";
-
-      // ✅ Priorität 1: next
-      // ✅ sonst Standard: Barber -> /admin, Customer -> /
       const target = nextPath || (role === "BARBER" ? "/admin" : "/");
 
-      // ✅ zuverlässigster Redirect
       window.location.assign(target);
     } catch (err: any) {
       setError(err?.message || "Login fehlgeschlagen");
@@ -90,9 +94,7 @@ export default function LoginPage() {
     <div style={{ padding: 20, maxWidth: 520, margin: "0 auto" }}>
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ margin: 0 }}>Login</h1>
-        <div style={{ marginTop: 6, color: "#666" }}>
-          Bitte melde dich an, um einen Termin zu buchen.
-        </div>
+        <div style={{ marginTop: 6, color: "#666" }}>Bitte melde dich an, um einen Termin zu buchen.</div>
       </div>
 
       {nextPath ? (
@@ -136,12 +138,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
               placeholder="mail@example.com"
-              style={{
-                padding: 10,
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                outline: "none",
-              }}
+              style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, outline: "none" }}
             />
           </div>
 
@@ -153,12 +150,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               placeholder="••••••••"
-              style={{
-                padding: 10,
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                outline: "none",
-              }}
+              style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, outline: "none" }}
             />
           </div>
 
