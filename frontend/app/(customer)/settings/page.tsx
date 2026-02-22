@@ -27,6 +27,8 @@ export default function CustomerSettingsPage() {
   const [phone, setPhone] = useState("");
 
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -55,7 +57,6 @@ export default function CustomerSettingsPage() {
 
       const m = data as Me;
 
-      // Guard: nur CUSTOMER
       if (m.role !== "CUSTOMER") {
         router.replace("/");
         return;
@@ -79,10 +80,7 @@ export default function CustomerSettingsPage() {
 
     try {
       const token = getToken();
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
+      if (!token) return router.replace("/login");
 
       const res = await fetch(`${API_BASE}/me`, {
         method: "PATCH",
@@ -94,7 +92,6 @@ export default function CustomerSettingsPage() {
           name: name.trim(),
           phone: phone.trim(),
         }),
-        cache: "no-store",
       });
 
       const data = await res.json().catch(() => ({}));
@@ -108,7 +105,6 @@ export default function CustomerSettingsPage() {
       setMe(updatedMe);
       setMessage("✅ Profil gespeichert");
 
-      // ✅ localStorage user updaten, damit Guards/Redirects stimmen
       localStorage.setItem(
         "user",
         JSON.stringify({
@@ -128,28 +124,73 @@ export default function CustomerSettingsPage() {
     }
   }
 
+  async function deleteAccount() {
+    const confirmed = window.confirm(
+      "Willst du deinen Account wirklich komplett löschen?\n\nAlle Termine und Daten werden endgültig entfernt."
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const token = getToken();
+      if (!token) return router.replace("/login");
+
+      const res = await fetch(`${API_BASE}/me`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || "Account konnte nicht gelöscht werden.");
+        return;
+      }
+
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+
+      window.location.assign("/");
+    } catch (e) {
+      console.error(e);
+      setError("Fehler beim Löschen.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   useEffect(() => {
     loadMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) return <div style={{ padding: 20 }}>Lade…</div>;
 
   return (
     <div style={{ padding: 20, maxWidth: 720, margin: "0 auto" }}>
-      {/* Header (nur Titel/Info) */}
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ margin: 0 }}>Profil</h1>
-        <div style={{ marginTop: 6, color: "#666" }}>Name & Telefonnummer ändern</div>
+        <div style={{ marginTop: 6, color: "#666" }}>
+          Name & Telefonnummer ändern
+        </div>
       </div>
 
-      {message ? (
-        <div style={{ marginBottom: 12, padding: 12, border: "1px solid #b7ebc6", background: "#f0fff4", borderRadius: 12 }}>
+      {message && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            border: "1px solid #b7ebc6",
+            background: "#f0fff4",
+            borderRadius: 12,
+          }}
+        >
           <b>{message}</b>
         </div>
-      ) : null}
+      )}
 
-      {error ? (
+      {error && (
         <div
           style={{
             marginBottom: 12,
@@ -162,26 +203,49 @@ export default function CustomerSettingsPage() {
         >
           <b>{error}</b>
         </div>
-      ) : null}
+      )}
 
-      <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
+      <div
+        style={{
+          border: "1px solid #eee",
+          borderRadius: 14,
+          padding: 14,
+          background: "#fff",
+        }}
+      >
         <div style={{ display: "grid", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name</div>
+            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
+              Name
+            </div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              style={{ marginTop: 6, padding: 12, border: "1px solid #ddd", borderRadius: 12, width: "100%" }}
+              style={{
+                marginTop: 6,
+                padding: 12,
+                border: "1px solid #ddd",
+                borderRadius: 12,
+                width: "100%",
+              }}
               placeholder="z.B. Max Mustermann"
             />
           </div>
 
           <div>
-            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Telefon</div>
+            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
+              Telefon
+            </div>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              style={{ marginTop: 6, padding: 12, border: "1px solid #ddd", borderRadius: 12, width: "100%" }}
+              style={{
+                marginTop: 6,
+                padding: 12,
+                border: "1px solid #ddd",
+                borderRadius: 12,
+                width: "100%",
+              }}
               placeholder="z.B. 0176..."
             />
           </div>
@@ -205,6 +269,44 @@ export default function CustomerSettingsPage() {
 
           <div style={{ color: "#666", fontSize: 12 }}>
             Eingeloggt als: <b>{me?.email}</b>
+          </div>
+
+          {/* Danger Zone */}
+          <div
+            style={{
+              marginTop: 20,
+              borderTop: "1px solid #eee",
+              paddingTop: 16,
+            }}
+          >
+            <div style={{ fontWeight: 900, color: "#8a1c1c" }}>
+              Gefährliche Aktion
+            </div>
+            <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>
+              Dein Account wird endgültig gelöscht. Alle Termine und Daten gehen
+              verloren.
+            </div>
+
+            <button
+              onClick={deleteAccount}
+              disabled={deleting}
+              style={{
+                marginTop: 10,
+                width: "100%",
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid #8a1c1c",
+                background: "#fff5f5",
+                color: "#8a1c1c",
+                fontWeight: 900,
+                cursor: deleting ? "not-allowed" : "pointer",
+                opacity: deleting ? 0.7 : 1,
+              }}
+            >
+              {deleting
+                ? "Lösche Account..."
+                : "Account endgültig löschen"}
+            </button>
           </div>
         </div>
       </div>
