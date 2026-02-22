@@ -103,12 +103,12 @@ export default function CustomerSettingsPage() {
         return;
       }
 
-      const updatedMe: Me = data?.me ?? data;
+      const updatedMe: Me = (data?.me ?? data) as Me;
 
       setMe(updatedMe);
       setMessage("✅ Profil gespeichert");
 
-      // ✅ WICHTIG: localStorage user updaten, damit Guards/Redirects stimmen
+      // ✅ localStorage user updaten, damit Guards/Redirects stimmen
       localStorage.setItem(
         "user",
         JSON.stringify({
@@ -137,47 +137,14 @@ export default function CustomerSettingsPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Profil</h1>
-          <div style={{ marginTop: 6, color: "#666" }}>Name & Telefonnummer ändern</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <a
-            href="/"
-            style={{
-              textDecoration: "none",
-              border: "1px solid #eee",
-              padding: "10px 12px",
-              borderRadius: 12,
-              color: "#111",
-              fontWeight: 900,
-              background: "#fff",
-            }}
-          >
-            Startseite
-          </a>
-
-          <a
-            href="/my-bookings"
-            style={{
-              textDecoration: "none",
-              border: "1px solid #eee",
-              padding: "10px 12px",
-              borderRadius: 12,
-              color: "#111",
-              fontWeight: 900,
-              background: "#fff",
-            }}
-          >
-            Meine Termine
-          </a>
-        </div>
+      {/* Header (nur Titel/Info) */}
+      <div style={{ marginBottom: 14 }}>
+        <h1 style={{ margin: 0 }}>Profil</h1>
+        <div style={{ marginTop: 6, color: "#666" }}>Name & Telefonnummer ändern</div>
       </div>
 
       {message ? (
-        <div style={{ marginTop: 12, padding: 12, border: "1px solid #b7ebc6", background: "#f0fff4", borderRadius: 12 }}>
+        <div style={{ marginBottom: 12, padding: 12, border: "1px solid #b7ebc6", background: "#f0fff4", borderRadius: 12 }}>
           <b>{message}</b>
         </div>
       ) : null}
@@ -185,7 +152,7 @@ export default function CustomerSettingsPage() {
       {error ? (
         <div
           style={{
-            marginTop: 12,
+            marginBottom: 12,
             padding: 12,
             border: "1px solid #f2c6c6",
             background: "#fff5f5",
@@ -197,7 +164,7 @@ export default function CustomerSettingsPage() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
+      <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
         <div style={{ display: "grid", gap: 12 }}>
           <div>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name</div>
@@ -217,7 +184,6 @@ export default function CustomerSettingsPage() {
               style={{ marginTop: 6, padding: 12, border: "1px solid #ddd", borderRadius: 12, width: "100%" }}
               placeholder="z.B. 0176..."
             />
-            <div style={{ marginTop: 6, color: "#666", fontSize: 12 }} />
           </div>
 
           <button
