@@ -69,6 +69,9 @@ app.use(
     credentials: true,
   })
 );
+app.get("/health", (req, res) => {
+  res.status(200).json({ ok: true, ts: new Date().toISOString() });
+});
 
 app.use(express.json());
 
