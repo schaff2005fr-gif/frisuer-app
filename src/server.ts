@@ -34,7 +34,7 @@ type Role = "CUSTOMER" | "BARBER";
 type JwtPayload = { userId: number; role: Role };
 
 type WorkingHoursRow = { day: number; isOpen: boolean; startMin: number; endMin: number };
-type AppSettings = {
+type AppSettings = {    
   stepMin: number;
   workingHours: WorkingHoursRow[];
   extendIfFirstHourFull: boolean;
@@ -572,10 +572,6 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
 
   return { isOpen: true, windowStartMin, windowEndMin, times };
 }
-
-/* ------------------------- routes ------------------------- */
-
-app.get("/health", (_req, res) => res.json({ ok: true }));
 
 /* ---------- PUBLIC: Barbers ---------- */
 
