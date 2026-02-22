@@ -155,43 +155,11 @@ export default function MyBookingsPage() {
       >
         <div>
           <h1 style={{ margin: 0 }}>Meine Termine</h1>
-          <div style={{ color: "#666", marginTop: 4 }}>
-            Übersicht über deine Buchungen. Du kannst Termine auch stornieren.
-          </div>
+          <div style={{ color: "#666", marginTop: 4 }}>Übersicht über deine Buchungen. Du kannst Termine auch stornieren.</div>
         </div>
 
-        {/* ✅ Nur Funktion – keine Navigation */}
+        {/* ✅ Nur Seiten-Funktion – keine Navigation */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div
-            style={{
-              textDecoration: "none",
-              border: "1px solid #eee",
-              padding: "10px 12px",
-              borderRadius: 12,
-              color: "#111",
-              fontWeight: 900,
-              background: "#fff",
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-            }}
-          >
-            Nachrichten
-            {unreadCount > 0 ? (
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 900,
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  border: "1px solid #111",
-                }}
-              >
-                {unreadCount}
-              </span>
-            ) : null}
-          </div>
-
           <button
             onClick={loadBookings}
             disabled={loading}
@@ -246,15 +214,7 @@ export default function MyBookingsPage() {
       {loading ? (
         <div style={{ color: "#666" }}>Lade Termine…</div>
       ) : bookings.length === 0 ? (
-        <div
-          style={{
-            border: "1px solid #eee",
-            borderRadius: 14,
-            padding: 14,
-            background: "#fff",
-            color: "#666",
-          }}
-        >
+        <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff", color: "#666" }}>
           <div style={{ fontWeight: 900 }}>Keine Termine gefunden</div>
           <div style={{ marginTop: 6 }}>Gehe zur Startseite und buche einen Termin.</div>
           <div style={{ marginTop: 12 }}>
@@ -279,9 +239,7 @@ export default function MyBookingsPage() {
         <div style={{ display: "grid", gap: 14 }}>
           {/* Upcoming */}
           <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>
-              Aktive Termine ({upcoming.length})
-            </div>
+            <div style={{ fontWeight: 900, marginBottom: 10 }}>Aktive Termine ({upcoming.length})</div>
 
             {upcoming.length === 0 ? (
               <div style={{ color: "#666" }}>Keine aktiven Termine.</div>
@@ -380,9 +338,7 @@ export default function MyBookingsPage() {
           {/* Cancelled */}
           {cancelled.length > 0 ? (
             <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
-              <div style={{ fontWeight: 900, marginBottom: 10 }}>
-                Stornierte Termine ({cancelled.length})
-              </div>
+              <div style={{ fontWeight: 900, marginBottom: 10 }}>Stornierte Termine ({cancelled.length})</div>
 
               <div style={{ display: "grid", gap: 10 }}>
                 {cancelled.map((b: any) => {

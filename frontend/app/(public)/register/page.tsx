@@ -1,24 +1,46 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 const API_BASE = "https://frisuer-app.onrender.com";
 
-export default function RegisterCustomerPage() {
-  const router = useRouter();
+function safeNextPath(raw: string | null) {
+  if (!raw) return "";
+  const s = String(raw).trim();
+  if (!s.startsWith("/")) return "";
+  if (s.startsWith("//")) return "";
+  return s;
+}
 
-  const [name, setName] = useState("Max Mustermann");
-  const [email, setEmail] = useState("kunde@test.de");
-  const [phone, setPhone] = useState("015123456789");
-  const [password, setPassword] = useState("123456");
+export default function RegisterCustomerPage() {
+  const sp = useSearchParams();
+  const nextRaw = sp.get("next");
+  const nextPath = useMemo(() => safeNextPath(nextRaw), [nextRaw]);
+
+  const loginHref = nextPath
+    ? `/login?next=${encodeURIComponent(nextPath)}`
+    : "/login";
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+
     setError(null);
+
+    if (password.length < 8) {
+      setError("Passwort muss mindestens 8 Zeichen lang sein.");
+      return;
+    }
+
     setBusy(true);
 
     try {
@@ -26,23 +48,21 @@ export default function RegisterCustomerPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          email,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
           password,
-          phone: phone?.trim() ? phone.trim() : null,
+          phone: phone.trim() ? phone.trim() : null,
         }),
       });
 
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "Registrierung fehlgeschlagen");
 
-      // token speichern
       localStorage.setItem("token", data.token);
-
-      // user in localStorage speichern (entweder data.user, oder /me laden)
       if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
 
-      router.replace("/"); // Kunde -> Startseite
+      const target = nextPath || "/";
+      window.location.assign(target);
     } catch (err: any) {
       setError(err?.message ?? "Registrierung fehlgeschlagen");
     } finally {
@@ -51,67 +71,158 @@ export default function RegisterCustomerPage() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>Kunde registrieren</h1>
+    <div style={{ padding: 20, maxWidth: 520, margin: "0 auto" }}>
+      <div style={{ marginBottom: 14 }}>
+        <h1 style={{ margin: 0 }}>Konto erstellen</h1>
+        <div style={{ marginTop: 6, color: "#666" }}>
+          Erstelle dein Kundenkonto, um Termine zu buchen.
+        </div>
+      </div>
 
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, marginTop: 16 }}>
-        <input
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{ padding: 12, border: "1px solid #ddd", borderRadius: 10 }}
-        />
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: 12, border: "1px solid #ddd", borderRadius: 10 }}
-        />
-        <input
-          placeholder="Telefon "
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          style={{ padding: 12, border: "1px solid #ddd", borderRadius: 10 }}
-        />
-        <input
-          placeholder="Passwort (min. 6 Zeichen)"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ padding: 12, border: "1px solid #ddd", borderRadius: 10 }}
-        />
-
-        {error && <div style={{ color: "crimson" }}>{error}</div>}
-
-        <button
-          disabled={busy}
+      {nextPath ? (
+        <div
           style={{
+            marginBottom: 12,
             padding: 12,
-            borderRadius: 10,
-            border: "1px solid #111",
-            background: busy ? "#eee" : "#111",
-            color: busy ? "#111" : "#fff",
-            cursor: busy ? "not-allowed" : "pointer",
-            fontWeight: 800,
-          }}
-        >
-          {busy ? "..." : "Registrieren"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => router.push("/login")}
-          style={{
-            padding: 12,
-            borderRadius: 10,
-            border: "1px solid #ddd",
+            border: "1px solid #eee",
             background: "#fff",
-            cursor: "pointer",
+            borderRadius: 12,
+            fontSize: 12,
+            fontWeight: 900,
           }}
         >
-          Schon einen Account? → Login
-        </button>
-      </form>
+          Nach der Registrierung geht’s weiter zu:{" "}
+          <span style={{ opacity: 0.8 }}>{nextPath}</span>
+        </div>
+      ) : null}
+
+      {error && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            border: "1px solid #f2c6c6",
+            background: "#fff5f5",
+            borderRadius: 12,
+            color: "#8a1c1c",
+          }}
+        >
+          <b>{error}</b>
+        </div>
+      )}
+
+      <div
+        style={{
+          border: "1px solid #eee",
+          borderRadius: 14,
+          padding: 14,
+          background: "#fff",
+        }}
+      >
+        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>
+              Name
+            </div>
+            <input
+              placeholder="Max Mustermann"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              required
+              style={{
+                padding: 10,
+                border: "1px solid #ddd",
+                borderRadius: 10,
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>
+              E-Mail
+            </div>
+            <input
+              type="email"
+              placeholder="max.mustermann@email.de"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+              style={{
+                padding: 10,
+                border: "1px solid #ddd",
+                borderRadius: 10,
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>
+              Telefon (optional)
+            </div>
+            <input
+              placeholder="0151 23456789"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              autoComplete="tel"
+              style={{
+                padding: 10,
+                border: "1px solid #ddd",
+                borderRadius: 10,
+              }}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#666" }}>
+              Passwort
+            </div>
+            <input
+              type="password"
+              placeholder="Mindestens 8 Zeichen"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              required
+              autoComplete="new-password"
+              style={{
+                padding: 10,
+                border: "1px solid #ddd",
+                borderRadius: 10,
+              }}
+            />
+            <div style={{ fontSize: 11, color: "#666" }}>
+              Mindestens 8 Zeichen.
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={busy}
+            style={{
+              marginTop: 4,
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid #111",
+              background: "#111",
+              color: "#fff",
+              fontWeight: 900,
+              cursor: busy ? "not-allowed" : "pointer",
+              opacity: busy ? 0.75 : 1,
+            }}
+          >
+            {busy ? "Registriere..." : "Registrieren"}
+          </button>
+
+          <div style={{ fontSize: 12, color: "#666" }}>
+            Schon ein Konto?{" "}
+            <a href={loginHref} style={{ fontWeight: 900, color: "#111" }}>
+              Zum Login
+            </a>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

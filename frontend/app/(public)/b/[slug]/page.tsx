@@ -56,7 +56,10 @@ export default function PublicBarberProfilePage() {
 
   const address = useMemo(() => {
     if (!barber) return "";
-    const parts = [barber.street, [barber.postalCode, barber.city].filter(Boolean).join(" ")].filter(Boolean);
+    const parts = [
+      barber.street,
+      [barber.postalCode, barber.city].filter(Boolean).join(" "),
+    ].filter(Boolean);
     return parts.join(", ");
   }, [barber]);
 
@@ -84,55 +87,119 @@ export default function PublicBarberProfilePage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+      {/* HEADER */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          alignItems: "end",
+          marginBottom: 16,
+        }}
+      >
         <div>
-          <a href="/book" style={{ textDecoration: "none", color: "#111", fontWeight: 900 }}>
+          <a
+            href="/book"
+            style={{ textDecoration: "none", color: "#111", fontWeight: 900 }}
+          >
             ← Friseur wechseln
           </a>
           <h1 style={{ margin: "10px 0 4px" }}>{barber.name}</h1>
-          <div style={{ color: "#666" }}>Profil · Services · Online Buchung</div>
+          <div style={{ color: "#666" }}>
+            Profil · Services · Online Buchung
+          </div>
         </div>
 
-        <a
-          href={`/b/${barber.slug}/book`}
-          style={{
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid #111",
-            background: "#111",
-            color: "#fff",
-            fontWeight: 900,
-            textDecoration: "none",
-          }}
-        >
-          Termin buchen
-        </a>
+        <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+          <a
+            href={`/b/${barber.slug}/book`}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid #111",
+              background: "#111",
+              color: "#fff",
+              fontWeight: 900,
+              textDecoration: "none",
+            }}
+          >
+            Termin buchen
+          </a>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              fontSize: 12,
+              fontWeight: 900,
+            }}
+          >
+            <a
+              href="/login"
+              style={{ color: "#111", textDecoration: "none" }}
+            >
+              Login
+            </a>
+            <a
+              href="/register"
+              style={{
+                color: "#111",
+                textDecoration: "none",
+                opacity: 0.8,
+              }}
+            >
+              Registrieren
+            </a>
+          </div>
+        </div>
       </div>
 
-      {/* Layout */}
-      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 16, alignItems: "start" }}>
-        {/* LEFT: Bio + Services */}
+      {/* CONTENT */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.1fr 0.9fr",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
+        {/* LEFT */}
         <div style={{ display: "grid", gap: 16 }}>
-          {/* Bio */}
-          <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
-            <div style={{ fontWeight: 900, marginBottom: 8 }}>Über mich</div>
-            <div style={{ color: "#222", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+          <section
+            style={{
+              border: "1px solid #eee",
+              borderRadius: 14,
+              padding: 14,
+              background: "#fff",
+            }}
+          >
+            <div style={{ fontWeight: 900, marginBottom: 8 }}>
+              Über mich
+            </div>
+            <div style={{ lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
               {barber.bio?.trim()
                 ? barber.bio
-                : "Hier kann der Friseur eine kurze Bio schreiben (Erfahrung, Spezialisierung, Stil, etc.)."}
+                : "Hier kann der Friseur eine kurze Bio schreiben."}
             </div>
           </section>
 
-          {/* Services */}
-          <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ fontWeight: 900 }}>Services</div>
-              <div style={{ fontSize: 12, color: "#666" }}>{services.length} verfügbar</div>
+          <section
+            style={{
+              border: "1px solid #eee",
+              borderRadius: 14,
+              padding: 14,
+              background: "#fff",
+            }}
+          >
+            <div style={{ fontWeight: 900 }}>
+              Services ({services.length})
             </div>
 
             {services.length === 0 ? (
-              <div style={{ marginTop: 10, color: "#666" }}>Keine Services verfügbar.</div>
+              <div style={{ marginTop: 10, color: "#666" }}>
+                Keine Services verfügbar.
+              </div>
             ) : (
               <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                 {services.map((s) => (
@@ -151,11 +218,15 @@ export default function PublicBarberProfilePage() {
                   >
                     <div>
                       <div style={{ fontWeight: 900 }}>{s.name}</div>
-                      <div style={{ color: "#666", fontSize: 12 }}>{s.durationMin} min</div>
+                      <div style={{ fontSize: 12, color: "#666" }}>
+                        {s.durationMin} min
+                      </div>
                     </div>
 
                     <a
-                      href={`/b/${barber.slug}/book?serviceKey=${encodeURIComponent(s.key)}`}
+                      href={`/b/${barber.slug}/book?serviceKey=${encodeURIComponent(
+                        s.key
+                      )}`}
                       style={{
                         padding: "8px 10px",
                         borderRadius: 10,
@@ -176,113 +247,79 @@ export default function PublicBarberProfilePage() {
           </section>
         </div>
 
-        {/* RIGHT: Kontakt/Adresse */}
-        <aside style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff", position: "sticky", top: 16 }}>
-          <div style={{ fontWeight: 900, marginBottom: 10 }}>Kontakt</div>
+        {/* RIGHT SIDEBAR */}
+        <aside
+          style={{
+            border: "1px solid #eee",
+            borderRadius: 14,
+            padding: 14,
+            background: "#fff",
+            position: "sticky",
+            top: 16,
+          }}
+        >
+          <div style={{ fontWeight: 900, marginBottom: 10 }}>
+            Kontakt
+          </div>
 
-          <div style={{ display: "grid", gap: 10, fontSize: 13 }}>
-            <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
-              <div style={{ color: "#666", fontSize: 12 }}>Adresse</div>
-              <div style={{ marginTop: 6, fontWeight: 900 }}>{address || "—"}</div>
-              {!address ? <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>Noch nicht hinterlegt.</div> : null}
-            </div>
-
-            <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
-              <div style={{ color: "#666", fontSize: 12 }}>Telefon</div>
-              <div style={{ marginTop: 6, fontWeight: 900 }}>{barber.phone?.trim() || "—"}</div>
-              {barber.phone?.trim() ? (
-                <a
-                  href={`tel:${barber.phone}`}
-                  style={{
-                    display: "inline-block",
-                    marginTop: 10,
-                    padding: "8px 10px",
-                    borderRadius: 10,
-                    border: "1px solid #ddd",
-                    background: "#fff",
-                    color: "#111",
-                    fontWeight: 900,
-                    textDecoration: "none",
-                    fontSize: 12,
-                  }}
-                >
-                  Anrufen →
-                </a>
-              ) : (
-                <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>Noch nicht hinterlegt.</div>
-              )}
-            </div>
-
-            {/* Social */}
-            <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
-              <div style={{ color: "#666", fontSize: 12 }}>Online</div>
-
-              <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                {instaUrl ? (
-                  <a
-                    href={instaUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                      background: "#fff",
-                      color: "#111",
-                      fontWeight: 900,
-                      textDecoration: "none",
-                      fontSize: 12,
-                    }}
-                  >
-                    Instagram →
-                  </a>
-                ) : (
-                  <div style={{ color: "#666", fontSize: 12 }}>Instagram nicht hinterlegt.</div>
-                )}
-
-                {websiteUrl ? (
-                  <a
-                    href={websiteUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                      background: "#fff",
-                      color: "#111",
-                      fontWeight: 900,
-                      textDecoration: "none",
-                      fontSize: 12,
-                    }}
-                  >
-                    Website →
-                  </a>
-                ) : (
-                  <div style={{ color: "#666", fontSize: 12 }}>Website nicht hinterlegt.</div>
-                )}
+          <div style={{ display: "grid", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#666" }}>
+                Adresse
+              </div>
+              <div style={{ fontWeight: 900 }}>
+                {address || "—"}
               </div>
             </div>
 
-            <a
-              href={`/b/${barber.slug}/book`}
-              style={{
-                padding: "12px 12px",
-                borderRadius: 12,
-                border: "1px solid #111",
-                background: "#111",
-                color: "#fff",
-                fontWeight: 900,
-                textDecoration: "none",
-                textAlign: "center",
-              }}
-            >
-              Termin buchen
-            </a>
+            {barber.phone && (
+              <a
+                href={`tel:${barber.phone}`}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  border: "1px solid #ddd",
+                  textDecoration: "none",
+                  fontWeight: 900,
+                }}
+              >
+                Anrufen →
+              </a>
+            )}
 
-            <div style={{ color: "#666", fontSize: 12 }}>
-              Hinweis: Buchung ist nur mit Login möglich.
-            </div>
+            {instaUrl && (
+              <a
+                href={instaUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  border: "1px solid #ddd",
+                  textDecoration: "none",
+                  fontWeight: 900,
+                }}
+              >
+                Instagram →
+              </a>
+            )}
+
+            {websiteUrl && (
+              <a
+                href={websiteUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  border: "1px solid #ddd",
+                  textDecoration: "none",
+                  fontWeight: 900,
+                }}
+              >
+                Website →
+              </a>
+            )}
           </div>
         </aside>
       </div>

@@ -26,9 +26,7 @@ export default function HomePage() {
 
   const [me, setMe] = useState<Me | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
-  const [unreadCount, setUnreadCount] = useState<number>(0);
 
-  // UI state
   const [q, setQ] = useState("");
 
   async function loadMe() {
@@ -37,7 +35,6 @@ export default function HomePage() {
       const token = getTokenSafe();
       if (!token) {
         setMe(null);
-        setUnreadCount(0);
         return;
       }
 
@@ -48,40 +45,15 @@ export default function HomePage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMe(null);
-        setUnreadCount(0);
         return;
       }
 
       setMe(data as Me);
     } catch {
       setMe(null);
-      setUnreadCount(0);
     } finally {
       setLoadingMe(false);
     }
-  }
-
-  async function loadUnreadCount() {
-    try {
-      const token = getTokenSafe();
-      if (!token) return setUnreadCount(0);
-
-      const res = await fetch(`${API_BASE}/notifications/unread-count`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) setUnreadCount(Number(data?.count ?? 0));
-    } catch {
-      // ignore
-    }
-  }
-
-  function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setMe(null);
-    setUnreadCount(0);
-    // ✅ keine Navigation/Redirect mehr
   }
 
   useEffect(() => {
@@ -96,12 +68,6 @@ export default function HomePage() {
 
     loadMe();
   }, []);
-
-  useEffect(() => {
-    if (me?.role === "CUSTOMER") loadUnreadCount();
-    else setUnreadCount(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me]);
 
   const isCustomer = me?.role === "CUSTOMER";
   const displayName = (me?.customer?.name ?? "").trim() || me?.email || "";
@@ -119,7 +85,7 @@ export default function HomePage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 1040, margin: "0 auto" }}>
-      {/* Topbar */}
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -137,72 +103,23 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ✅ Navigation-Links entfernt, aber Status/Info + Logout bleibt */}
+        {/* Nur Statusanzeige – keine Navigation mehr */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {loadingMe ? (
             <div style={{ color: "#666", fontWeight: 800 }}>lädt…</div>
           ) : me ? (
-            <>
-              <div
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  background: "#fff",
-                  fontWeight: 900,
-                }}
-              >
-                {isCustomer ? "👤 " : "🔧 "}
-                {displayName}
-              </div>
-
-              {isCustomer ? (
-                <div
-                  style={{
-                    border: "1px solid #eee",
-                    borderRadius: 12,
-                    padding: "10px 12px",
-                    background: "#fff",
-                    fontWeight: 900,
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "center",
-                    color: "#111",
-                  }}
-                  title="Ungelesene Nachrichten"
-                >
-                  Nachrichten
-                  {unreadCount > 0 ? (
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 900,
-                        padding: "2px 8px",
-                        borderRadius: 999,
-                        border: "1px solid #111",
-                      }}
-                    >
-                      {unreadCount}
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <button
-                onClick={logout}
-                style={{
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "#111",
-                  color: "#fff",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                }}
-              >
-                Logout
-              </button>
-            </>
+            <div
+              style={{
+                border: "1px solid #eee",
+                borderRadius: 12,
+                padding: "10px 12px",
+                background: "#fff",
+                fontWeight: 900,
+              }}
+            >
+              {isCustomer ? "👤 " : "🔧 "}
+              {displayName}
+            </div>
           ) : (
             <div
               style={{
@@ -220,7 +137,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Search card */}
+      {/* Search */}
       <div
         style={{
           border: "1px solid #eee",
@@ -257,7 +174,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Loading/Error */}
       {loading ? <div style={{ marginTop: 12, color: "#666" }}>Lade…</div> : null}
       {error ? (
         <div
@@ -274,7 +190,7 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {/* Cards grid */}
+      {/* Cards */}
       <div style={{ marginTop: 16, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
         {!loading && filtered.length === 0 ? (
           <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff", color: "#666" }}>
@@ -294,7 +210,7 @@ export default function HomePage() {
               gap: 10,
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
               <div>
                 <div style={{ fontWeight: 1000, fontSize: 16 }}>{b.name}</div>
                 <div style={{ color: "#666", fontSize: 12 }}>/b/{b.slug}</div>
@@ -307,48 +223,46 @@ export default function HomePage() {
                   padding: "2px 8px",
                   borderRadius: 999,
                   border: "1px solid #ddd",
-                  color: "#333",
                 }}
               >
                 Profil
               </span>
             </div>
 
-            {/* ✅ Buttons bleiben sichtbar, aber ohne Navigation */}
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <div
+              <a
+                href={`/b/${b.slug}`}
                 style={{
                   flex: "1 1 120px",
                   textAlign: "center",
+                  textDecoration: "none",
                   border: "1px solid #ddd",
                   padding: "10px 12px",
                   borderRadius: 12,
                   color: "#111",
                   fontWeight: 900,
                   background: "#fff",
-                  opacity: 0.6,
                 }}
-                title={`/b/${b.slug}`}
               >
                 Profil ansehen
-              </div>
+              </a>
 
-              <div
+              <a
+                href={`/b/${b.slug}/book`}
                 style={{
                   flex: "1 1 120px",
                   textAlign: "center",
+                  textDecoration: "none",
                   border: "1px solid #111",
                   padding: "10px 12px",
                   borderRadius: 12,
                   color: "#fff",
                   fontWeight: 900,
                   background: "#111",
-                  opacity: 0.6,
                 }}
-                title={`/b/${b.slug}/book`}
               >
                 Buchen →
-              </div>
+              </a>
             </div>
           </div>
         ))}

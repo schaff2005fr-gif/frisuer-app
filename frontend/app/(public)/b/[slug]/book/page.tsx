@@ -31,6 +31,12 @@ function getTokenSafe() {
   return window.localStorage.getItem("token") || "";
 }
 
+function buildNextUrl(slug: string, serviceKey?: string) {
+  const base = `/b/${encodeURIComponent(slug)}/book`;
+  if (serviceKey) return `${base}?serviceKey=${encodeURIComponent(serviceKey)}`;
+  return base;
+}
+
 export default function BarberBookPage() {
   const params = useParams<{ slug: string }>();
   const slug = String(params?.slug ?? "");
@@ -75,6 +81,10 @@ export default function BarberBookPage() {
 
   const customerName = (me?.customer?.name ?? "").trim();
   const customerPhone = (me?.customer?.phone ?? "").trim();
+
+  const nextUrl = useMemo(() => buildNextUrl(slug, selectedServiceKey || presetServiceKey), [slug, selectedServiceKey, presetServiceKey]);
+  const loginHref = `/login?next=${encodeURIComponent(nextUrl)}`;
+  const registerHref = `/register?next=${encodeURIComponent(nextUrl)}`;
 
   // load barber + services
   useEffect(() => {
@@ -162,6 +172,11 @@ export default function BarberBookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedServiceKey, selectedDate]);
 
+  function redirectToLogin() {
+    if (typeof window === "undefined") return;
+    window.location.href = loginHref;
+  }
+
   async function bookNow() {
     setBusyBooking(true);
     setError("");
@@ -169,7 +184,9 @@ export default function BarberBookPage() {
 
     try {
       if (!isAuthedCustomer) {
-        throw new Error("Buchung nur mit Kunden-Login möglich. Bitte einloggen oder registrieren.");
+        // ✅ Auto-Redirect mit Return-URL
+        redirectToLogin();
+        return;
       }
 
       const t = getTokenSafe();
@@ -212,12 +229,12 @@ export default function BarberBookPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
+      {/* HEADER (public) */}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
         <div>
-          {/* ✅ Link entfernt (keine Navigation), nur Anzeige */}
-          <div style={{ color: "#111", fontWeight: 900, opacity: 0.7 }} title={`/b/${barber.slug}`}>
+          <a href={`/b/${barber.slug}`} style={{ textDecoration: "none", color: "#111", fontWeight: 900 }}>
             ← Zurück zum Profil
-          </div>
+          </a>
 
           <h1 style={{ margin: "10px 0 4px" }}>Termin buchen</h1>
           <div style={{ color: "#666" }}>
@@ -225,20 +242,58 @@ export default function BarberBookPage() {
           </div>
         </div>
 
-        {/* ✅ Link entfernt (keine Navigation), nur Anzeige */}
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "1px solid #ddd",
-            background: "#fff",
-            color: "#111",
-            fontWeight: 900,
-            opacity: 0.7,
-          }}
-          title="/my-bookings"
-        >
-          Meine Termine
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {!isLoggedIn ? (
+            <>
+              <a
+                href={loginHref}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #111",
+                  background: "#111",
+                  color: "#fff",
+                  fontWeight: 900,
+                  textDecoration: "none",
+                }}
+              >
+                Login
+              </a>
+              <a
+                href={registerHref}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  color: "#111",
+                  fontWeight: 900,
+                  textDecoration: "none",
+                }}
+              >
+                Registrieren
+              </a>
+            </>
+          ) : isCustomer ? (
+            <a
+              href="/my-bookings"
+              style={{
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid #ddd",
+                background: "#fff",
+                color: "#111",
+                fontWeight: 900,
+                textDecoration: "none",
+              }}
+            >
+              Meine Termine
+            </a>
+          ) : (
+            <div style={{ fontSize: 12, color: "crimson", fontWeight: 900 }}>
+              Als Friseur eingeloggt – zum Buchen bitte als Kunde einloggen.
+            </div>
+          )}
         </div>
       </div>
 
@@ -280,84 +335,64 @@ export default function BarberBookPage() {
             <h2 style={{ margin: 0, fontSize: 16 }}>Kontakt</h2>
 
             {isAuthedCustomer ? (
-              <>
-                <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    <div style={{ color: "#666", fontSize: 12 }}>
-                      Eingeloggt als: <b>{me?.email}</b>
-                    </div>
-
-                    {/* ✅ Link entfernt (keine Navigation), nur Anzeige */}
-                    <div
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 10,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        color: "#111",
-                        fontWeight: 900,
-                        fontSize: 12,
-                        opacity: 0.7,
-                      }}
-                      title="/settings"
-                    >
-                      Profil bearbeiten →
-                    </div>
-                  </div>
-
-                  <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
-                    <div>
-                      Name: <b>{customerName || "—"}</b>
-                    </div>
-                    <div style={{ marginTop: 4 }}>
-                      Telefon: <b>{customerPhone || "—"}</b>
-                    </div>
-
-                    {!customerName || !customerPhone ? (
-                      <div style={{ marginTop: 10, color: "crimson", fontWeight: 900, fontSize: 12 }}>
-                        Bitte Profil vervollständigen (Name + Telefon), sonst kannst du nicht buchen.
-                      </div>
-                    ) : null}
-                  </div>
+              <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                <div style={{ color: "#666", fontSize: 12 }}>
+                  Eingeloggt als: <b>{me?.email}</b>
                 </div>
-              </>
+
+                <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
+                  <div>
+                    Name: <b>{customerName || "—"}</b>
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    Telefon: <b>{customerPhone || "—"}</b>
+                  </div>
+
+                  {!customerName || !customerPhone ? (
+                    <div style={{ marginTop: 10, color: "crimson", fontWeight: 900, fontSize: 12 }}>
+                      Bitte Profil vervollständigen (Name + Telefon), sonst kannst du nicht buchen.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ) : (
               <>
                 <div style={{ marginTop: 10, color: "#666" }}>
                   Buchung nur mit Kunden-Login möglich. Bitte einloggen oder registrieren.
                 </div>
 
-                {/* ✅ Login/Register Buttons entfernt (keine Navigation), nur Anzeige */}
-                <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <div
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 10,
-                      border: "1px solid #111",
-                      background: "#111",
-                      color: "#fff",
-                      fontWeight: 900,
-                      opacity: 0.6,
-                    }}
-                    title="/login"
-                  >
-                    Login
+                {!isLoggedIn ? (
+                  <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <a
+                      href={loginHref}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 10,
+                        border: "1px solid #111",
+                        background: "#111",
+                        color: "#fff",
+                        fontWeight: 900,
+                        textDecoration: "none",
+                      }}
+                    >
+                      Login
+                    </a>
+                    <a
+                      href={registerHref}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 10,
+                        border: "1px solid #ddd",
+                        background: "#fff",
+                        color: "#111",
+                        fontWeight: 900,
+                        textDecoration: "none",
+                      }}
+                    >
+                      Registrieren
+                    </a>
                   </div>
-                  <div
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 10,
-                      border: "1px solid #ddd",
-                      background: "#fff",
-                      color: "#111",
-                      fontWeight: 900,
-                      opacity: 0.6,
-                    }}
-                    title="/register"
-                  >
-                    Registrieren
-                  </div>
-                </div>
+                ) : null}
 
                 {isLoggedIn && me?.role === "BARBER" ? (
                   <div style={{ marginTop: 10, fontSize: 12, color: "crimson", fontWeight: 900 }}>
@@ -467,7 +502,7 @@ export default function BarberBookPage() {
 
               <button
                 onClick={bookNow}
-                disabled={!canBook || busyBooking || (isLoggedIn && me?.role === "BARBER")}
+                disabled={busyBooking || (isLoggedIn && me?.role === "BARBER") || !selectedServiceKey || !selectedDate || selectedTimeMin == null}
                 style={{
                   marginTop: 12,
                   width: "100%",
@@ -478,8 +513,12 @@ export default function BarberBookPage() {
                   color: "#fff",
                   fontWeight: 900,
                   cursor: busyBooking ? "not-allowed" : "pointer",
-                  opacity: !canBook || busyBooking || (isLoggedIn && me?.role === "BARBER") ? 0.7 : 1,
+                  opacity:
+                    busyBooking || (isLoggedIn && me?.role === "BARBER") || !selectedServiceKey || !selectedDate || selectedTimeMin == null
+                      ? 0.7
+                      : 1,
                 }}
+                title={!isAuthedCustomer ? "Du wirst zum Login weitergeleitet" : ""}
               >
                 {busyBooking ? "Buche..." : "Termin buchen"}
               </button>
