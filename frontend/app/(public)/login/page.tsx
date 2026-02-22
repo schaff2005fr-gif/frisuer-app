@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/src/lib/api";
 
 type Role = "CUSTOMER" | "BARBER";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://frisuer-app.onrender.com";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,15 +21,29 @@ export default function LoginPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
+
     setError("");
     setLoading(true);
 
     try {
-      const res = await api.login({ email: email.trim(), password });
+      console.log("LOGIN submit", { API_BASE }); // Debug: siehst du in Console
 
-      // Erwartet: { token, user }
-      const token = res?.token;
-      const user = res?.user;
+      const res = await fetch(`${API_BASE.replace(/\/+$/, "")}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        cache: "no-store",
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Login fehlgeschlagen (HTTP ${res.status})`);
+      }
+
+      const token = data?.token;
+      const user = data?.user;
 
       if (!token || !user) throw new Error("Login fehlgeschlagen (keine Daten).");
 
@@ -33,15 +51,11 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(user));
 
       const role = (user.role as Role) || "CUSTOMER";
-
-      if (role === "BARBER") {
-        router.replace("/admin");
-      } else {
-        router.replace("/");
-      }
+      router.replace(role === "BARBER" ? "/admin" : "/");
       router.refresh();
-    } catch (e: any) {
-      setError(e?.message ?? "Login fehlgeschlagen");
+    } catch (err: any) {
+      console.error("LOGIN error:", err);
+      setError(err?.message || "Login fehlgeschlagen");
     } finally {
       setLoading(false);
     }
@@ -50,7 +64,6 @@ export default function LoginPage() {
   return (
     <div style={{ maxWidth: 460, margin: "0 auto" }}>
       <h1 style={{ marginTop: 0 }}>Login</h1>
-      <p style={{ color: "#666", marginTop: 6 }}>Melde dich an, um zu buchen oder dein Dashboard zu öffnen.</p>
 
       {error && (
         <div style={{ marginTop: 12, color: "crimson" }}>
@@ -96,7 +109,7 @@ export default function LoginPage() {
             opacity: loading ? 0.75 : 1,
           }}
         >
-          {loading ? "Logge ein..." : "Login"}
+          {loading ? "Logge ein..." : "Einloggen"}
         </button>
 
         <div style={{ color: "#666", fontSize: 12 }}>
