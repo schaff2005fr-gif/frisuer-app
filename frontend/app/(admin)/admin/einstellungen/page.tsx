@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import AdminNav from "../AdminNav";
-
 
 const API_BASE = "https://frisuer-app.onrender.com";
 
@@ -83,22 +81,22 @@ export default function AdminSettingsPage() {
 
   const [copied, setCopied] = useState<"" | "profile" | "book">("");
 
-function publicBaseUrl() {
-  if (typeof window === "undefined") return "https://frisuer-app.onrender.com";
-  // nimmt automatisch die aktuelle Domain (später live super)
-  return window.location.origin;
-}
-
-async function copyToClipboard(text: string, kind: "profile" | "book") {
-  try {
-    await navigator.clipboard.writeText(text);
-    setCopied(kind);
-    setTimeout(() => setCopied(""), 1200);
-  } catch {
-    // fallback: prompt
-    window.prompt("Kopiere den Link:", text);
+  function publicBaseUrl() {
+    if (typeof window === "undefined") return "https://frisuer-app.onrender.com";
+    // nimmt automatisch die aktuelle Domain (später live super)
+    return window.location.origin;
   }
-}
+
+  async function copyToClipboard(text: string, kind: "profile" | "book") {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(kind);
+      setTimeout(() => setCopied(""), 1200);
+    } catch {
+      // fallback: prompt
+      window.prompt("Kopiere den Link:", text);
+    }
+  }
 
   // profile
   const [profile, setProfile] = useState<BarberProfile | null>(null);
@@ -116,14 +114,6 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
     return localStorage.getItem("token") || "";
   }
 
-  function logout() {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-  }
-  router.replace("/login");
-  router.refresh();
-}
   async function apiFetch(path: string, init?: RequestInit) {
     const token = getToken();
     if (!token) throw new Error("Kein Token. Bitte als BARBER einloggen.");
@@ -311,36 +301,16 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
     const wh = settings?.workingHours ?? [];
     const map = new Map<number, WorkingHoursRow>();
     for (const r of wh) map.set(r.day, r);
-    return WEEKDAYS.map((d) => map.get(d.k) ?? { day: d.k, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 });
+    return WEEKDAYS.map(
+      (d) => map.get(d.k) ?? { day: d.k, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 }
+    );
   }, [settings]);
 
   return (
     <div style={{ padding: 20, maxWidth: 1020, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Einstellungen</h1>
-          <div style={{ marginTop: 6, color: "#666" }}>Profil · Services · Arbeitszeiten · Slot-Logik</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-  <AdminNav />
-  <button
-    type="button"
-    onClick={logout}
-    style={{
-      padding: "10px 12px",
-      borderRadius: 10,
-      border: "1px solid #ddd",
-      background: "#fff",
-      color: "#111",
-      fontWeight: 900,
-      cursor: "pointer",
-    }}
-  >
-    Ausloggen
-  </button>
-</div>
-      </div>
+      {/* ✅ Keine AdminNav/Logout/Topbar mehr hier (kommt aus (admin)/layout.tsx) */}
+      <h1 style={{ margin: 0 }}>Einstellungen</h1>
+      <div style={{ marginTop: 6, color: "#666" }}>Profil · Services · Arbeitszeiten · Slot-Logik</div>
 
       {message && (
         <div style={{ marginTop: 12, color: "green" }}>
@@ -381,126 +351,183 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name</div>
-                <input value={profile.name} disabled style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: "100%", opacity: 0.8 }} />
+                <input
+                  value={profile.name}
+                  disabled
+                  style={{
+                    padding: 10,
+                    border: "1px solid #ddd",
+                    borderRadius: 10,
+                    width: "100%",
+                    opacity: 0.8,
+                  }}
+                />
+
                 <div style={{ marginTop: 6, display: "grid", gap: 10 }}>
-  <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Deine Links</div>
+                  <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Deine Links</div>
 
-  {(() => {
-    const base = publicBaseUrl();
-    const profileUrl = `${base}/b/${profile.slug}`;
-    const bookUrl = `${base}/b/${profile.slug}/book`;
+                  {(() => {
+                    const base = publicBaseUrl();
+                    const profileUrl = `${base}/b/${profile.slug}`;
+                    const bookUrl = `${base}/b/${profile.slug}/book`;
 
-    return (
-      <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
-        <div style={{ display: "grid", gap: 10 }}>
-          {/* Profil */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ minWidth: 240 }}>
-              <div style={{ fontSize: 12, color: "#666" }}>Profil-Link</div>
-              <div style={{ fontWeight: 900 }}>{profileUrl}</div>
-            </div>
+                    return (
+                      <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
+                        <div style={{ display: "grid", gap: 10 }}>
+                          {/* Profil */}
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 10,
+                              flexWrap: "wrap",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <div style={{ minWidth: 240 }}>
+                              <div style={{ fontSize: 12, color: "#666" }}>Profil-Link</div>
+                              <div style={{ fontWeight: 900 }}>{profileUrl}</div>
+                            </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(profileUrl, "profile")}
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  border: "1px solid #ddd",
-                  background: "#fff",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                {copied === "profile" ? "✅ Kopiert" : "Link kopieren"}
-              </button>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(profileUrl, "profile")}
+                                style={{
+                                  padding: "8px 10px",
+                                  borderRadius: 10,
+                                  border: "1px solid #ddd",
+                                  background: "#fff",
+                                  fontWeight: 900,
+                                  cursor: "pointer",
+                                  fontSize: 12,
+                                }}
+                              >
+                                {copied === "profile" ? "✅ Kopiert" : "Link kopieren"}
+                              </button>
 
-              <a
-                href={profileUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  border: "1px solid #111",
-                  background: "#111",
-                  color: "#fff",
-                  fontWeight: 900,
-                  textDecoration: "none",
-                  fontSize: 12,
-                }}
-              >
-                Profil öffnen →
-              </a>
-            </div>
-          </div>
+                              <a
+                                href={profileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  padding: "8px 10px",
+                                  borderRadius: 10,
+                                  border: "1px solid #111",
+                                  background: "#111",
+                                  color: "#fff",
+                                  fontWeight: 900,
+                                  textDecoration: "none",
+                                  fontSize: 12,
+                                }}
+                              >
+                                Profil öffnen →
+                              </a>
+                            </div>
+                          </div>
 
-          {/* Buchung */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ minWidth: 240 }}>
-              <div style={{ fontSize: 12, color: "#666" }}>Buchungs-Link</div>
-              <div style={{ fontWeight: 900 }}>{bookUrl}</div>
-            </div>
+                          {/* Buchung */}
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 10,
+                              flexWrap: "wrap",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <div style={{ minWidth: 240 }}>
+                              <div style={{ fontSize: 12, color: "#666" }}>Buchungs-Link</div>
+                              <div style={{ fontWeight: 900 }}>{bookUrl}</div>
+                            </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(bookUrl, "book")}
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  border: "1px solid #ddd",
-                  background: "#fff",
-                  fontWeight: 900,
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                {copied === "book" ? "✅ Kopiert" : "Link kopieren"}
-              </button>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(bookUrl, "book")}
+                                style={{
+                                  padding: "8px 10px",
+                                  borderRadius: 10,
+                                  border: "1px solid #ddd",
+                                  background: "#fff",
+                                  fontWeight: 900,
+                                  cursor: "pointer",
+                                  fontSize: 12,
+                                }}
+                              >
+                                {copied === "book" ? "✅ Kopiert" : "Link kopieren"}
+                              </button>
 
-              <a
-                href={bookUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  border: "1px solid #111",
-                  background: "#111",
-                  color: "#fff",
-                  fontWeight: 900,
-                  textDecoration: "none",
-                  fontSize: 12,
-                }}
-              >
-                Buchung öffnen →
-              </a>
-            </div>
-          </div>
+                              <a
+                                href={bookUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  padding: "8px 10px",
+                                  borderRadius: 10,
+                                  border: "1px solid #111",
+                                  background: "#111",
+                                  color: "#fff",
+                                  fontWeight: 900,
+                                  textDecoration: "none",
+                                  fontSize: 12,
+                                }}
+                              >
+                                Buchung öffnen →
+                              </a>
+                            </div>
+                          </div>
 
-          <div style={{ fontSize: 12, color: "#666" }}>
-            Tipp: Schick den <b>Buchungs-Link</b> an deine Kunden.
-          </div>
-        </div>
-      </div>
-    );
-  })()}
-</div>
+                          <div style={{ fontSize: 12, color: "#666" }}>
+                            Tipp: Schick den <b>Buchungs-Link</b> an deine Kunden.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
 
-              <Field label="Telefon" value={profile.phone ?? ""} onChange={(v) => setProfile({ ...profile, phone: v || null })} placeholder="z.B. 0176..." />
+              <Field
+                label="Telefon"
+                value={profile.phone ?? ""}
+                onChange={(v) => setProfile({ ...profile, phone: v || null })}
+                placeholder="z.B. 0176..."
+              />
 
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10 }}>
-                <Field label="Straße + Nr." value={profile.street ?? ""} onChange={(v) => setProfile({ ...profile, street: v || null })} placeholder="Musterstraße 12" />
-                <Field label="PLZ" value={profile.postalCode ?? ""} onChange={(v) => setProfile({ ...profile, postalCode: v || null })} placeholder="45127" />
-                <Field label="Stadt" value={profile.city ?? ""} onChange={(v) => setProfile({ ...profile, city: v || null })} placeholder="Essen" />
+                <Field
+                  label="Straße + Nr."
+                  value={profile.street ?? ""}
+                  onChange={(v) => setProfile({ ...profile, street: v || null })}
+                  placeholder="Musterstraße 12"
+                />
+                <Field
+                  label="PLZ"
+                  value={profile.postalCode ?? ""}
+                  onChange={(v) => setProfile({ ...profile, postalCode: v || null })}
+                  placeholder="45127"
+                />
+                <Field
+                  label="Stadt"
+                  value={profile.city ?? ""}
+                  onChange={(v) => setProfile({ ...profile, city: v || null })}
+                  placeholder="Essen"
+                />
               </div>
 
-              <Field label="Instagram (optional)" value={profile.instagram ?? ""} onChange={(v) => setProfile({ ...profile, instagram: v || null })} placeholder="@meinbarber" />
-              <Field label="Website (optional)" value={profile.website ?? ""} onChange={(v) => setProfile({ ...profile, website: v || null })} placeholder="https://..." />
+              <Field
+                label="Instagram (optional)"
+                value={profile.instagram ?? ""}
+                onChange={(v) => setProfile({ ...profile, instagram: v || null })}
+                placeholder="@meinbarber"
+              />
+              <Field
+                label="Website (optional)"
+                value={profile.website ?? ""}
+                onChange={(v) => setProfile({ ...profile, website: v || null })}
+                placeholder="https://..."
+              />
 
               <div>
                 <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Bio</div>
@@ -619,7 +646,8 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
                             defaultValue={s.durationMin}
                             onBlur={(e) => {
                               const v = Number(e.target.value);
-                              if (Number.isFinite(v) && v > 0 && v !== s.durationMin) updateService(s.id, { durationMin: v });
+                              if (Number.isFinite(v) && v > 0 && v !== s.durationMin)
+                                updateService(s.id, { durationMin: v });
                             }}
                             style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 140 }}
                           />
@@ -703,7 +731,9 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
                           checked={row.isOpen}
                           onChange={(e) => {
                             const next = { ...(settings as AppSettings) };
-                            next.workingHours = workingHoursUi.map((r) => (r.day === row.day ? { ...r, isOpen: e.target.checked } : r));
+                            next.workingHours = workingHoursUi.map((r) =>
+                              r.day === row.day ? { ...r, isOpen: e.target.checked } : r
+                            );
                             setSettings(next);
                           }}
                         />
@@ -719,7 +749,9 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
                             if (v == null) return;
 
                             const next = { ...(settings as AppSettings) };
-                            next.workingHours = workingHoursUi.map((r) => (r.day === row.day ? { ...r, startMin: clamp(v, 0, 1439) } : r));
+                            next.workingHours = workingHoursUi.map((r) =>
+                              r.day === row.day ? { ...r, startMin: clamp(v, 0, 1439) } : r
+                            );
                             setSettings(next);
                           }}
                           style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 120 }}
@@ -735,7 +767,9 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
                             if (v == null) return;
 
                             const next = { ...(settings as AppSettings) };
-                            next.workingHours = workingHoursUi.map((r) => (r.day === row.day ? { ...r, endMin: clamp(v, 1, 1440) } : r));
+                            next.workingHours = workingHoursUi.map((r) =>
+                              r.day === row.day ? { ...r, endMin: clamp(v, 1, 1440) } : r
+                            );
                             setSettings(next);
                           }}
                           style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 120 }}
@@ -774,25 +808,53 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
             <div style={{ color: "#666" }}>Keine Settings geladen.</div>
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
-              <FieldNumber label="Schrittweite (stepMin) in Minuten" value={settings.stepMin} onChange={(v) => setSettings({ ...settings, stepMin: clamp(v, 1, 120) })} />
+              <FieldNumber
+                label="Schrittweite (stepMin) in Minuten"
+                value={settings.stepMin}
+                onChange={(v) => setSettings({ ...settings, stepMin: clamp(v, 1, 120) })}
+              />
 
-              <label style={{ display: "flex", gap: 10, alignItems: "center", border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                <input type="checkbox" checked={settings.extendIfFirstHourFull} onChange={(e) => setSettings({ ...settings, extendIfFirstHourFull: e.target.checked })} />
+              <label
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                  border: "1px solid #eee",
+                  borderRadius: 12,
+                  padding: 12,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={settings.extendIfFirstHourFull}
+                  onChange={(e) => setSettings({ ...settings, extendIfFirstHourFull: e.target.checked })}
+                />
                 <div>
                   <div style={{ fontWeight: 900 }}>Wenn erste Stunde voll ist → nach vorne öffnen</div>
-                  <div style={{ color: "#666", fontSize: 12 }}>Wenn in der ersten Stunde keine freien Slots sind, wird das Fenster nach vorne erweitert.</div>
+                  <div style={{ color: "#666", fontSize: 12 }}>
+                    Wenn in der ersten Stunde keine freien Slots sind, wird das Fenster nach vorne erweitert.
+                  </div>
                 </div>
               </label>
 
-              <FieldNumber label="Erweiterungsschritt (extendStepMin) in Minuten" value={settings.extendStepMin} onChange={(v) => setSettings({ ...settings, extendStepMin: clamp(v, 10, 240) })} />
+              <FieldNumber
+                label="Erweiterungsschritt (extendStepMin) in Minuten"
+                value={settings.extendStepMin}
+                onChange={(v) => setSettings({ ...settings, extendStepMin: clamp(v, 10, 240) })}
+              />
 
-              <FieldTime label="Früheste Grenze (earliestLimitMin) – nicht weiter davor öffnen als" valueMin={settings.earliestLimitMin} onChangeMin={(min) => setSettings({ ...settings, earliestLimitMin: clamp(min, 0, 1439) })} />
+              <FieldTime
+                label="Früheste Grenze (earliestLimitMin) – nicht weiter davor öffnen als"
+                valueMin={settings.earliestLimitMin}
+                onChangeMin={(min) => setSettings({ ...settings, earliestLimitMin: clamp(min, 0, 1439) })}
+              />
 
               {/* ✅ NEU: Mindest-Tage-Abstand */}
               <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
                 <div style={{ fontWeight: 900 }}>Mindestabstand pro Kunde</div>
                 <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>
-                  Ein Kunde darf erst wieder buchen, wenn seit seinem letzten Termin mindestens <b>X Tage</b> vergangen sind.
+                  Ein Kunde darf erst wieder buchen, wenn seit seinem letzten Termin mindestens <b>X Tage</b> vergangen
+                  sind.
                   <br />
                   <b>0</b> = keine Begrenzung.
                 </div>
@@ -802,7 +864,10 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
                   value={settings.minDaysBetweenBookings ?? 0}
                   onChange={(e) => {
                     const v = Number(e.target.value);
-                    setSettings({ ...settings, minDaysBetweenBookings: clamp(Number.isFinite(v) ? v : 0, 0, 365) });
+                    setSettings({
+                      ...settings,
+                      minDaysBetweenBookings: clamp(Number.isFinite(v) ? v : 0, 0, 365),
+                    });
                   }}
                   style={{ marginTop: 10, padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 200 }}
                 />
@@ -826,7 +891,8 @@ async function copyToClipboard(text: string, kind: "profile" | "book") {
               </button>
 
               <div style={{ color: "#666", fontSize: 12 }}>
-                Tipp: Bei dir ist “immer nur 1 Stunde vorher öffnen” = <b>extendStepMin = 60</b>. Die Grenze setzt du z.B. auf <b>10:00</b>.
+                Tipp: Bei dir ist “immer nur 1 Stunde vorher öffnen” = <b>extendStepMin = 60</b>. Die Grenze setzt du
+                z.B. auf <b>10:00</b>.
               </div>
             </div>
           )}

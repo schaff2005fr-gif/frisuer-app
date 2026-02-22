@@ -81,7 +81,7 @@ export default function HomePage() {
     localStorage.removeItem("user");
     setMe(null);
     setUnreadCount(0);
-    window.location.href = "/";
+    // ✅ keine Navigation/Redirect mehr
   }
 
   useEffect(() => {
@@ -137,22 +137,8 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* ✅ Navigation-Links entfernt, aber Status/Info + Logout bleibt */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <a
-            href="/book"
-            style={{
-              textDecoration: "none",
-              border: "1px solid #eee",
-              padding: "10px 12px",
-              borderRadius: 12,
-              color: "#111",
-              fontWeight: 900,
-              background: "#fff",
-            }}
-          >
-            Friseur wählen
-          </a>
-
           {loadingMe ? (
             <div style={{ color: "#666", fontWeight: 800 }}>lädt…</div>
           ) : me ? (
@@ -171,68 +157,35 @@ export default function HomePage() {
               </div>
 
               {isCustomer ? (
-                <>
-                  <a
-                    href="/my-bookings"
-                    style={{
-                      textDecoration: "none",
-                      border: "1px solid #eee",
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      color: "#111",
-                      fontWeight: 900,
-                      background: "#fff",
-                    }}
-                  >
-                    Meine Termine
-                  </a>
-
-                  <a
-                    href="/settings"
-                    style={{
-                      textDecoration: "none",
-                      border: "1px solid #eee",
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      color: "#111",
-                      fontWeight: 900,
-                      background: "#fff",
-                    }}
-                  >
-                    Profil
-                  </a>
-
-                  <a
-                    href="/notifications"
-                    style={{
-                      textDecoration: "none",
-                      border: "1px solid #eee",
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      color: "#111",
-                      fontWeight: 900,
-                      background: "#fff",
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                    }}
-                  >
-                    Nachrichten
-                    {unreadCount > 0 ? (
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 900,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          border: "1px solid #111",
-                        }}
-                      >
-                        {unreadCount}
-                      </span>
-                    ) : null}
-                  </a>
-                </>
+                <div
+                  style={{
+                    border: "1px solid #eee",
+                    borderRadius: 12,
+                    padding: "10px 12px",
+                    background: "#fff",
+                    fontWeight: 900,
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    color: "#111",
+                  }}
+                  title="Ungelesene Nachrichten"
+                >
+                  Nachrichten
+                  {unreadCount > 0 ? (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 900,
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        border: "1px solid #111",
+                      }}
+                    >
+                      {unreadCount}
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
 
               <button
@@ -251,36 +204,18 @@ export default function HomePage() {
               </button>
             </>
           ) : (
-            <>
-              <a
-                href="/login"
-                style={{
-                  textDecoration: "none",
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  color: "#fff",
-                  fontWeight: 900,
-                  background: "#111",
-                }}
-              >
-                Login
-              </a>
-              <a
-                href="/register"
-                style={{
-                  textDecoration: "none",
-                  border: "1px solid #eee",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  color: "#111",
-                  fontWeight: 900,
-                  background: "#fff",
-                }}
-              >
-                Registrieren
-              </a>
-            </>
+            <div
+              style={{
+                border: "1px solid #eee",
+                borderRadius: 12,
+                padding: "10px 12px",
+                background: "#fff",
+                fontWeight: 900,
+                color: "#666",
+              }}
+            >
+              Nicht eingeloggt
+            </div>
           )}
         </div>
       </div>
@@ -379,40 +314,41 @@ export default function HomePage() {
               </span>
             </div>
 
+            {/* ✅ Buttons bleiben sichtbar, aber ohne Navigation */}
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <a
-                href={`/b/${b.slug}`}
+              <div
                 style={{
                   flex: "1 1 120px",
                   textAlign: "center",
-                  textDecoration: "none",
                   border: "1px solid #ddd",
                   padding: "10px 12px",
                   borderRadius: 12,
                   color: "#111",
                   fontWeight: 900,
                   background: "#fff",
+                  opacity: 0.6,
                 }}
+                title={`/b/${b.slug}`}
               >
                 Profil ansehen
-              </a>
+              </div>
 
-              <a
-                href={`/b/${b.slug}/book`}
+              <div
                 style={{
                   flex: "1 1 120px",
                   textAlign: "center",
-                  textDecoration: "none",
                   border: "1px solid #111",
                   padding: "10px 12px",
                   borderRadius: 12,
                   color: "#fff",
                   fontWeight: 900,
                   background: "#111",
+                  opacity: 0.6,
                 }}
+                title={`/b/${b.slug}/book`}
               >
                 Buchen →
-              </a>
+              </div>
             </div>
           </div>
         ))}

@@ -214,17 +214,19 @@ export default function BarberBookPage() {
     <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
         <div>
-          <a href={`/b/${barber.slug}`} style={{ textDecoration: "none", color: "#111", fontWeight: 900 }}>
+          {/* ✅ Link entfernt (keine Navigation), nur Anzeige */}
+          <div style={{ color: "#111", fontWeight: 900, opacity: 0.7 }} title={`/b/${barber.slug}`}>
             ← Zurück zum Profil
-          </a>
+          </div>
+
           <h1 style={{ margin: "10px 0 4px" }}>Termin buchen</h1>
           <div style={{ color: "#666" }}>
             Friseur: <b>{barber.name}</b>
           </div>
         </div>
 
-        <a
-          href="/my-bookings"
+        {/* ✅ Link entfernt (keine Navigation), nur Anzeige */}
+        <div
           style={{
             padding: "10px 12px",
             borderRadius: 10,
@@ -232,11 +234,12 @@ export default function BarberBookPage() {
             background: "#fff",
             color: "#111",
             fontWeight: 900,
-            textDecoration: "none",
+            opacity: 0.7,
           }}
+          title="/my-bookings"
         >
           Meine Termine
-        </a>
+        </div>
       </div>
 
       {message ? (
@@ -283,8 +286,9 @@ export default function BarberBookPage() {
                     <div style={{ color: "#666", fontSize: 12 }}>
                       Eingeloggt als: <b>{me?.email}</b>
                     </div>
-                    <a
-                      href="/settings"
+
+                    {/* ✅ Link entfernt (keine Navigation), nur Anzeige */}
+                    <div
                       style={{
                         padding: "8px 10px",
                         borderRadius: 10,
@@ -292,12 +296,13 @@ export default function BarberBookPage() {
                         background: "#fff",
                         color: "#111",
                         fontWeight: 900,
-                        textDecoration: "none",
                         fontSize: 12,
+                        opacity: 0.7,
                       }}
+                      title="/settings"
                     >
                       Profil bearbeiten →
-                    </a>
+                    </div>
                   </div>
 
                   <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
@@ -322,9 +327,9 @@ export default function BarberBookPage() {
                   Buchung nur mit Kunden-Login möglich. Bitte einloggen oder registrieren.
                 </div>
 
+                {/* ✅ Login/Register Buttons entfernt (keine Navigation), nur Anzeige */}
                 <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <a
-                    href="/login"
+                  <div
                     style={{
                       padding: "10px 12px",
                       borderRadius: 10,
@@ -332,13 +337,13 @@ export default function BarberBookPage() {
                       background: "#111",
                       color: "#fff",
                       fontWeight: 900,
-                      textDecoration: "none",
+                      opacity: 0.6,
                     }}
+                    title="/login"
                   >
                     Login
-                  </a>
-                  <a
-                    href="/register"
+                  </div>
+                  <div
                     style={{
                       padding: "10px 12px",
                       borderRadius: 10,
@@ -346,11 +351,12 @@ export default function BarberBookPage() {
                       background: "#fff",
                       color: "#111",
                       fontWeight: 900,
-                      textDecoration: "none",
+                      opacity: 0.6,
                     }}
+                    title="/register"
                   >
                     Registrieren
-                  </a>
+                  </div>
                 </div>
 
                 {isLoggedIn && me?.role === "BARBER" ? (

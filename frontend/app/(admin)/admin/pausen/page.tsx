@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import AdminNav from "../AdminNav";
 
 const API_BASE = "https://frisuer-app.onrender.com";
 
@@ -242,9 +241,7 @@ export default function PausenPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 1020, margin: "0 auto" }}>
-      <div style={{ marginBottom: 16 }}>
-        <AdminNav />
-      </div>
+      {/* ✅ Keine AdminNav mehr hier (kommt aus (admin)/layout.tsx) */}
 
       <h1 style={{ margin: 0 }}>Pausen & Blockzeiten</h1>
       <div style={{ marginTop: 6, color: "#666" }}>

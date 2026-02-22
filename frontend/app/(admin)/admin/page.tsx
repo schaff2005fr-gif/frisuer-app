@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import AdminNav from "./AdminNav";
 
 const API_BASE = "https://frisuer-app.onrender.com";
 
@@ -283,6 +282,8 @@ export default function AdminPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 1020, margin: "0 auto" }}>
+      {/* ✅ Kein AdminNav mehr hier (kommt aus (admin)/layout.tsx) */}
+
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
         <div>
@@ -291,8 +292,6 @@ export default function AdminPage() {
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <AdminNav />
-
           <input
             type="date"
             value={date}

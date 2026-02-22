@@ -178,6 +178,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     loadNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -203,37 +204,8 @@ export default function NotificationsPage() {
           </div>
         </div>
 
+        {/* ✅ Nur seiten-interne Funktionen (keine Navigation) */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <a
-            href="/"
-            style={{
-              textDecoration: "none",
-              border: "1px solid #eee",
-              padding: "10px 12px",
-              borderRadius: 12,
-              color: "#111",
-              fontWeight: 900,
-              background: "#fff",
-            }}
-          >
-            Startseite
-          </a>
-
-          <a
-            href="/my-bookings"
-            style={{
-              textDecoration: "none",
-              border: "1px solid #eee",
-              padding: "10px 12px",
-              borderRadius: 12,
-              color: "#111",
-              fontWeight: 900,
-              background: "#fff",
-            }}
-          >
-            Meine Termine
-          </a>
-
           <button
             onClick={loadNotifications}
             disabled={loading}
@@ -389,21 +361,22 @@ export default function NotificationsPage() {
                 <div style={{ marginTop: 10, color: "#222" }}>{n.body}</div>
 
                 <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {/* ✅ Link bleibt sichtbar, aber ohne Navigation */}
                   {n.link ? (
-                    <a
-                      href={n.link}
+                    <div
                       style={{
-                        textDecoration: "none",
                         border: "1px solid #eee",
                         padding: "9px 10px",
                         borderRadius: 12,
                         color: "#111",
                         fontWeight: 900,
                         background: "#fff",
+                        opacity: 0.6,
                       }}
+                      title={n.link}
                     >
                       Öffnen →
-                    </a>
+                    </div>
                   ) : null}
 
                   {!n.isRead ? (

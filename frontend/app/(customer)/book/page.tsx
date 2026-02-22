@@ -40,6 +40,7 @@ export default function ChooseBarberPage() {
 
       const res = await fetch(`${API_BASE}/me`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
       });
 
       const data = await res.json().catch(() => ({}));
@@ -64,7 +65,7 @@ export default function ChooseBarberPage() {
   }
 
   useEffect(() => {
-    fetch(`${API_BASE}/barbers`)
+    fetch(`${API_BASE}/barbers`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setBarbers(Array.isArray(d?.barbers) ? d.barbers : []))
       .catch(() => setError("Fehler beim Laden der Friseure"))
@@ -97,9 +98,7 @@ export default function ChooseBarberPage() {
       >
         <div>
           <h1 style={{ margin: 0 }}>Friseur wählen</h1>
-          <div style={{ marginTop: 6, color: "#666" }}>
-            Wähle einen Friseur aus und starte die Online-Buchung.
-          </div>
+          <div style={{ marginTop: 6, color: "#666" }}>Wähle einen Friseur aus und starte die Online-Buchung.</div>
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -238,7 +237,16 @@ export default function ChooseBarberPage() {
       {/* Loading/Error */}
       {loading ? <div style={{ marginTop: 12, color: "#666" }}>Lade…</div> : null}
       {error ? (
-        <div style={{ marginTop: 12, padding: 12, border: "1px solid #f2c6c6", background: "#fff5f5", borderRadius: 12, color: "#8a1c1c" }}>
+        <div
+          style={{
+            marginTop: 12,
+            padding: 12,
+            border: "1px solid #f2c6c6",
+            background: "#fff5f5",
+            borderRadius: 12,
+            color: "#8a1c1c",
+          }}
+        >
           <b>{error}</b>
         </div>
       ) : null}
@@ -322,9 +330,7 @@ export default function ChooseBarberPage() {
         ) : null}
       </div>
 
-      <div style={{ marginTop: 16, color: "#666", fontSize: 12 }}>
-        Hinweis: Buchung ist nur mit Login möglich.
-      </div>
+      <div style={{ marginTop: 16, color: "#666", fontSize: 12 }}>Hinweis: Buchung ist nur mit Login möglich.</div>
     </div>
   );
 }

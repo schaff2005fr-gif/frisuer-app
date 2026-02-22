@@ -44,6 +44,7 @@ export default function CustomerSettingsPage() {
 
       const res = await fetch(`${API_BASE}/me`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
       });
 
       const data = await res.json().catch(() => ({}));
@@ -93,6 +94,7 @@ export default function CustomerSettingsPage() {
           name: name.trim(),
           phone: phone.trim(),
         }),
+        cache: "no-store",
       });
 
       const data = await res.json().catch(() => ({}));
@@ -101,7 +103,7 @@ export default function CustomerSettingsPage() {
         return;
       }
 
-      const updatedMe: Me = data?.me;
+      const updatedMe: Me = data?.me ?? data;
 
       setMe(updatedMe);
       setMessage("✅ Profil gespeichert");
@@ -181,7 +183,16 @@ export default function CustomerSettingsPage() {
       ) : null}
 
       {error ? (
-        <div style={{ marginTop: 12, padding: 12, border: "1px solid #f2c6c6", background: "#fff5f5", borderRadius: 12, color: "#8a1c1c" }}>
+        <div
+          style={{
+            marginTop: 12,
+            padding: 12,
+            border: "1px solid #f2c6c6",
+            background: "#fff5f5",
+            borderRadius: 12,
+            color: "#8a1c1c",
+          }}
+        >
           <b>{error}</b>
         </div>
       ) : null}
@@ -189,7 +200,7 @@ export default function CustomerSettingsPage() {
       <div style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
         <div style={{ display: "grid", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name </div>
+            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name</div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -199,16 +210,14 @@ export default function CustomerSettingsPage() {
           </div>
 
           <div>
-            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Telefon </div>
+            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Telefon</div>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               style={{ marginTop: 6, padding: 12, border: "1px solid #ddd", borderRadius: 12, width: "100%" }}
               placeholder="z.B. 0176..."
             />
-            <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>
-              
-            </div>
+            <div style={{ marginTop: 6, color: "#666", fontSize: 12 }} />
           </div>
 
           <button

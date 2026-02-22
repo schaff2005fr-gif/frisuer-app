@@ -23,14 +23,10 @@ function statusLabel(s: string) {
 
 function statusStyles(s: string): React.CSSProperties {
   const v = String(s || "").toUpperCase();
-  if (v === "CONFIRMED")
-    return { border: "1px solid #111", background: "#111", color: "#fff" };
-  if (v === "COMPLETED")
-    return { border: "1px solid #b7ebc6", background: "#f0fff4", color: "#1f7a37" };
-  if (v === "CANCELLED")
-    return { border: "1px solid #f2c6c6", background: "#fff5f5", color: "#8a1c1c" };
-  if (v === "NO_SHOW")
-    return { border: "1px solid #f2c6c6", background: "#fff5f5", color: "#8a1c1c" };
+  if (v === "CONFIRMED") return { border: "1px solid #111", background: "#111", color: "#fff" };
+  if (v === "COMPLETED") return { border: "1px solid #b7ebc6", background: "#f0fff4", color: "#1f7a37" };
+  if (v === "CANCELLED") return { border: "1px solid #f2c6c6", background: "#fff5f5", color: "#8a1c1c" };
+  if (v === "NO_SHOW") return { border: "1px solid #f2c6c6", background: "#fff5f5", color: "#8a1c1c" };
   return { border: "1px solid #eee", background: "#fff", color: "#111" };
 }
 
@@ -131,12 +127,14 @@ export default function MyBookingsPage() {
 
   useEffect(() => {
     loadBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const upcoming = useMemo(
     () => bookings.filter((b: any) => String(b?.status).toUpperCase() !== "CANCELLED"),
     [bookings]
   );
+
   const cancelled = useMemo(
     () => bookings.filter((b: any) => String(b?.status).toUpperCase() === "CANCELLED"),
     [bookings]
@@ -144,7 +142,7 @@ export default function MyBookingsPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
-      {/* Header + Topbar */}
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -162,24 +160,9 @@ export default function MyBookingsPage() {
           </div>
         </div>
 
+        {/* ✅ Nur Funktion – keine Navigation */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <a
-            href="/"
-            style={{
-              textDecoration: "none",
-              border: "1px solid #eee",
-              padding: "10px 12px",
-              borderRadius: 12,
-              color: "#111",
-              fontWeight: 900,
-              background: "#fff",
-            }}
-          >
-            Startseite
-          </a>
-
-          <a
-            href="/notifications"
+          <div
             style={{
               textDecoration: "none",
               border: "1px solid #eee",
@@ -207,7 +190,7 @@ export default function MyBookingsPage() {
                 {unreadCount}
               </span>
             ) : null}
-          </a>
+          </div>
 
           <button
             onClick={loadBookings}
