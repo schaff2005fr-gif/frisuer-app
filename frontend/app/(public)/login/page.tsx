@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 type Role = "CUSTOMER" | "BARBER";
 
@@ -10,9 +9,11 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://frisuer-app.onrender.com";
 
-export default function LoginPage() {
-  const router = useRouter();
+function normalizeBase(url: string) {
+  return String(url || "").replace(/\/+$/, "");
+}
 
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -27,12 +28,15 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      console.log("LOGIN submit", { API_BASE }); // Debug: siehst du in Console
+      const base = normalizeBase(API_BASE);
 
-      const res = await fetch(`${API_BASE.replace(/\/+$/, "")}/auth/login`, {
+      const res = await fetch(`${base}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
         cache: "no-store",
       });
 
@@ -42,8 +46,8 @@ export default function LoginPage() {
         throw new Error(data?.error || `Login fehlgeschlagen (HTTP ${res.status})`);
       }
 
-      const token = data?.token;
-      const user = data?.user;
+      const token: string | undefined = data?.token;
+      const user: any = data?.user;
 
       if (!token || !user) throw new Error("Login fehlgeschlagen (keine Daten).");
 
@@ -51,10 +55,11 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(user));
 
       const role = (user.role as Role) || "CUSTOMER";
-      router.replace(role === "BARBER" ? "/admin" : "/");
-      router.refresh();
+      const target = role === "BARBER" ? "/admin" : "/";
+
+      // ✅ zuverlässigster Redirect (lädt neu, keine Router/Cache-Probleme)
+      window.location.assign(target);
     } catch (err: any) {
-      console.error("LOGIN error:", err);
       setError(err?.message || "Login fehlgeschlagen");
     } finally {
       setLoading(false);
