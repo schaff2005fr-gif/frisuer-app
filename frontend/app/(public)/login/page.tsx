@@ -64,13 +64,13 @@ function LoginInner() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(data?.error || `Login fehlgeschlagen (HTTP ${res.status})`);
+        throw new Error(data?.error || `Login fehlgeschlagen`);
       }
 
       const token: string | undefined = data?.token;
       const user: any = data?.user;
 
-      if (!token || !user) throw new Error("Login fehlgeschlagen (keine Daten).");
+      if (!token || !user) throw new Error("Login fehlgeschlagen.");
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
@@ -100,7 +100,9 @@ function LoginInner() {
 
       <form onSubmit={onSubmit} style={{ marginTop: 14, display: "grid", gap: 12 }}>
         <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>E-Mail</div>
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
+            E-Mail
+          </div>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -111,7 +113,9 @@ function LoginInner() {
         </div>
 
         <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Passwort</div>
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
+            Passwort
+          </div>
           <input
             type="password"
             value={password}
@@ -139,6 +143,49 @@ function LoginInner() {
           {loading ? "Logge ein..." : "Einloggen"}
         </button>
       </form>
+
+      {/* Registrierung Buttons */}
+      <div style={{ marginTop: 20, display: "grid", gap: 10 }}>
+        <div style={{ textAlign: "center", fontSize: 13, color: "#666" }}>
+          Noch kein Konto?
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a
+            href="/register"
+            style={{
+              flex: 1,
+              textAlign: "center",
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid #111",
+              background: "#111",
+              color: "#fff",
+              fontWeight: 900,
+              textDecoration: "none",
+            }}
+          >
+            Als Kunde registrieren
+          </a>
+
+          <a
+            href="/register-barber"
+            style={{
+              flex: 1,
+              textAlign: "center",
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid #ddd",
+              background: "#fff",
+              color: "#111",
+              fontWeight: 900,
+              textDecoration: "none",
+            }}
+          >
+            Als Friseur registrieren
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
