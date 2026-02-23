@@ -3,19 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-function pill(active: boolean) {
-  return {
-    padding: "10px 12px",
-    borderRadius: 10,
-    border: active ? "1px solid #111" : "1px solid #ddd",
-    background: active ? "#111" : "#fff",
-    color: active ? "#fff" : "#111",
-    fontWeight: 900,
-    textDecoration: "none",
-    fontSize: 12,
-  } as const;
-}
-
 export default function CustomerNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -28,26 +15,94 @@ export default function CustomerNav() {
   }
 
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-      <Link href="/" style={pill(pathname === "/")}>Home</Link>
-      <Link href="/book" style={pill(pathname === "/book")}>Buchen</Link>
-      <Link href="/my-bookings" style={pill(pathname === "/my-bookings")}>Meine Termine</Link>
-      <Link href="/notifications" style={pill(pathname === "/notifications")}>Nachrichten</Link>
-      <Link href="/settings" style={pill(pathname === "/settings")}>Einstellungen</Link>
+    <div className="navWrap">
+      <style jsx>{`
+        .navWrap {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
 
-      <button
-        type="button"
-        onClick={logout}
-        style={{
-          padding: "10px 12px",
-          borderRadius: 10,
-          border: "1px solid #ddd",
-          background: "#fff",
-          fontWeight: 900,
-          cursor: "pointer",
-          fontSize: 12,
-        }}
+        .navLink {
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid #ddd;
+          background: #fff;
+          color: #111;
+          font-weight: 900;
+          text-decoration: none;
+          font-size: 12px;
+          transition: all 0.15s ease;
+        }
+
+        .navLinkActive {
+          border: 1px solid #111;
+          background: #111;
+          color: #fff;
+        }
+
+        .logout {
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid #ddd;
+          background: #fff;
+          font-weight: 900;
+          cursor: pointer;
+          font-size: 12px;
+        }
+
+        /* ✅ Mobile */
+        @media (max-width: 520px) {
+          .navWrap {
+            width: 100%;
+            gap: 6px;
+          }
+
+          .navLink,
+          .logout {
+            flex: 1 1 calc(50% - 6px);
+            text-align: center;
+          }
+        }
+      `}</style>
+
+      <Link
+        href="/"
+        className={`navLink ${pathname === "/" ? "navLinkActive" : ""}`}
       >
+        Home
+      </Link>
+
+      <Link
+        href="/book"
+        className={`navLink ${pathname === "/book" ? "navLinkActive" : ""}`}
+      >
+        Buchen
+      </Link>
+
+      <Link
+        href="/my-bookings"
+        className={`navLink ${pathname === "/my-bookings" ? "navLinkActive" : ""}`}
+      >
+        Meine Termine
+      </Link>
+
+      <Link
+        href="/notifications"
+        className={`navLink ${pathname === "/notifications" ? "navLinkActive" : ""}`}
+      >
+        Nachrichten
+      </Link>
+
+      <Link
+        href="/settings"
+        className={`navLink ${pathname === "/settings" ? "navLinkActive" : ""}`}
+      >
+        Einstellungen
+      </Link>
+
+      <button type="button" onClick={logout} className="logout">
         Ausloggen
       </button>
     </div>

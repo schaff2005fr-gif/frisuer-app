@@ -85,17 +85,152 @@ export default function HomePage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 1040, margin: "0 auto" }}>
+      {/* ✅ Mobile CSS nur für diese Seite */}
+      <style jsx>{`
+        .headerRow {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: flex-end;
+          flex-wrap: wrap;
+          margin-bottom: 14px;
+        }
+
+        .meBadge {
+          border: 1px solid #eee;
+          border-radius: 12px;
+          padding: 10px 12px;
+          background: #fff;
+          font-weight: 900;
+          white-space: nowrap;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .meBadgeMuted {
+          border: 1px solid #eee;
+          border-radius: 12px;
+          padding: 10px 12px;
+          background: #fff;
+          font-weight: 900;
+          color: #666;
+          white-space: nowrap;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .searchBox {
+          border: 1px solid #eee;
+          border-radius: 14px;
+          padding: 14px;
+          background: #fff;
+          display: grid;
+          grid-template-columns: 1fr 360px auto;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .searchInput {
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 12px;
+          width: 100%;
+          max-width: 100%;
+        }
+
+        .countText {
+          color: #666;
+          font-size: 12px;
+          font-weight: 900;
+          text-align: right;
+          white-space: nowrap;
+        }
+
+        .cards {
+          margin-top: 16px;
+          display: grid;
+          gap: 12px;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        }
+
+        .card {
+          border: 1px solid #eee;
+          border-radius: 14px;
+          padding: 14px;
+          background: #fff;
+          display: grid;
+          gap: 10px;
+        }
+
+        .cardTop {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: flex-start;
+        }
+
+        .pill {
+          font-size: 12px;
+          font-weight: 900;
+          padding: 2px 8px;
+          border-radius: 999px;
+          border: 1px solid #ddd;
+          white-space: nowrap;
+          height: fit-content;
+        }
+
+        .cardActions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .btnGhost {
+          flex: 1 1 140px;
+          text-align: center;
+          text-decoration: none;
+          border: 1px solid #ddd;
+          padding: 10px 12px;
+          border-radius: 12px;
+          color: #111;
+          font-weight: 900;
+          background: #fff;
+        }
+
+        .btnPrimary {
+          flex: 1 1 140px;
+          text-align: center;
+          text-decoration: none;
+          border: 1px solid #111;
+          padding: 10px 12px;
+          border-radius: 12px;
+          color: #fff;
+          font-weight: 900;
+          background: #111;
+        }
+
+        /* ✅ Mobile: alles untereinander + buttons 2-spaltig */
+        @media (max-width: 720px) {
+          .searchBox {
+            grid-template-columns: 1fr;
+          }
+
+          .countText {
+            text-align: left;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .cardActions a {
+            flex: 1 1 calc(50% - 10px);
+          }
+        }
+      `}</style>
+
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-          marginBottom: 14,
-        }}
-      >
+      <div className="headerRow">
         <div>
           <h1 style={{ margin: 0 }}>Friseur buchen</h1>
           <div style={{ color: "#666", marginTop: 6 }}>
@@ -108,49 +243,18 @@ export default function HomePage() {
           {loadingMe ? (
             <div style={{ color: "#666", fontWeight: 800 }}>lädt…</div>
           ) : me ? (
-            <div
-              style={{
-                border: "1px solid #eee",
-                borderRadius: 12,
-                padding: "10px 12px",
-                background: "#fff",
-                fontWeight: 900,
-              }}
-            >
+            <div className="meBadge" title={displayName}>
               {isCustomer ? "👤 " : "🔧 "}
               {displayName}
             </div>
           ) : (
-            <div
-              style={{
-                border: "1px solid #eee",
-                borderRadius: 12,
-                padding: "10px 12px",
-                background: "#fff",
-                fontWeight: 900,
-                color: "#666",
-              }}
-            >
-              Nicht eingeloggt
-            </div>
+            <div className="meBadgeMuted">Nicht eingeloggt</div>
           )}
         </div>
       </div>
 
       {/* Search */}
-      <div
-        style={{
-          border: "1px solid #eee",
-          borderRadius: 14,
-          padding: 14,
-          background: "#fff",
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
+      <div className="searchBox">
         <div>
           <div style={{ fontWeight: 900 }}>Suche</div>
           <div style={{ color: "#666", fontSize: 12 }}>Name oder Slug</div>
@@ -160,18 +264,10 @@ export default function HomePage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="z.B. Ali, barber-essen..."
-          style={{
-            padding: 10,
-            border: "1px solid #ddd",
-            borderRadius: 12,
-            width: 360,
-            maxWidth: "100%",
-          }}
+          className="searchInput"
         />
 
-        <div style={{ color: "#666", fontSize: 12, fontWeight: 900 }}>
-          {loading ? "…" : `${filtered.length} Friseur(e)`}
-        </div>
+        <div className="countText">{loading ? "…" : `${filtered.length} Friseur(e)`}</div>
       </div>
 
       {loading ? <div style={{ marginTop: 12, color: "#666" }}>Lade…</div> : null}
@@ -191,7 +287,7 @@ export default function HomePage() {
       ) : null}
 
       {/* Cards */}
-      <div style={{ marginTop: 16, display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+      <div className="cards">
         {!loading && filtered.length === 0 ? (
           <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff", color: "#666" }}>
             Keine Friseure gefunden.
@@ -199,68 +295,22 @@ export default function HomePage() {
         ) : null}
 
         {filtered.map((b) => (
-          <div
-            key={b.id}
-            style={{
-              border: "1px solid #eee",
-              borderRadius: 14,
-              padding: 14,
-              background: "#fff",
-              display: "grid",
-              gap: 10,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+          <div key={b.id} className="card">
+            <div className="cardTop">
               <div>
                 <div style={{ fontWeight: 1000, fontSize: 16 }}>{b.name}</div>
                 <div style={{ color: "#666", fontSize: 12 }}>/b/{b.slug}</div>
               </div>
 
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 900,
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  border: "1px solid #ddd",
-                }}
-              >
-                Profil
-              </span>
+              <span className="pill">Profil</span>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <a
-                href={`/b/${b.slug}`}
-                style={{
-                  flex: "1 1 120px",
-                  textAlign: "center",
-                  textDecoration: "none",
-                  border: "1px solid #ddd",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  color: "#111",
-                  fontWeight: 900,
-                  background: "#fff",
-                }}
-              >
+            <div className="cardActions">
+              <a href={`/b/${b.slug}`} className="btnGhost">
                 Profil ansehen
               </a>
 
-              <a
-                href={`/b/${b.slug}/book`}
-                style={{
-                  flex: "1 1 120px",
-                  textAlign: "center",
-                  textDecoration: "none",
-                  border: "1px solid #111",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  color: "#fff",
-                  fontWeight: 900,
-                  background: "#111",
-                }}
-              >
+              <a href={`/b/${b.slug}/book`} className="btnPrimary">
                 Buchen →
               </a>
             </div>

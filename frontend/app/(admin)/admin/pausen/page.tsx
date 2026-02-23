@@ -239,10 +239,16 @@ export default function PausenPage() {
     return map;
   }, [recurring]);
 
-  return (
-    <div style={{ padding: 20, maxWidth: 1020, margin: "0 auto" }}>
-      {/* ✅ Keine AdminNav mehr hier (kommt aus (admin)/layout.tsx) */}
+  // ✅ Responsive Input Style (nur Style, keine Logik)
+  const inputStyle: React.CSSProperties = {
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #ddd",
+    width: "100%",
+  };
 
+  return (
+    <div style={{ padding: 16, maxWidth: 1020, margin: "0 auto" }}>
       <h1 style={{ margin: 0 }}>Pausen & Blockzeiten</h1>
       <div style={{ marginTop: 6, color: "#666" }}>
         Steuert, wann Kunden <b>keine</b> Termine buchen können.
@@ -260,17 +266,20 @@ export default function PausenPage() {
       )}
 
       {/* Recurring */}
-      <div style={{ marginTop: 16, border: "1px solid #eee", borderRadius: 14, padding: 14 }}>
+      <div style={{ marginTop: 16, border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Wiederkehrende Pausen (jede Woche)</h2>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 10,
+            alignItems: "end",
+          }}
+        >
           <div>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Wochentag</div>
-            <select
-              value={newWeekday}
-              onChange={(e) => setNewWeekday(Number(e.target.value))}
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-            >
+            <select value={newWeekday} onChange={(e) => setNewWeekday(Number(e.target.value))} style={inputStyle}>
               {WEEKDAYS.map((d) => (
                 <option key={d.k} value={d.k}>
                   {d.name}
@@ -281,32 +290,17 @@ export default function PausenPage() {
 
           <div>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Start</div>
-            <input
-              value={newStart}
-              onChange={(e) => setNewStart(e.target.value)}
-              placeholder="HH:MM"
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", width: 120 }}
-            />
+            <input value={newStart} onChange={(e) => setNewStart(e.target.value)} placeholder="HH:MM" style={inputStyle} />
           </div>
 
           <div>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Ende</div>
-            <input
-              value={newEnd}
-              onChange={(e) => setNewEnd(e.target.value)}
-              placeholder="HH:MM"
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", width: 120 }}
-            />
+            <input value={newEnd} onChange={(e) => setNewEnd(e.target.value)} placeholder="HH:MM" style={inputStyle} />
           </div>
 
-          <div style={{ flex: "1 1 240px" }}>
+          <div style={{ gridColumn: "1 / -1" }}>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Grund (optional)</div>
-            <input
-              value={newReason}
-              onChange={(e) => setNewReason(e.target.value)}
-              placeholder="z.B. Pause"
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", width: "100%" }}
-            />
+            <input value={newReason} onChange={(e) => setNewReason(e.target.value)} placeholder="z.B. Pause" style={inputStyle} />
           </div>
 
           <button
@@ -319,6 +313,8 @@ export default function PausenPage() {
               color: "#fff",
               fontWeight: 900,
               cursor: "pointer",
+              width: "100%",
+              gridColumn: "1 / -1",
             }}
           >
             Hinzufügen
@@ -354,14 +350,14 @@ export default function PausenPage() {
                               padding: 10,
                             }}
                           >
-                            <div>
+                            <div style={{ minWidth: 200 }}>
                               <b>
                                 {minToHHMM(r.startMin)} – {minToHHMM(r.endMin)}
                               </b>
-                              <div style={{ fontSize: 12, color: "#666" }}>{r.reason ?? "—"}</div>
+                              <div style={{ fontSize: 12, color: "#666", wordBreak: "break-word" }}>{r.reason ?? "—"}</div>
                             </div>
 
-                            <div style={{ display: "flex", gap: 8 }}>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                               <button
                                 onClick={() => toggleRecurring(r.id, !r.enabled)}
                                 style={{
@@ -373,6 +369,7 @@ export default function PausenPage() {
                                   fontWeight: 900,
                                   cursor: "pointer",
                                   fontSize: 12,
+                                  width: 120,
                                 }}
                               >
                                 {r.enabled ? "Aktiv" : "Inaktiv"}
@@ -389,6 +386,7 @@ export default function PausenPage() {
                                   fontWeight: 900,
                                   cursor: "pointer",
                                   fontSize: 12,
+                                  width: 120,
                                 }}
                               >
                                 Löschen
@@ -407,10 +405,17 @@ export default function PausenPage() {
       </div>
 
       {/* One-time */}
-      <div style={{ marginTop: 16, border: "1px solid #eee", borderRadius: 14, padding: 14 }}>
+      <div style={{ marginTop: 16, border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Blockzeiten (einmalig für ein Datum)</h2>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 10,
+            alignItems: "end",
+          }}
+        >
           <div>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Datum</div>
             <input
@@ -421,37 +426,27 @@ export default function PausenPage() {
                 setSelectedDate(d);
                 loadDayBlocks(d);
               }}
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              style={inputStyle}
             />
           </div>
 
           <div>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Start</div>
-            <input
-              value={dayStart}
-              onChange={(e) => setDayStart(e.target.value)}
-              placeholder="HH:MM"
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", width: 120 }}
-            />
+            <input value={dayStart} onChange={(e) => setDayStart(e.target.value)} placeholder="HH:MM" style={inputStyle} />
           </div>
 
           <div>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Ende</div>
-            <input
-              value={dayEnd}
-              onChange={(e) => setDayEnd(e.target.value)}
-              placeholder="HH:MM"
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", width: 120 }}
-            />
+            <input value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} placeholder="HH:MM" style={inputStyle} />
           </div>
 
-          <div style={{ flex: "1 1 240px" }}>
+          <div style={{ gridColumn: "1 / -1" }}>
             <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Grund (optional)</div>
             <input
               value={dayReason}
               onChange={(e) => setDayReason(e.target.value)}
               placeholder="z.B. Arzt / Privat"
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd", width: "100%" }}
+              style={inputStyle}
             />
           </div>
 
@@ -465,6 +460,8 @@ export default function PausenPage() {
               color: "#fff",
               fontWeight: 900,
               cursor: "pointer",
+              width: "100%",
+              gridColumn: "1 / -1",
             }}
           >
             Blocken
@@ -495,11 +492,11 @@ export default function PausenPage() {
                       flexWrap: "wrap",
                     }}
                   >
-                    <div>
+                    <div style={{ minWidth: 200 }}>
                       <b>
                         {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
                       </b>
-                      <div style={{ fontSize: 12, color: "#666" }}>{b.reason ?? "—"}</div>
+                      <div style={{ fontSize: 12, color: "#666", wordBreak: "break-word" }}>{b.reason ?? "—"}</div>
                     </div>
 
                     <button
@@ -513,6 +510,7 @@ export default function PausenPage() {
                         fontWeight: 900,
                         cursor: "pointer",
                         fontSize: 12,
+                        width: 140,
                       }}
                     >
                       Löschen

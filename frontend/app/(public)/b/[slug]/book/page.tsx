@@ -66,13 +66,13 @@ export default function BarberBookPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // ✅ wenn URL ?serviceKey=... sich ändert, übernehmen
+  // wenn URL ?serviceKey=... sich ändert, übernehmen
   useEffect(() => {
     if (presetServiceKey) setSelectedServiceKey(presetServiceKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetServiceKey]);
 
-  // ✅ token nur im Client lesen
+  // token nur im Client lesen
   const token = getTokenSafe();
   const isLoggedIn = Boolean(token);
 
@@ -82,7 +82,10 @@ export default function BarberBookPage() {
   const customerName = (me?.customer?.name ?? "").trim();
   const customerPhone = (me?.customer?.phone ?? "").trim();
 
-  const nextUrl = useMemo(() => buildNextUrl(slug, selectedServiceKey || presetServiceKey), [slug, selectedServiceKey, presetServiceKey]);
+  const nextUrl = useMemo(
+    () => buildNextUrl(slug, selectedServiceKey || presetServiceKey),
+    [slug, selectedServiceKey, presetServiceKey]
+  );
   const loginHref = `/login?next=${encodeURIComponent(nextUrl)}`;
   const registerHref = `/register?next=${encodeURIComponent(nextUrl)}`;
 
@@ -125,17 +128,6 @@ export default function BarberBookPage() {
   );
 
   const canLoadTimes = Boolean(selectedServiceKey && selectedDate);
-
-  const canBookCustomer = Boolean(
-    selectedServiceKey &&
-      selectedDate &&
-      selectedTimeMin != null &&
-      customerName &&
-      customerPhone &&
-      isAuthedCustomer
-  );
-
-  const canBook = canBookCustomer;
 
   async function loadTimes() {
     setBusyTimes(true);
@@ -184,7 +176,6 @@ export default function BarberBookPage() {
 
     try {
       if (!isAuthedCustomer) {
-        // ✅ Auto-Redirect mit Return-URL
         redirectToLogin();
         return;
       }
@@ -218,49 +209,96 @@ export default function BarberBookPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 20 }}>Lade...</div>;
-  if (error && !barber)
+  if (loading) return <div style={{ padding: 20 }}>Lade…</div>;
+
+  if (error && !barber) {
     return (
-      <div style={{ padding: 20, color: "crimson" }}>
-        <b>{error}</b>
+      <div style={{ padding: 20 }}>
+        <div
+          style={{
+            padding: 12,
+            border: "1px solid #f2c6c6",
+            background: "#fff5f5",
+            borderRadius: 12,
+            color: "#8a1c1c",
+          }}
+        >
+          <b>{error}</b>
+        </div>
       </div>
     );
+  }
+
   if (!barber) return <div style={{ padding: 20 }}>Nicht gefunden.</div>;
+
+  const disableBook =
+    busyBooking ||
+    (isLoggedIn && me?.role === "BARBER") ||
+    !selectedServiceKey ||
+    !selectedDate ||
+    selectedTimeMin == null;
 
   return (
     <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
-      {/* HEADER (public) */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-        <div>
-          <a href={`/b/${barber.slug}`} style={{ textDecoration: "none", color: "#111", fontWeight: 900 }}>
-            ← Zurück zum Profil
-          </a>
+      {/* Header (mobile-friendly) */}
+      <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
+        <a
+          href={`/b/${barber.slug}`}
+          style={{ textDecoration: "none", color: "#111", fontWeight: 900 }}
+        >
+          ← Zurück zum Profil
+        </a>
 
-          <h1 style={{ margin: "10px 0 4px" }}>Termin buchen</h1>
+        <div
+          style={{
+            border: "1px solid #eee",
+            borderRadius: 14,
+            padding: 14,
+            background: "#fff",
+            display: "grid",
+            gap: 6,
+          }}
+        >
+          <h1 style={{ margin: 0 }}>Termin buchen</h1>
           <div style={{ color: "#666" }}>
             Friseur: <b>{barber.name}</b>
           </div>
-        </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          {!isLoggedIn ? (
-            <>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+            {!isLoggedIn ? (
+              <>
+                <a
+                  href={loginHref}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid #111",
+                    background: "#111",
+                    color: "#fff",
+                    fontWeight: 900,
+                    textDecoration: "none",
+                  }}
+                >
+                  Login
+                </a>
+                <a
+                  href={registerHref}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid #ddd",
+                    background: "#fff",
+                    color: "#111",
+                    fontWeight: 900,
+                    textDecoration: "none",
+                  }}
+                >
+                  Registrieren
+                </a>
+              </>
+            ) : isCustomer ? (
               <a
-                href={loginHref}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #111",
-                  background: "#111",
-                  color: "#fff",
-                  fontWeight: 900,
-                  textDecoration: "none",
-                }}
-              >
-                Login
-              </a>
-              <a
-                href={registerHref}
+                href="/my-bookings"
                 style={{
                   padding: "10px 12px",
                   borderRadius: 10,
@@ -271,36 +309,22 @@ export default function BarberBookPage() {
                   textDecoration: "none",
                 }}
               >
-                Registrieren
+                Meine Termine
               </a>
-            </>
-          ) : isCustomer ? (
-            <a
-              href="/my-bookings"
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #ddd",
-                background: "#fff",
-                color: "#111",
-                fontWeight: 900,
-                textDecoration: "none",
-              }}
-            >
-              Meine Termine
-            </a>
-          ) : (
-            <div style={{ fontSize: 12, color: "crimson", fontWeight: 900 }}>
-              Als Friseur eingeloggt – zum Buchen bitte als Kunde einloggen.
-            </div>
-          )}
+            ) : (
+              <div style={{ fontSize: 12, color: "crimson", fontWeight: 900 }}>
+                Als Friseur eingeloggt – zum Buchen bitte als Kunde einloggen.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Alerts */}
       {message ? (
         <div
           style={{
-            marginTop: 12,
+            marginBottom: 12,
             padding: 12,
             border: "1px solid #b7ebc6",
             background: "#f0fff4",
@@ -315,7 +339,7 @@ export default function BarberBookPage() {
       {error ? (
         <div
           style={{
-            marginTop: 12,
+            marginBottom: 12,
             padding: 12,
             border: "1px solid #f2c6c6",
             background: "#fff5f5",
@@ -327,130 +351,125 @@ export default function BarberBookPage() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 16, alignItems: "start" }}>
-        {/* LEFT */}
-        <div style={{ display: "grid", gap: 16 }}>
-          {/* Kontakt */}
-          <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Kontakt</h2>
+      <div style={{ display: "grid", gap: 14 }}>
+        {/* Kontakt */}
+        <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
+          <div style={{ fontWeight: 900, fontSize: 16 }}>Kontakt</div>
 
-            {isAuthedCustomer ? (
-              <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                <div style={{ color: "#666", fontSize: 12 }}>
-                  Eingeloggt als: <b>{me?.email}</b>
-                </div>
-
-                <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
-                  <div>
-                    Name: <b>{customerName || "—"}</b>
-                  </div>
-                  <div style={{ marginTop: 4 }}>
-                    Telefon: <b>{customerPhone || "—"}</b>
-                  </div>
-
-                  {!customerName || !customerPhone ? (
-                    <div style={{ marginTop: 10, color: "crimson", fontWeight: 900, fontSize: 12 }}>
-                      Bitte Profil vervollständigen (Name + Telefon), sonst kannst du nicht buchen.
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div style={{ marginTop: 10, color: "#666" }}>
-                  Buchung nur mit Kunden-Login möglich. Bitte einloggen oder registrieren.
-                </div>
-
-                {!isLoggedIn ? (
-                  <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <a
-                      href={loginHref}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: "1px solid #111",
-                        background: "#111",
-                        color: "#fff",
-                        fontWeight: 900,
-                        textDecoration: "none",
-                      }}
-                    >
-                      Login
-                    </a>
-                    <a
-                      href={registerHref}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        color: "#111",
-                        fontWeight: 900,
-                        textDecoration: "none",
-                      }}
-                    >
-                      Registrieren
-                    </a>
-                  </div>
-                ) : null}
-
-                {isLoggedIn && me?.role === "BARBER" ? (
-                  <div style={{ marginTop: 10, fontSize: 12, color: "crimson", fontWeight: 900 }}>
-                    Du bist als Friseur eingeloggt. Zum Buchen bitte als Kunde einloggen oder ausloggen.
-                  </div>
-                ) : null}
-              </>
-            )}
-          </section>
-
-          {/* Termin */}
-          <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Termin</h2>
-
-            <div style={{ marginTop: 10, display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-              <div>
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Service</div>
-                <select
-                  value={selectedServiceKey}
-                  onChange={(e) => {
-                    setSelectedServiceKey(e.target.value);
-                    setMessage("");
-                    setError("");
-                  }}
-                  style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-                >
-                  <option value="">Bitte wählen</option>
-                  {services.map((s) => (
-                    <option key={s.key} value={s.key}>
-                      {s.name} – {s.durationMin} min
-                    </option>
-                  ))}
-                </select>
-
-                {selectedService ? (
-                  <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
-                    Dauer: <b>{selectedService.durationMin} min</b>
-                  </div>
-                ) : null}
+          {isAuthedCustomer ? (
+            <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+              <div style={{ color: "#666", fontSize: 12 }}>
+                Eingeloggt als: <b>{me?.email}</b>
               </div>
 
-              <div>
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Datum</div>
-                <input
-                  type="date"
-                  min={today}
-                  value={selectedDate}
-                  onChange={(e) => {
-                    setSelectedDate(e.target.value);
-                    setMessage("");
-                    setError("");
-                  }}
-                  style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-                />
+              <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
+                <div>
+                  Name: <b>{customerName || "—"}</b>
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  Telefon: <b>{customerPhone || "—"}</b>
+                </div>
+
+                {!customerName || !customerPhone ? (
+                  <div style={{ marginTop: 10, color: "crimson", fontWeight: 900, fontSize: 12 }}>
+                    Bitte Profil vervollständigen (Name + Telefon), sonst kannst du nicht buchen.
+                  </div>
+                ) : null}
               </div>
             </div>
+          ) : (
+            <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+              <div style={{ color: "#666" }}>Buchung nur mit Kunden-Login möglich.</div>
 
-            <div style={{ marginTop: 12 }}>
+              {!isLoggedIn ? (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <a
+                    href={loginHref}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #111",
+                      background: "#111",
+                      color: "#fff",
+                      fontWeight: 900,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Login
+                  </a>
+                  <a
+                    href={registerHref}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #ddd",
+                      background: "#fff",
+                      color: "#111",
+                      fontWeight: 900,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Registrieren
+                  </a>
+                </div>
+              ) : null}
+
+              {isLoggedIn && me?.role === "BARBER" ? (
+                <div style={{ fontSize: 12, color: "crimson", fontWeight: 900 }}>
+                  Du bist als Friseur eingeloggt. Zum Buchen bitte als Kunde einloggen oder ausloggen.
+                </div>
+              ) : null}
+            </div>
+          )}
+        </section>
+
+        {/* Termin */}
+        <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
+          <div style={{ fontWeight: 900, fontSize: 16 }}>Termin</div>
+
+          <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Service</div>
+              <select
+                value={selectedServiceKey}
+                onChange={(e) => {
+                  setSelectedServiceKey(e.target.value);
+                  setMessage("");
+                  setError("");
+                }}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              >
+                <option value="">Bitte wählen</option>
+                {services.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.name} – {s.durationMin} min
+                  </option>
+                ))}
+              </select>
+
+              {selectedService ? (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
+                  Dauer: <b>{selectedService.durationMin} min</b>
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Datum</div>
+              <input
+                type="date"
+                min={today}
+                value={selectedDate}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setMessage("");
+                  setError("");
+                }}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
+            </div>
+
+            <div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ fontWeight: 900 }}>Uhrzeit</div>
                 <div style={{ fontSize: 12, color: "#666" }}>
@@ -489,46 +508,46 @@ export default function BarberBookPage() {
                   })}
                 </div>
               )}
-
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Notiz (optional)</div>
-                <input
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="z.B. Seiten kurz"
-                  style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-                />
-              </div>
-
-              <button
-                onClick={bookNow}
-                disabled={busyBooking || (isLoggedIn && me?.role === "BARBER") || !selectedServiceKey || !selectedDate || selectedTimeMin == null}
-                style={{
-                  marginTop: 12,
-                  width: "100%",
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  border: "1px solid #111",
-                  background: "#111",
-                  color: "#fff",
-                  fontWeight: 900,
-                  cursor: busyBooking ? "not-allowed" : "pointer",
-                  opacity:
-                    busyBooking || (isLoggedIn && me?.role === "BARBER") || !selectedServiceKey || !selectedDate || selectedTimeMin == null
-                      ? 0.7
-                      : 1,
-                }}
-                title={!isAuthedCustomer ? "Du wirst zum Login weitergeleitet" : ""}
-              >
-                {busyBooking ? "Buche..." : "Termin buchen"}
-              </button>
             </div>
-          </section>
-        </div>
 
-        {/* RIGHT */}
-        <aside style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff", position: "sticky", top: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 16 }}>Zusammenfassung</h2>
+            <div>
+              <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Notiz (optional)</div>
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="z.B. Seiten kurz"
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
+            </div>
+
+            <button
+              onClick={bookNow}
+              disabled={disableBook}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: "1px solid #111",
+                background: "#111",
+                color: "#fff",
+                fontWeight: 900,
+                cursor: busyBooking ? "not-allowed" : "pointer",
+                opacity: disableBook ? 0.7 : 1,
+              }}
+              title={!isAuthedCustomer ? "Du wirst zum Login weitergeleitet" : ""}
+            >
+              {busyBooking ? "Buche..." : "Termin buchen"}
+            </button>
+
+            <div style={{ fontSize: 12, color: "#666" }}>
+              Hinweis: Buchung nur mit Login möglich. Name/Telefon kommen aus deinem Profil.
+            </div>
+          </div>
+        </section>
+
+        {/* Zusammenfassung (untereinander, mobile friendly) */}
+        <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
+          <div style={{ fontWeight: 900, fontSize: 16 }}>Zusammenfassung</div>
 
           <div style={{ marginTop: 12, display: "grid", gap: 10, fontSize: 13 }}>
             <div>
@@ -570,11 +589,7 @@ export default function BarberBookPage() {
               </div>
             ) : null}
           </div>
-
-          <div style={{ marginTop: 12, fontSize: 12, color: "#666" }}>
-            Hinweis: Buchung nur mit Login möglich. Name/Telefon kommen aus deinem Profil.
-          </div>
-        </aside>
+        </section>
       </div>
     </div>
   );

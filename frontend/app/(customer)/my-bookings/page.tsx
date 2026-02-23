@@ -141,39 +141,221 @@ export default function MyBookingsPage() {
   );
 
   return (
-    <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
+    <div className="page">
+      <style jsx>{`
+        .page {
+          padding: 20px;
+          max-width: 980px;
+          margin: 0 auto;
+        }
+
+        .header {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: center;
+          flex-wrap: wrap;
+          margin-bottom: 14px;
+        }
+
+        .subtitle {
+          color: #666;
+          margin-top: 4px;
+        }
+
+        .topActions {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .btnPrimary {
+          border: 1px solid #111;
+          padding: 10px 12px;
+          border-radius: 12px;
+          background: #111;
+          color: #fff;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .btnPrimary:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
+        .alertOk {
+          margin-bottom: 12px;
+          padding: 12px;
+          border: 1px solid #b7ebc6;
+          background: #f0fff4;
+          border-radius: 12px;
+          color: #1f7a37;
+        }
+
+        .alertErr {
+          margin-bottom: 12px;
+          padding: 12px;
+          border: 1px solid #f2c6c6;
+          background: #fff5f5;
+          border-radius: 12px;
+          color: #8a1c1c;
+        }
+
+        .emptyCard {
+          border: 1px solid #eee;
+          border-radius: 14px;
+          padding: 14px;
+          background: #fff;
+          color: #666;
+        }
+
+        .cta {
+          text-decoration: none;
+          border: 1px solid #111;
+          padding: 10px 12px;
+          border-radius: 12px;
+          background: #111;
+          color: #fff;
+          font-weight: 900;
+          display: inline-block;
+        }
+
+        .grid {
+          display: grid;
+          gap: 14px;
+        }
+
+        .section {
+          border: 1px solid #eee;
+          border-radius: 14px;
+          padding: 14px;
+          background: #fff;
+        }
+
+        .sectionTitle {
+          font-weight: 900;
+          margin-bottom: 10px;
+        }
+
+        .list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .item {
+          border: 1px solid #eee;
+          border-radius: 12px;
+          padding: 12px;
+        }
+
+        .itemTop {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .itemDate {
+          font-weight: 900;
+          word-break: break-word;
+        }
+
+        .chip {
+          font-size: 12px;
+          font-weight: 900;
+          padding: 4px 10px;
+          border-radius: 999px;
+          white-space: nowrap;
+        }
+
+        .meta {
+          margin-top: 8px;
+          display: grid;
+          gap: 6px;
+          word-break: break-word;
+        }
+
+        .note {
+          color: #333;
+        }
+
+        .actions {
+          margin-top: 12px;
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .btnGhost {
+          padding: 9px 10px;
+          border: 1px solid #ccc;
+          border-radius: 12px;
+          cursor: pointer;
+          font-weight: 900;
+          background: #fff;
+        }
+
+        .btnGhost:disabled {
+          cursor: not-allowed;
+          opacity: 0.75;
+        }
+
+        .btnLink {
+          text-decoration: none;
+          padding: 9px 10px;
+          border-radius: 12px;
+          border: 1px solid #111;
+          background: #111;
+          color: #fff;
+          font-weight: 900;
+        }
+
+        .muted {
+          color: #666;
+        }
+
+        /* ✅ Mobile polish */
+        @media (max-width: 520px) {
+          .page {
+            padding: 14px;
+          }
+
+          .header {
+            align-items: flex-start;
+          }
+
+          .topActions {
+            width: 100%;
+          }
+
+          .btnPrimary {
+            width: 100%;
+          }
+
+          .actions > * {
+            width: 100%;
+            text-align: center;
+          }
+
+          .chip {
+            width: fit-content;
+          }
+        }
+      `}</style>
+
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-          marginBottom: 14,
-        }}
-      >
+      <div className="header">
         <div>
           <h1 style={{ margin: 0 }}>Meine Termine</h1>
-          <div style={{ color: "#666", marginTop: 4 }}>Übersicht über deine Buchungen. Du kannst Termine auch stornieren.</div>
+          <div className="subtitle">Übersicht über deine Buchungen. Du kannst Termine auch stornieren.</div>
+          {/* unreadCount aktuell nur geladen, nicht angezeigt – falls du willst, bauen wir ein Badge ein */}
         </div>
 
-        {/* ✅ Nur Seiten-Funktion – keine Navigation */}
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button
-            onClick={loadBookings}
-            disabled={loading}
-            style={{
-              border: "1px solid #111",
-              padding: "10px 12px",
-              borderRadius: 12,
-              background: "#111",
-              color: "#fff",
-              fontWeight: 900,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
+        <div className="topActions">
+          <button onClick={loadBookings} disabled={loading} className="btnPrimary">
             {loading ? "Lädt..." : "Neu laden"}
           </button>
         </div>
@@ -181,70 +363,40 @@ export default function MyBookingsPage() {
 
       {/* Alerts */}
       {message && (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: 12,
-            border: "1px solid #b7ebc6",
-            background: "#f0fff4",
-            borderRadius: 12,
-            color: "#1f7a37",
-          }}
-        >
+        <div className="alertOk">
           <b>{message}</b>
         </div>
       )}
 
       {error && (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: 12,
-            border: "1px solid #f2c6c6",
-            background: "#fff5f5",
-            borderRadius: 12,
-            color: "#8a1c1c",
-          }}
-        >
+        <div className="alertErr">
           <b>{error}</b>
         </div>
       )}
 
       {/* Content */}
       {loading ? (
-        <div style={{ color: "#666" }}>Lade Termine…</div>
+        <div className="muted">Lade Termine…</div>
       ) : bookings.length === 0 ? (
-        <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff", color: "#666" }}>
+        <div className="emptyCard">
           <div style={{ fontWeight: 900 }}>Keine Termine gefunden</div>
           <div style={{ marginTop: 6 }}>Gehe zur Startseite und buche einen Termin.</div>
           <div style={{ marginTop: 12 }}>
-            <a
-              href="/"
-              style={{
-                textDecoration: "none",
-                border: "1px solid #111",
-                padding: "10px 12px",
-                borderRadius: 12,
-                background: "#111",
-                color: "#fff",
-                fontWeight: 900,
-                display: "inline-block",
-              }}
-            >
+            <a href="/" className="cta">
               Jetzt buchen →
             </a>
           </div>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 14 }}>
+        <div className="grid">
           {/* Upcoming */}
-          <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>Aktive Termine ({upcoming.length})</div>
+          <div className="section">
+            <div className="sectionTitle">Aktive Termine ({upcoming.length})</div>
 
             {upcoming.length === 0 ? (
-              <div style={{ color: "#666" }}>Keine aktiven Termine.</div>
+              <div className="muted">Keine aktiven Termine.</div>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
+              <div className="list">
                 {upcoming.map((b: any) => {
                   const barberName = b?.barber?.name ?? "—";
                   const barberSlug = b?.barber?.slug ?? "";
@@ -252,27 +404,19 @@ export default function MyBookingsPage() {
                   const serviceDur = b?.service?.durationMin ?? b?.durationMin ?? "—";
 
                   return (
-                    <div key={b.id} style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontWeight: 900 }}>
+                    <div key={b.id} className="item">
+                      <div className="itemTop">
+                        <div className="itemDate">
                           {b.date}
                           {b.timeHHMM ? ` — ${b.timeHHMM}` : ""}
                         </div>
 
-                        <span
-                          style={{
-                            ...statusStyles(b.status),
-                            fontSize: 12,
-                            fontWeight: 900,
-                            padding: "4px 10px",
-                            borderRadius: 999,
-                          }}
-                        >
+                        <span className="chip" style={{ ...statusStyles(b.status) }}>
                           {statusLabel(b.status)}
                         </span>
                       </div>
 
-                      <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                      <div className="meta">
                         <div>
                           Friseur:{" "}
                           {barberSlug ? (
@@ -289,41 +433,19 @@ export default function MyBookingsPage() {
                         </div>
 
                         {b.note ? (
-                          <div style={{ color: "#333" }}>
+                          <div className="note">
                             Notiz: <i>{b.note}</i>
                           </div>
                         ) : null}
                       </div>
 
-                      <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <button
-                          onClick={() => cancelBooking(b.id)}
-                          disabled={busyId === b.id}
-                          style={{
-                            padding: "9px 10px",
-                            border: "1px solid #ccc",
-                            borderRadius: 12,
-                            cursor: busyId === b.id ? "not-allowed" : "pointer",
-                            fontWeight: 900,
-                            background: "#fff",
-                          }}
-                        >
+                      <div className="actions">
+                        <button onClick={() => cancelBooking(b.id)} disabled={busyId === b.id} className="btnGhost">
                           {busyId === b.id ? "Storniere..." : "Stornieren"}
                         </button>
 
                         {barberSlug ? (
-                          <a
-                            href={`/b/${barberSlug}`}
-                            style={{
-                              textDecoration: "none",
-                              padding: "9px 10px",
-                              borderRadius: 12,
-                              border: "1px solid #111",
-                              background: "#111",
-                              color: "#fff",
-                              fontWeight: 900,
-                            }}
-                          >
+                          <a href={`/b/${barberSlug}`} className="btnLink">
                             Neu buchen →
                           </a>
                         ) : null}
@@ -337,63 +459,49 @@ export default function MyBookingsPage() {
 
           {/* Cancelled */}
           {cancelled.length > 0 ? (
-            <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
-              <div style={{ fontWeight: 900, marginBottom: 10 }}>Stornierte Termine ({cancelled.length})</div>
+            <div className="section">
+              <div className="sectionTitle">Stornierte Termine ({cancelled.length})</div>
 
-              <div style={{ display: "grid", gap: 10 }}>
+              <div className="list">
                 {cancelled.map((b: any) => {
                   const barberName = b?.barber?.name ?? "—";
                   const barberSlug = b?.barber?.slug ?? "";
 
                   return (
-                    <div
-                      key={b.id}
-                      style={{
-                        border: "1px solid #eee",
-                        borderRadius: 12,
-                        padding: 12,
-                        opacity: 0.85,
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontWeight: 900 }}>
+                    <div key={b.id} className="item" style={{ opacity: 0.85 }}>
+                      <div className="itemTop">
+                        <div className="itemDate">
                           {b.date}
                           {b.timeHHMM ? ` — ${b.timeHHMM}` : ""}
                         </div>
 
-                        <span
-                          style={{
-                            ...statusStyles(b.status),
-                            fontSize: 12,
-                            fontWeight: 900,
-                            padding: "4px 10px",
-                            borderRadius: 999,
-                          }}
-                        >
+                        <span className="chip" style={{ ...statusStyles(b.status) }}>
                           {statusLabel(b.status)}
                         </span>
                       </div>
 
-                      <div style={{ marginTop: 8 }}>
-                        Friseur:{" "}
-                        {barberSlug ? (
-                          <a href={`/b/${barberSlug}`} style={{ fontWeight: 900, color: "#111" }}>
-                            {barberName}
-                          </a>
-                        ) : (
-                          <b>{barberName}</b>
-                        )}
-                      </div>
-
-                      <div style={{ marginTop: 6 }}>
-                        Service: <b>{b.service?.name}</b> ({b.service?.durationMin} min)
-                      </div>
-
-                      {b.note ? (
-                        <div style={{ marginTop: 6, color: "#333" }}>
-                          Notiz: <i>{b.note}</i>
+                      <div className="meta">
+                        <div>
+                          Friseur:{" "}
+                          {barberSlug ? (
+                            <a href={`/b/${barberSlug}`} style={{ fontWeight: 900, color: "#111" }}>
+                              {barberName}
+                            </a>
+                          ) : (
+                            <b>{barberName}</b>
+                          )}
                         </div>
-                      ) : null}
+
+                        <div>
+                          Service: <b>{b.service?.name}</b> ({b.service?.durationMin} min)
+                        </div>
+
+                        {b.note ? (
+                          <div className="note">
+                            Notiz: <i>{b.note}</i>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}

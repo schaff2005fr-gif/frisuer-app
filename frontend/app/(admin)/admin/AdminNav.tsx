@@ -15,7 +15,6 @@ const ITEMS: NavItem[] = [
 ];
 
 function isActive(pathname: string, href: string) {
-  // exakt /admin, sonst prefix-match für unterseiten (z.B. /admin/pausen/xyz)
   if (href === "/admin") return pathname === "/admin";
   return pathname === href || pathname.startsWith(href + "/");
 }
@@ -24,7 +23,15 @@ export default function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        alignItems: "center",
+        flexWrap: "wrap",
+        width: "100%",
+      }}
+    >
       {ITEMS.map((it) => {
         const active = isActive(pathname, it.href);
 
@@ -33,6 +40,8 @@ export default function AdminNav() {
             key={it.href}
             href={it.href}
             style={{
+              flex: "1 1 140px",
+              textAlign: "center",
               padding: "10px 12px",
               borderRadius: 10,
               border: active ? "1px solid #111" : "1px solid #ddd",
@@ -40,6 +49,7 @@ export default function AdminNav() {
               color: active ? "#fff" : "#111",
               fontWeight: 900,
               textDecoration: "none",
+              whiteSpace: "nowrap",
             }}
           >
             {it.label}

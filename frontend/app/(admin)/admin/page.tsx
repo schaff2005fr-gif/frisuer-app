@@ -69,6 +69,7 @@ function PrimaryButtonStyle(disabled?: boolean): React.CSSProperties {
     fontWeight: 900,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.75 : 1,
+    whiteSpace: "nowrap",
   };
 }
 
@@ -82,6 +83,7 @@ function GhostButtonStyle(active?: boolean): React.CSSProperties {
     fontWeight: 900,
     fontSize: 12,
     cursor: "pointer",
+    whiteSpace: "nowrap",
   };
 }
 
@@ -285,13 +287,16 @@ export default function AdminPage() {
       {/* ✅ Kein AdminNav mehr hier (kommt aus (admin)/layout.tsx) */}
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+      <div
+        className="adminHeaderRow"
+        style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}
+      >
         <div>
           <h1 style={{ margin: 0 }}>Dashboard</h1>
           <div style={{ marginTop: 6, color: "#666" }}>Tagesansicht · {date}</div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="adminHeaderRight" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input
             type="date"
             value={date}
@@ -299,7 +304,11 @@ export default function AdminPage() {
             style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
           />
 
-          <button onClick={() => loadDayBookings(date)} disabled={loading || !date} style={PrimaryButtonStyle(loading || !date)}>
+          <button
+            onClick={() => loadDayBookings(date)}
+            disabled={loading || !date}
+            style={PrimaryButtonStyle(loading || !date)}
+          >
             {loading ? "Lade..." : "Neu laden"}
           </button>
         </div>
@@ -336,11 +345,16 @@ export default function AdminPage() {
           value={String(stats.cancelled)}
           sub={`Arbeitszeit: ${minToHHMM(dayWindow.start)}–${minToHHMM(dayWindow.end)}`}
         />
-        <StatCard title="Auslastung" value={`${stats.occ}%`} sub={`${stats.bookedMin} min belegt · ${stats.freeMin} min frei`} />
+        <StatCard
+          title="Auslastung"
+          value={`${stats.occ}%`}
+          sub={`${stats.bookedMin} min belegt · ${stats.freeMin} min frei`}
+        />
       </div>
 
       {/* Controls */}
       <div
+        className="adminControlsRow"
         style={{
           marginTop: 14,
           border: "1px solid #eee",
@@ -354,7 +368,7 @@ export default function AdminPage() {
           background: "#fff",
         }}
       >
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="adminFilterRow" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setFilter("ALL")} style={GhostButtonStyle(filter === "ALL")}>
             Alle
           </button>
@@ -373,6 +387,7 @@ export default function AdminPage() {
         </div>
 
         <input
+          className="adminSearch"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Suche: Name, Tel, Service, Notiz, #ID"
@@ -429,7 +444,16 @@ export default function AdminPage() {
                     background: "#fff",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <div
+                    className="bookingTopRow"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}
+                  >
                     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                       <div style={{ fontWeight: 900 }}>
                         {minToHHMM(t.startMin)} – {minToHHMM(t.endMin)}
@@ -444,6 +468,7 @@ export default function AdminPage() {
                           background: tone.bg,
                           fontSize: 12,
                           fontWeight: 900,
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {statusLabel(b.status)}
@@ -452,11 +477,32 @@ export default function AdminPage() {
                       <span style={{ fontSize: 12, color: "#777" }}>#{b.id}</span>
                     </div>
 
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <StatusButton label="Bestätigt" active={b.status === "CONFIRMED"} disabled={updatingId === b.id} onClick={() => updateStatus(b.id, "CONFIRMED")} />
-                      <StatusButton label="Erledigt" active={b.status === "COMPLETED"} disabled={updatingId === b.id} onClick={() => updateStatus(b.id, "COMPLETED")} />
-                      <StatusButton label="No-Show" active={b.status === "NO_SHOW"} disabled={updatingId === b.id} onClick={() => updateStatus(b.id, "NO_SHOW")} />
-                      <StatusButton label="Storniert" active={b.status === "CANCELLED"} disabled={updatingId === b.id} onClick={() => updateStatus(b.id, "CANCELLED")} />
+                    {/* ✅ responsive: auf Handy 2 Spalten */}
+                    <div className="statusGrid" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <StatusButton
+                        label="Bestätigt"
+                        active={b.status === "CONFIRMED"}
+                        disabled={updatingId === b.id}
+                        onClick={() => updateStatus(b.id, "CONFIRMED")}
+                      />
+                      <StatusButton
+                        label="Erledigt"
+                        active={b.status === "COMPLETED"}
+                        disabled={updatingId === b.id}
+                        onClick={() => updateStatus(b.id, "COMPLETED")}
+                      />
+                      <StatusButton
+                        label="No-Show"
+                        active={b.status === "NO_SHOW"}
+                        disabled={updatingId === b.id}
+                        onClick={() => updateStatus(b.id, "NO_SHOW")}
+                      />
+                      <StatusButton
+                        label="Storniert"
+                        active={b.status === "CANCELLED"}
+                        disabled={updatingId === b.id}
+                        onClick={() => updateStatus(b.id, "CANCELLED")}
+                      />
                     </div>
                   </div>
 
@@ -467,7 +513,8 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      Service: <b>{b.service?.name || b.service?.key || "—"}</b> {b.service?.durationMin ? `(${b.service.durationMin} min)` : ""}
+                      Service: <b>{b.service?.name || b.service?.key || "—"}</b>{" "}
+                      {b.service?.durationMin ? `(${b.service.durationMin} min)` : ""}
                     </div>
 
                     {b.note ? (
@@ -486,6 +533,46 @@ export default function AdminPage() {
       <div style={{ marginTop: 18, fontSize: 12, color: "#666" }}>
         Hinweis: <b>CANCELLED</b> blockiert keine Zeit (Slots werden wieder frei).
       </div>
+
+      {/* ✅ Nur Formatierung: responsive CSS */}
+      <style jsx>{`
+        @media (max-width: 640px) {
+          .adminHeaderRight {
+            width: 100%;
+          }
+          .adminHeaderRight > :global(input[type="date"]) {
+            flex: 1;
+            min-width: 0;
+          }
+          .adminHeaderRight > :global(button) {
+            width: 100%;
+          }
+
+          .adminControlsRow {
+            align-items: stretch !important;
+          }
+
+          .adminFilterRow {
+            width: 100%;
+          }
+
+          .adminSearch {
+            width: 100% !important;
+          }
+
+          .statusGrid {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+          }
+
+          .statusGrid :global(button) {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -515,6 +602,7 @@ function StatusButton(props: { label: string; active: boolean; disabled?: boolea
         fontWeight: 900,
         fontSize: 12,
         opacity: props.disabled ? 0.75 : 1,
+        whiteSpace: "nowrap",
       }}
     >
       {props.label}

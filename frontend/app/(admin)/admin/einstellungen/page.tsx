@@ -23,9 +23,6 @@ type AppSettings = {
   extendIfFirstHourFull: boolean;
   extendStepMin: number;
   earliestLimitMin: number;
-
-  // ✅ NEU: Mindestabstand zwischen Buchungen (pro Kunde)
-  // 0 = keine Begrenzung
   minDaysBetweenBookings: number;
 };
 
@@ -83,7 +80,6 @@ export default function AdminSettingsPage() {
 
   function publicBaseUrl() {
     if (typeof window === "undefined") return "https://frisuer-app.onrender.com";
-    // nimmt automatisch die aktuelle Domain (später live super)
     return window.location.origin;
   }
 
@@ -93,20 +89,16 @@ export default function AdminSettingsPage() {
       setCopied(kind);
       setTimeout(() => setCopied(""), 1200);
     } catch {
-      // fallback: prompt
       window.prompt("Kopiere den Link:", text);
     }
   }
 
-  // profile
   const [profile, setProfile] = useState<BarberProfile | null>(null);
 
-  // services
   const [services, setServices] = useState<Service[]>([]);
   const [newName, setNewName] = useState("Haare");
   const [newDuration, setNewDuration] = useState(30);
 
-  // settings
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   function getToken() {
@@ -146,7 +138,6 @@ export default function AdminSettingsPage() {
 
       const s2 = await apiFetch("/admin/settings", { method: "GET" });
 
-      // ✅ Falls Backend minDaysBetweenBookings noch nicht liefert: Default 0 setzen
       const raw = (s2?.settings ?? null) as AppSettings | null;
       if (raw) {
         setSettings({
@@ -165,7 +156,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // ---- PROFILE ----
   async function saveProfile() {
     if (!profile) return;
 
@@ -195,7 +185,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // ---- SERVICES ----
   async function createService() {
     setError("");
     setMessage("");
@@ -252,7 +241,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // ---- SETTINGS ----
   async function saveSettings(next: AppSettings) {
     setError("");
     setMessage("");
@@ -271,7 +259,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // guard
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userRaw = localStorage.getItem("user");
@@ -301,14 +288,18 @@ export default function AdminSettingsPage() {
     const wh = settings?.workingHours ?? [];
     const map = new Map<number, WorkingHoursRow>();
     for (const r of wh) map.set(r.day, r);
-    return WEEKDAYS.map(
-      (d) => map.get(d.k) ?? { day: d.k, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 }
-    );
+    return WEEKDAYS.map((d) => map.get(d.k) ?? { day: d.k, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 });
   }, [settings]);
 
+  const inputStyle: React.CSSProperties = {
+    padding: 10,
+    border: "1px solid #ddd",
+    borderRadius: 10,
+    width: "100%",
+  };
+
   return (
-    <div style={{ padding: 20, maxWidth: 1020, margin: "0 auto" }}>
-      {/* ✅ Keine AdminNav/Logout/Topbar mehr hier (kommt aus (admin)/layout.tsx) */}
+    <div style={{ padding: 16, maxWidth: 1020, margin: "0 auto" }}>
       <h1 style={{ margin: 0 }}>Einstellungen</h1>
       <div style={{ marginTop: 6, color: "#666" }}>Profil · Services · Arbeitszeiten · Slot-Logik</div>
 
@@ -324,7 +315,14 @@ export default function AdminSettingsPage() {
       )}
 
       {/* Tabs */}
-      <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div
+        style={{
+          marginTop: 14,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 8,
+        }}
+      >
         <TabButton active={tab === "PROFILE"} onClick={() => setTab("PROFILE")}>
           Profil
         </TabButton>
@@ -351,17 +349,7 @@ export default function AdminSettingsPage() {
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name</div>
-                <input
-                  value={profile.name}
-                  disabled
-                  style={{
-                    padding: 10,
-                    border: "1px solid #ddd",
-                    borderRadius: 10,
-                    width: "100%",
-                    opacity: 0.8,
-                  }}
-                />
+                <input value={profile.name} disabled style={{ ...inputStyle, opacity: 0.8 }} />
 
                 <div style={{ marginTop: 6, display: "grid", gap: 10 }}>
                   <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Deine Links</div>
@@ -373,34 +361,29 @@ export default function AdminSettingsPage() {
 
                     return (
                       <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
-                        <div style={{ display: "grid", gap: 10 }}>
-                          {/* Profil */}
+                        <div style={{ display: "grid", gap: 12 }}>
                           <div
                             style={{
-                              display: "flex",
-                              gap: 10,
-                              flexWrap: "wrap",
-                              alignItems: "center",
-                              justifyContent: "space-between",
+                              border: "1px solid #eee",
+                              borderRadius: 12,
+                              padding: 12,
+                              background: "#fff",
                             }}
                           >
-                            <div style={{ minWidth: 240 }}>
-                              <div style={{ fontSize: 12, color: "#666" }}>Profil-Link</div>
-                              <div style={{ fontWeight: 900 }}>{profileUrl}</div>
-                            </div>
+                            <div style={{ fontSize: 12, color: "#666" }}>Profil-Link</div>
+                            <div style={{ fontWeight: 900, wordBreak: "break-word", marginTop: 4 }}>{profileUrl}</div>
 
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(profileUrl, "profile")}
                                 style={{
-                                  padding: "8px 10px",
+                                  padding: "10px 12px",
                                   borderRadius: 10,
                                   border: "1px solid #ddd",
                                   background: "#fff",
                                   fontWeight: 900,
                                   cursor: "pointer",
-                                  fontSize: 12,
                                 }}
                               >
                                 {copied === "profile" ? "✅ Kopiert" : "Link kopieren"}
@@ -411,14 +394,14 @@ export default function AdminSettingsPage() {
                                 target="_blank"
                                 rel="noreferrer"
                                 style={{
-                                  padding: "8px 10px",
+                                  padding: "10px 12px",
                                   borderRadius: 10,
                                   border: "1px solid #111",
                                   background: "#111",
                                   color: "#fff",
                                   fontWeight: 900,
                                   textDecoration: "none",
-                                  fontSize: 12,
+                                  textAlign: "center",
                                 }}
                               >
                                 Profil öffnen →
@@ -426,33 +409,28 @@ export default function AdminSettingsPage() {
                             </div>
                           </div>
 
-                          {/* Buchung */}
                           <div
                             style={{
-                              display: "flex",
-                              gap: 10,
-                              flexWrap: "wrap",
-                              alignItems: "center",
-                              justifyContent: "space-between",
+                              border: "1px solid #eee",
+                              borderRadius: 12,
+                              padding: 12,
+                              background: "#fff",
                             }}
                           >
-                            <div style={{ minWidth: 240 }}>
-                              <div style={{ fontSize: 12, color: "#666" }}>Buchungs-Link</div>
-                              <div style={{ fontWeight: 900 }}>{bookUrl}</div>
-                            </div>
+                            <div style={{ fontSize: 12, color: "#666" }}>Buchungs-Link</div>
+                            <div style={{ fontWeight: 900, wordBreak: "break-word", marginTop: 4 }}>{bookUrl}</div>
 
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(bookUrl, "book")}
                                 style={{
-                                  padding: "8px 10px",
+                                  padding: "10px 12px",
                                   borderRadius: 10,
                                   border: "1px solid #ddd",
                                   background: "#fff",
                                   fontWeight: 900,
                                   cursor: "pointer",
-                                  fontSize: 12,
                                 }}
                               >
                                 {copied === "book" ? "✅ Kopiert" : "Link kopieren"}
@@ -463,23 +441,23 @@ export default function AdminSettingsPage() {
                                 target="_blank"
                                 rel="noreferrer"
                                 style={{
-                                  padding: "8px 10px",
+                                  padding: "10px 12px",
                                   borderRadius: 10,
                                   border: "1px solid #111",
                                   background: "#111",
                                   color: "#fff",
                                   fontWeight: 900,
                                   textDecoration: "none",
-                                  fontSize: 12,
+                                  textAlign: "center",
                                 }}
                               >
                                 Buchung öffnen →
                               </a>
                             </div>
-                          </div>
 
-                          <div style={{ fontSize: 12, color: "#666" }}>
-                            Tipp: Schick den <b>Buchungs-Link</b> an deine Kunden.
+                            <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
+                              Tipp: Schick den <b>Buchungs-Link</b> an deine Kunden.
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -495,7 +473,13 @@ export default function AdminSettingsPage() {
                 placeholder="z.B. 0176..."
               />
 
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: 10,
+                }}
+              >
                 <Field
                   label="Straße + Nr."
                   value={profile.street ?? ""}
@@ -536,7 +520,7 @@ export default function AdminSettingsPage() {
                   onChange={(e) => setProfile({ ...profile, bio: e.target.value || null })}
                   placeholder="Kurzer Text über dich, Spezialisierung, Erfahrung..."
                   rows={5}
-                  style={{ marginTop: 6, width: "100%", padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
+                  style={{ marginTop: 6, ...inputStyle }}
                 />
               </div>
 
@@ -552,6 +536,7 @@ export default function AdminSettingsPage() {
                   fontWeight: 900,
                   cursor: saving ? "not-allowed" : "pointer",
                   opacity: saving ? 0.75 : 1,
+                  width: "100%",
                 }}
               >
                 {saving ? "Speichere..." : "Profil speichern"}
@@ -564,15 +549,17 @@ export default function AdminSettingsPage() {
           <h2 style={{ marginTop: 0, fontSize: 16 }}>Services verwalten</h2>
 
           {/* Create */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
-            <div style={{ flex: "1 1 260px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 10,
+              alignItems: "end",
+            }}
+          >
+            <div>
               <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name</div>
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="z.B. Haare"
-                style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: "100%" }}
-              />
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="z.B. Haare" style={inputStyle} />
             </div>
 
             <div>
@@ -581,7 +568,7 @@ export default function AdminSettingsPage() {
                 type="number"
                 value={newDuration}
                 onChange={(e) => setNewDuration(Number(e.target.value))}
-                style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 140 }}
+                style={inputStyle}
               />
             </div>
 
@@ -597,6 +584,7 @@ export default function AdminSettingsPage() {
                 fontWeight: 900,
                 cursor: saving ? "not-allowed" : "pointer",
                 opacity: saving ? 0.75 : 1,
+                width: "100%",
               }}
             >
               Hinzufügen
@@ -618,59 +606,59 @@ export default function AdminSettingsPage() {
                       border: "1px solid #eee",
                       borderRadius: 12,
                       padding: 12,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      alignItems: "center",
+                      display: "grid",
+                      gap: 10,
                     }}
                   >
-                    <div style={{ display: "grid", gap: 8, flex: "1 1 420px" }}>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ flex: "1 1 240px" }}>
-                          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name</div>
-                          <input
-                            defaultValue={s.name}
-                            onBlur={(e) => {
-                              const v = e.target.value.trim();
-                              if (v && v !== s.name) updateService(s.id, { name: v });
-                            }}
-                            style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: "100%" }}
-                          />
-                        </div>
-
-                        <div>
-                          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Dauer</div>
-                          <input
-                            type="number"
-                            defaultValue={s.durationMin}
-                            onBlur={(e) => {
-                              const v = Number(e.target.value);
-                              if (Number.isFinite(v) && v > 0 && v !== s.durationMin)
-                                updateService(s.id, { durationMin: v });
-                            }}
-                            style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 140 }}
-                          />
-                        </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                        gap: 10,
+                        alignItems: "end",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Name</div>
+                        <input
+                          defaultValue={s.name}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v && v !== s.name) updateService(s.id, { name: v });
+                          }}
+                          style={inputStyle}
+                        />
                       </div>
 
-                      <div style={{ color: "#666", fontSize: 12 }}>
-                        key: <b>{s.key}</b> · ID: {s.id}
+                      <div>
+                        <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Dauer</div>
+                        <input
+                          type="number"
+                          defaultValue={s.durationMin}
+                          onBlur={(e) => {
+                            const v = Number(e.target.value);
+                            if (Number.isFinite(v) && v > 0 && v !== s.durationMin) updateService(s.id, { durationMin: v });
+                          }}
+                          style={inputStyle}
+                        />
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ color: "#666", fontSize: 12, wordBreak: "break-word" }}>
+                      key: <b>{s.key}</b> · ID: {s.id}
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
                       <button
                         onClick={() => updateService(s.id, { isActive: !s.isActive })}
                         style={{
-                          padding: "8px 10px",
+                          padding: "10px 12px",
                           borderRadius: 10,
                           border: s.isActive ? "1px solid #111" : "1px solid #ddd",
                           background: s.isActive ? "#111" : "#fff",
                           color: s.isActive ? "#fff" : "#111",
                           fontWeight: 900,
                           cursor: "pointer",
-                          fontSize: 12,
                         }}
                       >
                         {s.isActive ? "Aktiv" : "Inaktiv"}
@@ -679,14 +667,13 @@ export default function AdminSettingsPage() {
                       <button
                         onClick={() => deleteService(s.id)}
                         style={{
-                          padding: "8px 10px",
+                          padding: "10px 12px",
                           borderRadius: 10,
                           border: "1px solid #ddd",
                           background: "#fff",
                           color: "#111",
                           fontWeight: 900,
                           cursor: "pointer",
-                          fontSize: 12,
                         }}
                       >
                         Löschen
@@ -715,16 +702,13 @@ export default function AdminSettingsPage() {
                       border: "1px solid #eee",
                       borderRadius: 12,
                       padding: 12,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      alignItems: "center",
+                      display: "grid",
+                      gap: 10,
                     }}
                   >
-                    <div style={{ fontWeight: 900, minWidth: 140 }}>{dayName}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                      <div style={{ fontWeight: 900, minWidth: 140 }}>{dayName}</div>
 
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                       <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <input
                           type="checkbox"
@@ -739,7 +723,16 @@ export default function AdminSettingsPage() {
                         />
                         <span style={{ fontWeight: 900 }}>Geöffnet</span>
                       </label>
+                    </div>
 
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                        gap: 10,
+                        alignItems: "end",
+                      }}
+                    >
                       <div>
                         <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Start</div>
                         <input
@@ -754,7 +747,7 @@ export default function AdminSettingsPage() {
                             );
                             setSettings(next);
                           }}
-                          style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 120 }}
+                          style={inputStyle}
                         />
                       </div>
 
@@ -772,7 +765,7 @@ export default function AdminSettingsPage() {
                             );
                             setSettings(next);
                           }}
-                          style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 120 }}
+                          style={inputStyle}
                         />
                       </div>
                     </div>
@@ -793,6 +786,7 @@ export default function AdminSettingsPage() {
                   fontWeight: 900,
                   cursor: saving ? "not-allowed" : "pointer",
                   opacity: saving ? 0.75 : 1,
+                  width: "100%",
                 }}
               >
                 {saving ? "Speichere..." : "Arbeitszeiten speichern"}
@@ -818,16 +812,18 @@ export default function AdminSettingsPage() {
                 style={{
                   display: "flex",
                   gap: 10,
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   border: "1px solid #eee",
                   borderRadius: 12,
                   padding: 12,
+                  flexWrap: "wrap",
                 }}
               >
                 <input
                   type="checkbox"
                   checked={settings.extendIfFirstHourFull}
                   onChange={(e) => setSettings({ ...settings, extendIfFirstHourFull: e.target.checked })}
+                  style={{ marginTop: 3 }}
                 />
                 <div>
                   <div style={{ fontWeight: 900 }}>Wenn erste Stunde voll ist → nach vorne öffnen</div>
@@ -849,12 +845,10 @@ export default function AdminSettingsPage() {
                 onChangeMin={(min) => setSettings({ ...settings, earliestLimitMin: clamp(min, 0, 1439) })}
               />
 
-              {/* ✅ NEU: Mindest-Tage-Abstand */}
               <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
                 <div style={{ fontWeight: 900 }}>Mindestabstand pro Kunde</div>
                 <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>
-                  Ein Kunde darf erst wieder buchen, wenn seit seinem letzten Termin mindestens <b>X Tage</b> vergangen
-                  sind.
+                  Ein Kunde darf erst wieder buchen, wenn seit seinem letzten Termin mindestens <b>X Tage</b> vergangen sind.
                   <br />
                   <b>0</b> = keine Begrenzung.
                 </div>
@@ -869,7 +863,7 @@ export default function AdminSettingsPage() {
                       minDaysBetweenBookings: clamp(Number.isFinite(v) ? v : 0, 0, 365),
                     });
                   }}
-                  style={{ marginTop: 10, padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 200 }}
+                  style={{ marginTop: 10, ...inputStyle, maxWidth: 240 }}
                 />
               </div>
 
@@ -885,14 +879,14 @@ export default function AdminSettingsPage() {
                   fontWeight: 900,
                   cursor: saving ? "not-allowed" : "pointer",
                   opacity: saving ? 0.75 : 1,
+                  width: "100%",
                 }}
               >
                 {saving ? "Speichere..." : "Slot-Einstellungen speichern"}
               </button>
 
               <div style={{ color: "#666", fontSize: 12 }}>
-                Tipp: Bei dir ist “immer nur 1 Stunde vorher öffnen” = <b>extendStepMin = 60</b>. Die Grenze setzt du
-                z.B. auf <b>10:00</b>.
+                Tipp: Bei dir ist “immer nur 1 Stunde vorher öffnen” = <b>extendStepMin = 60</b>. Die Grenze setzt du z.B. auf <b>10:00</b>.
               </div>
             </div>
           )}
@@ -914,6 +908,7 @@ function TabButton(props: { active: boolean; onClick: () => void; children: any 
         color: props.active ? "#fff" : "#111",
         fontWeight: 900,
         cursor: "pointer",
+        width: "100%",
       }}
     >
       {props.children}
@@ -943,7 +938,7 @@ function FieldNumber(props: { label: string; value: number; onChange: (v: number
         type="number"
         value={props.value}
         onChange={(e) => props.onChange(Number(e.target.value))}
-        style={{ marginTop: 8, padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 200 }}
+        style={{ marginTop: 8, padding: 10, border: "1px solid #ddd", borderRadius: 10, width: "100%", maxWidth: 240 }}
       />
     </div>
   );
@@ -970,7 +965,7 @@ function FieldTime(props: { label: string; valueMin: number; onChangeMin: (min: 
           const v = hhmmToMin(e.target.value);
           if (v != null) props.onChangeMin(v);
         }}
-        style={{ marginTop: 8, padding: 10, border: "1px solid #ddd", borderRadius: 10, width: 200 }}
+        style={{ marginTop: 8, padding: 10, border: "1px solid #ddd", borderRadius: 10, width: "100%", maxWidth: 240 }}
       />
     </div>
   );

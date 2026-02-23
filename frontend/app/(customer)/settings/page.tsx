@@ -163,149 +163,185 @@ export default function CustomerSettingsPage() {
 
   useEffect(() => {
     loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) return <div style={{ padding: 20 }}>Lade…</div>;
 
   return (
-    <div style={{ padding: 20, maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ marginBottom: 14 }}>
+    <div className="page">
+      <style jsx>{`
+        .page {
+          padding: 20px;
+          max-width: 720px;
+          margin: 0 auto;
+        }
+
+        .header {
+          margin-bottom: 14px;
+        }
+
+        .sub {
+          margin-top: 6px;
+          color: #666;
+          line-height: 1.4;
+        }
+
+        .alertOk {
+          margin-bottom: 12px;
+          padding: 12px;
+          border: 1px solid #b7ebc6;
+          background: #f0fff4;
+          border-radius: 12px;
+        }
+
+        .alertErr {
+          margin-bottom: 12px;
+          padding: 12px;
+          border: 1px solid #f2c6c6;
+          background: #fff5f5;
+          border-radius: 12px;
+          color: #8a1c1c;
+        }
+
+        .card {
+          border: 1px solid #eee;
+          border-radius: 14px;
+          padding: 14px;
+          background: #fff;
+        }
+
+        .grid {
+          display: grid;
+          gap: 12px;
+        }
+
+        .label {
+          font-size: 12px;
+          color: #666;
+          font-weight: 900;
+        }
+
+        .input {
+          margin-top: 6px;
+          padding: 12px;
+          border: 1px solid #ddd;
+          border-radius: 12px;
+          width: 100%;
+        }
+
+        .btnPrimary {
+          padding: 12px;
+          border-radius: 12px;
+          border: 1px solid #111;
+          background: #111;
+          color: #fff;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .btnPrimary:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
+        .muted {
+          color: #666;
+          font-size: 12px;
+          line-height: 1.4;
+        }
+
+        .danger {
+          margin-top: 20px;
+          border-top: 1px solid #eee;
+          padding-top: 16px;
+        }
+
+        .dangerTitle {
+          font-weight: 900;
+          color: #8a1c1c;
+        }
+
+        .btnDanger {
+          margin-top: 10px;
+          width: 100%;
+          padding: 12px;
+          border-radius: 12px;
+          border: 1px solid #8a1c1c;
+          background: #fff5f5;
+          color: #8a1c1c;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .btnDanger:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
+        /* ✅ Mobile */
+        @media (max-width: 520px) {
+          .page {
+            padding: 14px;
+          }
+        }
+      `}</style>
+
+      <div className="header">
         <h1 style={{ margin: 0 }}>Profil</h1>
-        <div style={{ marginTop: 6, color: "#666" }}>
-          Name & Telefonnummer ändern
-        </div>
+        <div className="sub">Name & Telefonnummer ändern</div>
       </div>
 
       {message && (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: 12,
-            border: "1px solid #b7ebc6",
-            background: "#f0fff4",
-            borderRadius: 12,
-          }}
-        >
+        <div className="alertOk">
           <b>{message}</b>
         </div>
       )}
 
       {error && (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: 12,
-            border: "1px solid #f2c6c6",
-            background: "#fff5f5",
-            borderRadius: 12,
-            color: "#8a1c1c",
-          }}
-        >
+        <div className="alertErr">
           <b>{error}</b>
         </div>
       )}
 
-      <div
-        style={{
-          border: "1px solid #eee",
-          borderRadius: 14,
-          padding: 14,
-          background: "#fff",
-        }}
-      >
-        <div style={{ display: "grid", gap: 12 }}>
+      <div className="card">
+        <div className="grid">
           <div>
-            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
-              Name
-            </div>
+            <div className="label">Name</div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              style={{
-                marginTop: 6,
-                padding: 12,
-                border: "1px solid #ddd",
-                borderRadius: 12,
-                width: "100%",
-              }}
+              className="input"
               placeholder="z.B. Max Mustermann"
             />
           </div>
 
           <div>
-            <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
-              Telefon
-            </div>
+            <div className="label">Telefon</div>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              style={{
-                marginTop: 6,
-                padding: 12,
-                border: "1px solid #ddd",
-                borderRadius: 12,
-                width: "100%",
-              }}
+              className="input"
               placeholder="z.B. 0176..."
             />
           </div>
 
-          <button
-            onClick={save}
-            disabled={saving || !name.trim()}
-            style={{
-              padding: 12,
-              borderRadius: 12,
-              border: "1px solid #111",
-              background: "#111",
-              color: "#fff",
-              fontWeight: 900,
-              cursor: saving ? "not-allowed" : "pointer",
-              opacity: saving || !name.trim() ? 0.7 : 1,
-            }}
-          >
+          <button onClick={save} disabled={saving || !name.trim()} className="btnPrimary">
             {saving ? "Speichere..." : "Speichern"}
           </button>
 
-          <div style={{ color: "#666", fontSize: 12 }}>
+          <div className="muted">
             Eingeloggt als: <b>{me?.email}</b>
           </div>
 
-          {/* Danger Zone */}
-          <div
-            style={{
-              marginTop: 20,
-              borderTop: "1px solid #eee",
-              paddingTop: 16,
-            }}
-          >
-            <div style={{ fontWeight: 900, color: "#8a1c1c" }}>
-              Gefährliche Aktion
-            </div>
-            <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>
-              Dein Account wird endgültig gelöscht. Alle Termine und Daten gehen
-              verloren.
+          <div className="danger">
+            <div className="dangerTitle">Gefährliche Aktion</div>
+            <div className="muted" style={{ marginTop: 6 }}>
+              Dein Account wird endgültig gelöscht. Alle Termine und Daten gehen verloren.
             </div>
 
-            <button
-              onClick={deleteAccount}
-              disabled={deleting}
-              style={{
-                marginTop: 10,
-                width: "100%",
-                padding: 12,
-                borderRadius: 12,
-                border: "1px solid #8a1c1c",
-                background: "#fff5f5",
-                color: "#8a1c1c",
-                fontWeight: 900,
-                cursor: deleting ? "not-allowed" : "pointer",
-                opacity: deleting ? 0.7 : 1,
-              }}
-            >
-              {deleting
-                ? "Lösche Account..."
-                : "Account endgültig löschen"}
+            <button onClick={deleteAccount} disabled={deleting} className="btnDanger">
+              {deleting ? "Lösche Account..." : "Account endgültig löschen"}
             </button>
           </div>
         </div>
