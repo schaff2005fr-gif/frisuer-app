@@ -1,26 +1,200 @@
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ===========================
+   Global Reset + Base
+=========================== */
+* {
+  box-sizing: border-box;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  padding: 0;
+  margin: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  background: #fafafa;
+  color: #111;
+}
+
+/* Links */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ===========================
+   Layout Helpers
+=========================== */
+.page {
+  width: 100%;
+}
+
+.container {
+  width: 100%;
+  max-width: 1020px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.container-sm {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.muted {
+  color: #666;
+}
+
+.hr {
+  height: 1px;
+  background: #eee;
+  border: 0;
+  margin: 14px 0;
+}
+
+/* ===========================
+   Form System
+=========================== */
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 900;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  outline: none;
+  background: #fff;
+  font-size: 16px; /* ✅ wichtig für iPhone: verhindert Zoom beim Tippen */
+}
+
+.textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.row > * {
+  flex: 1 1 180px;
+}
+
+/* ===========================
+   Buttons
+=========================== */
+.btn {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #111;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+/* ===========================
+   Alerts
+=========================== */
+.alert {
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid #eee;
+  background: #fff;
+}
+
+.alert-success {
+  border-color: #b7ebc6;
+  background: #f0fff4;
+}
+
+.alert-error {
+  border-color: #f2c6c6;
+  background: #fff5f5;
+  color: #8a1c1c;
+}
+
+/* ===========================
+   Tables / Lists (optional)
+=========================== */
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.list-item {
+  border: 1px solid #eee;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+/* ===========================
+   ✅ Mobile Breakpoint
+=========================== */
+@media (max-width: 640px) {
+  .container,
+  .container-sm {
+    padding: 12px;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row > * {
+    flex: 1 1 auto;
+  }
+
+  /* Buttons auf mobile full width */
+  .btn,
+  .btn-secondary {
+    width: 100%;
+  }
 }
