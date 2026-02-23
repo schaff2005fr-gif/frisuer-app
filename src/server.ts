@@ -1363,6 +1363,172 @@ app.put("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) =
 /* HIER kannst du 1:1 deinen restlichen Block-Code lassen (recurring/time-blocks/services CRUD)
    weil Prisma onDelete jetzt sauber ist und die Kern-Fixes oben schon drin sind. */
 
+/* ---------- ADMIN: recurring-blocks & time-blocks ---------- */
+
+function requireValidMinRange(startMin: number, endMin: number) {
+  if (!Number.isFinite(startMin) || !Number.isFinite(endMin)) return "startMin/endMin must be numbers";
+  if (startMin < 0 || startMin > 1439) return "startMin out of range";
+  if (endMin < 1 || endMin > 1440) return "endMin out of range";
+  if (endMin <= startMin) return "endMin must be > startMin";
+  return null;
+}
+
+app.get("/admin/recurring-blocks", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const blocks = await prisma.recurringBlock.findMany({
+      where: { barberId },
+      orderBy: [{ weekday: "asc" }, { startMin: "asc" }],
+    });
+
+    res.json({ ok: true, blocks });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.post("/admin/recurring-blocks", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const weekday = Number(req.body?.weekday);
+    const startMin = Number(req.body?.startMin);
+    const endMin = Number(req.body?.endMin);
+    const reason = req.body?.reason != null ? String(req.body.reason).trim() : null;
+    const enabled = req.body?.enabled == null ? true : Boolean(req.body.enabled);
+
+    if (!Number.isFinite(weekday) || weekday < 0 || weekday > 6) {
+      return res.status(400).json({ error: "weekday must be 0..6" });
+    }
+
+    const rangeErr = requireValidMinRange(startMin, endMin);
+    if (rangeErr) return res.status(400).json({ error: rangeErr });
+
+    const block = await prisma.recurringBlock.create({
+      data: { barberId, weekday, startMin, endMin, reason, enabled },
+    });
+
+    res.status(201).json({ ok: true, block });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.patch("/admin/recurring-blocks/:id", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
+
+    const enabled = Boolean(req.body?.enabled);
+
+    const existing = await prisma.recurringBlock.findUnique({ where: { id } });
+    if (!existing || existing.barberId !== barberId) return res.status(404).json({ error: "not found" });
+
+    const updated = await prisma.recurringBlock.update({
+      where: { id },
+      data: { enabled },
+    });
+
+    res.json({ ok: true, block: updated });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.delete("/admin/recurring-blocks/:id", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
+
+    const existing = await prisma.recurringBlock.findUnique({ where: { id } });
+    if (!existing || existing.barberId !== barberId) return res.status(404).json({ error: "not found" });
+
+    await prisma.recurringBlock.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.get("/admin/time-blocks", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const dateStr = String(req.query.date ?? "").trim();
+    if (!isValidDateYYYYMMDD(dateStr)) return res.status(400).json({ error: "date must be YYYY-MM-DD" });
+
+    const dayStart = new Date(`${dateStr}T00:00:00.000`);
+    const dayEnd = new Date(`${dateStr}T23:59:59.999`);
+
+    const blocks = await prisma.timeBlock.findMany({
+      where: { barberId, date: { gte: dayStart, lte: dayEnd } },
+      orderBy: [{ startMin: "asc" }],
+    });
+
+    res.json({ ok: true, blocks });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.post("/admin/time-blocks", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const dateStr = String(req.body?.date ?? "").trim();
+    const startMin = Number(req.body?.startMin);
+    const endMin = Number(req.body?.endMin);
+    const reason = req.body?.reason != null ? String(req.body.reason).trim() : null;
+
+    if (!isValidDateYYYYMMDD(dateStr)) return res.status(400).json({ error: "date must be YYYY-MM-DD" });
+
+    const rangeErr = requireValidMinRange(startMin, endMin);
+    if (rangeErr) return res.status(400).json({ error: rangeErr });
+
+    const block = await prisma.timeBlock.create({
+      data: {
+        barberId,
+        date: new Date(`${dateStr}T00:00:00.000`),
+        startMin,
+        endMin,
+        reason,
+      },
+    });
+
+    res.status(201).json({ ok: true, block });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.delete("/admin/time-blocks/:id", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
+
+    const existing = await prisma.timeBlock.findUnique({ where: { id } });
+    if (!existing || existing.barberId !== barberId) return res.status(404).json({ error: "not found" });
+
+    await prisma.timeBlock.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
 /* ---------- CUSTOMER: my-bookings + cancel ---------- */
 
 app.get("/my-bookings", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
