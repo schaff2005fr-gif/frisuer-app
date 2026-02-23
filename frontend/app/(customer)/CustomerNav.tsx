@@ -75,13 +75,6 @@ export default function CustomerNav() {
       </Link>
 
       <Link
-        href="/book"
-        className={`navLink ${pathname === "/book" ? "navLinkActive" : ""}`}
-      >
-        Buchen
-      </Link>
-
-      <Link
         href="/my-bookings"
         className={`navLink ${pathname === "/my-bookings" ? "navLinkActive" : ""}`}
       >
