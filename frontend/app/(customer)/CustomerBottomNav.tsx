@@ -49,62 +49,78 @@ export default function CustomerBottomNav() {
   ];
 
   return (
-    <nav
-      className="bottomNav"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      aria-label="Customer bottom navigation"
-    >
+    <nav className="cbn_wrap" aria-label="Customer bottom navigation">
       <style jsx>{`
-        .bottomNav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 60;
-  background: rgba(255, 255, 255, 0.96);
-  border-top: 1px solid #eee;
-  backdrop-filter: blur(10px);
+        .cbn_wrap {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 60;
+          background: rgba(255, 255, 255, 0.96);
+          border-top: 1px solid #eee;
+          backdrop-filter: blur(10px);
 
-  padding: 12px 24px;   /* 🔥 exakt gleich links & rechts */
+          /* ✅ exakt gleicher Rand links/rechts */
+          padding: 12px 22px;
+          padding-bottom: calc(12px + env(safe-area-inset-bottom));
 
-  display: none;
-  box-sizing: border-box;
-}
+          box-sizing: border-box;
+          display: none;
+        }
 
-        .row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+        /* ✅ GARANTIERT nebeneinander */
+        .cbn_row {
+          width: 100%;
+          display: flex !important;
+          flex-direction: row !important;
+          flex-wrap: nowrap !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          gap: 10px !important;
+          box-sizing: border-box;
+        }
 
-        .item {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 56px;
+        .cbn_item {
+          flex: 1 1 0px !important;
+          min-width: 0 !important;
+
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+
+          height: 58px !important;
+          border-radius: 16px;
+
           color: #888;
+          text-decoration: none;
+
           position: relative;
           transition: all 0.15s ease;
+          box-sizing: border-box;
         }
 
-        .itemActive {
+        .cbn_active {
           color: #111;
+          background: #f4f4f4;
         }
 
-        .badge {
+        .cbn_badge {
           position: absolute;
-          top: 6px;
-          right: 18px;
+          top: 7px;
+          right: 16px;
+
           min-width: 18px;
           height: 18px;
           padding: 0 6px;
+
           border-radius: 999px;
           background: #111;
           color: #fff;
+
           font-size: 11px;
           font-weight: 900;
+
           display: flex;
           align-items: center;
           justify-content: center;
@@ -112,13 +128,13 @@ export default function CustomerBottomNav() {
         }
 
         @media (max-width: 520px) {
-          .bottomNav {
+          .cbn_wrap {
             display: block;
           }
         }
       `}</style>
 
-      <div className="row">
+      <div className="cbn_row">
         {items.map((it) => {
           const Icon = it.icon;
           const active = isActive(pathname, it.href);
@@ -127,14 +143,11 @@ export default function CustomerBottomNav() {
             <Link
               key={it.href}
               href={it.href}
-              className={`item ${active ? "itemActive" : ""}`}
+              className={`cbn_item ${active ? "cbn_active" : ""}`}
             >
-              <Icon size={30} strokeWidth={2.2} />
-
+              <Icon size={32} strokeWidth={2.2} />
               {it.badge != null && it.badge > 0 ? (
-                <span className="badge">
-                  {it.badge > 99 ? "99+" : it.badge}
-                </span>
+                <span className="cbn_badge">{it.badge > 99 ? "99+" : it.badge}</span>
               ) : null}
             </Link>
           );
