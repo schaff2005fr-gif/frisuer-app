@@ -55,81 +55,81 @@ export default function CustomerBottomNav() {
       aria-label="Customer bottom navigation"
     >
       <style jsx>{`
-        .bottom {
-          position: fixed;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          z-index: 60;
-          background: rgba(255, 255, 255, 0.96);
-          border-top: 1px solid #eee;
-          backdrop-filter: blur(10px);
-          padding: 10px 12px;
-          padding-bottom: calc(10px + env(safe-area-inset-bottom));
-          display: none;
-        }
+  .bottom {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid #eee;
+    backdrop-filter: blur(10px);
 
-        /* ✅ Erzwingt nebeneinander */
-        .row {
-  max-width: 520px;
-  margin: 0 auto;
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center;
-  justify-content: space-evenly; /* 🔥 gleichmäßiger Abstand */
-}
+    /* ✅ Symmetrisch + iOS safe-area */
+    padding-top: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding-left: calc(16px + env(safe-area-inset-left));
+    padding-right: calc(16px + env(safe-area-inset-right));
 
-        .item {
-  flex: 1;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  height: 56px;
-  border-radius: 16px;
-  position: relative;
-}
+    box-sizing: border-box;
+    display: none;
+  }
 
-        .active {
-          color: #111;
-          background: #f4f4f4;
-        }
+  .row {
+    width: 100%;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    justify-content: space-between; /* ✅ sauber an den Rändern */
+    gap: 10px;
+    box-sizing: border-box;
+  }
 
-        .badge {
-          position: absolute;
-          top: 8px;
-          right: 16px;
-          min-width: 18px;
-          height: 18px;
-          padding: 0 6px;
-          border-radius: 999px;
-          background: #111;
-          color: #fff;
-          font-size: 11px;
-          font-weight: 900;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          line-height: 1;
-        }
+  .item {
+    flex: 1 1 0px;
+    min-width: 0;
+    text-decoration: none;
+    color: #888;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 56px;
+    border-radius: 16px;
+    position: relative;
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+  }
 
-        .srOnly {
-          position: absolute;
-          width: 1px;
-          height: 1px;
-          padding: 0;
-          margin: -1px;
-          overflow: hidden;
-          clip: rect(0, 0, 0, 0);
-          white-space: nowrap;
-          border: 0;
-        }
+  .active {
+    color: #111;
+    background: #f4f4f4;
+  }
 
-        @media (max-width: 520px) {
-          .bottom {
-            display: block;
-          }
-        }
-      `}</style>
+  .badge {
+    position: absolute;
+    top: 8px;
+    right: 14px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #111;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  @media (max-width: 520px) {
+    .bottom {
+      display: block;
+    }
+  }
+`}</style>
 
       <div className="row">
         {items.map((it) => {
