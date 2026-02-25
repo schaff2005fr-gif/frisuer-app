@@ -42,94 +42,85 @@ export default function CustomerBottomNav() {
   }, [pathname]);
 
   const items = [
-    { href: "/", icon: Home, label: "Home" },
-    { href: "/my-bookings", icon: Calendar, label: "Termine" },
-    { href: "/notifications", icon: Bell, label: "News", badge: unread },
-    { href: "/settings", icon: User, label: "Profil" },
+    { href: "/", icon: Home },
+    { href: "/my-bookings", icon: Calendar },
+    { href: "/notifications", icon: Bell, badge: unread },
+    { href: "/settings", icon: User },
   ];
 
   return (
     <nav
-      className="bottom"
+      className="bottomNav"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Customer bottom navigation"
     >
       <style jsx>{`
-  .bottom {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 60;
-    background: rgba(255, 255, 255, 0.96);
-    border-top: 1px solid #eee;
-    backdrop-filter: blur(10px);
+        .bottomNav {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 60;
+          background: rgba(255, 255, 255, 0.96);
+          border-top: 1px solid #eee;
+          backdrop-filter: blur(10px);
 
-    /* ✅ Symmetrisch + iOS safe-area */
-    padding-top: 10px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
-    padding-left: calc(16px + env(safe-area-inset-left));
-    padding-right: calc(16px + env(safe-area-inset-right));
+          padding-top: 10px;
+          padding-bottom: calc(10px + env(safe-area-inset-bottom));
+          padding-left: calc(20px + env(safe-area-inset-left));
+          padding-right: calc(20px + env(safe-area-inset-right));
 
-    box-sizing: border-box;
-    display: none;
-  }
+          display: none;
+          box-sizing: border-box;
+        }
 
-  .row {
-    width: 100%;
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    align-items: center;
-    justify-content: space-between; /* ✅ sauber an den Rändern */
-    gap: 10px;
-    box-sizing: border-box;
-  }
+        .row {
+          width: 100%;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
 
-  .item {
-    flex: 1 1 0px;
-    min-width: 0;
-    text-decoration: none;
-    color: #888;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    height: 56px;
-    border-radius: 16px;
-    position: relative;
-    transition: all 0.15s ease;
-    box-sizing: border-box;
-  }
+        .item {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 56px;
+          color: #888;
+          position: relative;
+          transition: all 0.15s ease;
+        }
 
-  .active {
-    color: #111;
-    background: #f4f4f4;
-  }
+        .itemActive {
+          color: #111;
+        }
 
-  .badge {
-    position: absolute;
-    top: 8px;
-    right: 14px;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: #111;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 900;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-  }
+        .badge {
+          position: absolute;
+          top: 6px;
+          right: 18px;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: #111;
+          color: #fff;
+          font-size: 11px;
+          font-weight: 900;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1;
+        }
 
-  @media (max-width: 520px) {
-    .bottom {
-      display: block;
-    }
-  }
-`}</style>
+        @media (max-width: 520px) {
+          .bottomNav {
+            display: block;
+          }
+        }
+      `}</style>
 
       <div className="row">
         {items.map((it) => {
@@ -137,15 +128,18 @@ export default function CustomerBottomNav() {
           const active = isActive(pathname, it.href);
 
           return (
-            <Link key={it.href} href={it.href} className={`item ${active ? "active" : ""}`}>
-              {/* ✅ größer */}
-              <Icon size={28} strokeWidth={2.2} />
+            <Link
+              key={it.href}
+              href={it.href}
+              className={`item ${active ? "itemActive" : ""}`}
+            >
+              <Icon size={30} strokeWidth={2.2} />
 
               {it.badge != null && it.badge > 0 ? (
-                <span className="badge">{it.badge > 99 ? "99+" : it.badge}</span>
+                <span className="badge">
+                  {it.badge > 99 ? "99+" : it.badge}
+                </span>
               ) : null}
-
-              <span className="srOnly">{it.label}</span>
             </Link>
           );
         })}
