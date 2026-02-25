@@ -3,6 +3,7 @@
 import Link from "next/link";
 import CustomerNav from "./CustomerNav";
 import CustomerBottomNav from "./CustomerBottomNav";
+import Image from "next/image";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +13,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           min-height: 100vh;
           background: #fff;
         }
+
+        .brandLogo {
+  display: flex;
+  align-items: center;
+}
 
         .header {
           border-bottom: 1px solid #eee;
@@ -70,9 +76,17 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
       <header className="header">
         <div className="wrap">
-          <Link href="/" className="brand">
-            Friseur
-          </Link>
+          import Image from "next/image";
+
+<Link href="/" className="brandLogo">
+  <Image
+    src="/logo-s.png"
+    alt="Salora"
+    width={32}
+    height={32}
+    priority
+  />
+</Link>
 
           {/* Desktop: dein altes Menü komplett */}
           <div className="navDesktop">
