@@ -56,31 +56,27 @@ export default function CustomerBottomNav() {
     >
       <style jsx>{`
         .bottomNav {
-          position: fixed;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          z-index: 60;
-          background: rgba(255, 255, 255, 0.96);
-          border-top: 1px solid #eee;
-          backdrop-filter: blur(10px);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #eee;
+  backdrop-filter: blur(10px);
 
-          padding-top: 10px;
-          padding-bottom: calc(10px + env(safe-area-inset-bottom));
-          padding-left: calc(20px + env(safe-area-inset-left));
-          padding-right: calc(20px + env(safe-area-inset-right));
+  padding: 12px 24px;   /* 🔥 exakt gleich links & rechts */
 
-          display: none;
-          box-sizing: border-box;
-        }
+  display: none;
+  box-sizing: border-box;
+}
 
         .row {
-          width: 100%;
-          display: flex;
-          flex-direction: row;
-          align-items: center;
-          justify-content: space-between;
-        }
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
         .item {
           flex: 1;
