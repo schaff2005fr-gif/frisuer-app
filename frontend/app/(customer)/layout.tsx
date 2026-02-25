@@ -14,11 +14,6 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           background: #fff;
         }
 
-        .brandLogo {
-  display: flex;
-  align-items: center;
-}
-
         .header {
           border-bottom: 1px solid #eee;
           background: #fff;
@@ -38,11 +33,14 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           align-items: center;
         }
 
-        .brand {
-          font-weight: 900;
-          text-decoration: none;
-          color: #111;
-          white-space: nowrap;
+        .brandLogo {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: #111;
         }
 
         .main {
@@ -76,17 +74,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
       <header className="header">
         <div className="wrap">
-          import Image from "next/image";
-
-<Link href="/" className="brandLogo">
-  <Image
-    src="/logo-s.png"
-    alt="Salora"
-    width={32}
-    height={32}
-    priority
-  />
-</Link>
+          <Link href="/" className="brandLogo" aria-label="Salora">
+            <Image src="/logo-s.png" alt="Salora" width={24} height={24} priority />
+          </Link>
 
           {/* Desktop: dein altes Menü komplett */}
           <div className="navDesktop">
