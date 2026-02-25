@@ -71,29 +71,23 @@ export default function CustomerBottomNav() {
 
         /* ✅ Erzwingt nebeneinander */
         .row {
-          max-width: 520px;
-          margin: 0 auto;
-          display: flex !important;
-          flex-direction: row !important;
-          flex-wrap: nowrap !important;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-        }
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-evenly; /* 🔥 gleichmäßiger Abstand */
+}
 
         .item {
-          flex: 1 1 0px;
-          min-width: 0;
-          text-decoration: none;
-          color: #888;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          height: 52px;
-          border-radius: 16px;
-          position: relative;
-          transition: all 0.15s ease;
-        }
+  flex: 1;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 56px;
+  border-radius: 16px;
+  position: relative;
+}
 
         .active {
           color: #111;
