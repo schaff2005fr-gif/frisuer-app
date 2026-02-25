@@ -76,14 +76,18 @@ export default function CustomerNav() {
 
       <Link
         href="/my-bookings"
-        className={`navLink ${pathname === "/my-bookings" ? "navLinkActive" : ""}`}
+        className={`navLink ${
+          pathname === "/my-bookings" ? "navLinkActive" : ""
+        }`}
       >
         Meine Termine
       </Link>
 
       <Link
         href="/notifications"
-        className={`navLink ${pathname === "/notifications" ? "navLinkActive" : ""}`}
+        className={`navLink ${
+          pathname === "/notifications" ? "navLinkActive" : ""
+        }`}
       >
         Nachrichten
       </Link>

@@ -2,11 +2,17 @@
 
 import Link from "next/link";
 import CustomerNav from "./CustomerNav";
+import CustomerBottomNav from "./CustomerBottomNav";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div>
+    <div className="page">
       <style jsx>{`
+        .page {
+          min-height: 100vh;
+          background: #fff;
+        }
+
         .header {
           border-bottom: 1px solid #eee;
           background: #fff;
@@ -36,7 +42,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         .main {
           max-width: 1020px;
           margin: 0 auto;
-          padding: 16px;
+          /* Seiten paddings kommen aus den Pages */
+        }
+
+        .navDesktop {
+          display: block;
         }
 
         /* ✅ Mobile */
@@ -46,8 +56,14 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             gap: 10px;
           }
 
+          /* oben keine Button-Leiste mehr auf Mobile */
+          .navDesktop {
+            display: none;
+          }
+
+          /* Platz für BottomNav */
           .main {
-            padding: 12px 14px;
+            padding-bottom: calc(84px + env(safe-area-inset-bottom));
           }
         }
       `}</style>
@@ -57,11 +73,18 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           <Link href="/" className="brand">
             Friseur
           </Link>
-          <CustomerNav />
+
+          {/* Desktop: dein altes Menü komplett */}
+          <div className="navDesktop">
+            <CustomerNav />
+          </div>
         </div>
       </header>
 
       <main className="main">{children}</main>
+
+      {/* Mobile: neue Icon-Bottomnav */}
+      <CustomerBottomNav />
     </div>
   );
 }
