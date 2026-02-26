@@ -514,10 +514,41 @@ app.get("/barbers", async (_req, res) => {
     const barbers = await prisma.barber.findMany({
       where: { isActive: true },
       orderBy: [{ createdAt: "asc" }],
-      select: { id: true, name: true, slug: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        street: true,
+        postalCode: true,
+        city: true,
+      },
     });
 
-    res.json({ count: barbers.length, barbers });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const next = await prisma.booking.groupBy({
+      by: ["barberId"],
+      where: {
+        status: { not: "CANCELLED" as any },
+        date: { gte: today },
+      },
+      _min: { date: true },
+    });
+
+    const nextMap = new Map<number, string>();
+    for (const row of next as any[]) {
+      const barberId = Number(row.barberId);
+      const minDate: Date | null = row._min?.date ?? null;
+      if (barberId && minDate) nextMap.set(barberId, formatDateBerlin(minDate));
+    }
+
+    const out = barbers.map((b) => ({
+      ...b,
+      nextDate: nextMap.get(b.id) ?? null,
+    }));
+
+    res.json({ ok: true, count: out.length, barbers: out });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
   }
