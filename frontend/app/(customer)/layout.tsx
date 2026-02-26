@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import CustomerNav from "./CustomerNav";
 import CustomerBottomNav from "./CustomerBottomNav";
-import Image from "next/image";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,37 +26,47 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           max-width: 1020px;
           margin: 0 auto;
           padding: 16px;
+
           display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          justify-content: space-between;
           align-items: center;
+          justify-content: space-between;
+
+          /* ✅ WICHTIG: kein wrap, sonst bricht Branding um */
+          flex-wrap: nowrap;
+          gap: 12px;
         }
 
         .brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  flex-direction: row; /* GANZ WICHTIG */
-}
+          display: flex;
+          align-items: center;
+          gap: 10px;
 
-.brandIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: #111;
-}
+          text-decoration: none;
+          color: #111;
 
-.brandText {
-  font-weight: 900;
-  font-size: 18px;
-  color: #111;
-  letter-spacing: -0.5px;
-}
+          /* ✅ Branding darf nicht umbrechen */
+          white-space: nowrap;
+          flex: 0 0 auto;
+        }
+
+        .brandIcon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: #111;
+          flex: 0 0 auto;
+        }
+
+        .brandText {
+          font-weight: 900;
+          font-size: 18px;
+          letter-spacing: -0.4px;
+          line-height: 1;
+          display: inline-block;
+        }
 
         .main {
           max-width: 1020px;
@@ -66,45 +76,51 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
         .navDesktop {
           display: block;
+          flex: 0 0 auto;
         }
 
         /* ✅ Mobile */
         @media (max-width: 520px) {
           .wrap {
             padding: 12px 14px;
-            gap: 10px;
           }
 
-          /* oben keine Button-Leiste mehr auf Mobile */
           .navDesktop {
             display: none;
           }
 
-          /* Platz für BottomNav */
           .main {
             padding-bottom: calc(84px + env(safe-area-inset-bottom));
+          }
+
+          .brandText {
+            font-size: 17px;
+          }
+
+          .brandIcon {
+            width: 38px;
+            height: 38px;
           }
         }
       `}</style>
 
       <header className="header">
-  <div className="wrap">
-    <Link href="/" className="brand">
-      <span className="brandIcon">
-        <Image src="/logo-s.png" alt="Salora" width={22} height={22} priority />
-      </span>
-      <span className="brandText">Salora</span>
-    </Link>
+        <div className="wrap">
+          <Link href="/" className="brand" aria-label="Salora">
+            <span className="brandIcon">
+              <Image src="/logo-s.png" alt="Salora" width={22} height={22} priority />
+            </span>
+            <span className="brandText">Salora</span>
+          </Link>
 
-    <div className="navDesktop">
-      <CustomerNav />
-    </div>
-  </div>
-</header>
+          <div className="navDesktop">
+            <CustomerNav />
+          </div>
+        </div>
+      </header>
 
       <main className="main">{children}</main>
 
-      {/* Mobile: neue Icon-Bottomnav */}
       <CustomerBottomNav />
     </div>
   );
