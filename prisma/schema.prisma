@@ -57,6 +57,8 @@ model Barber {
   phone     String?
   isActive  Boolean  @default(true)
 
+  imageUrl  String?
+
   bio        String?
   street     String?
   postalCode String?

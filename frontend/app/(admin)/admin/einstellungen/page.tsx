@@ -37,6 +37,9 @@ type BarberProfile = {
   city: string | null;
   instagram: string | null;
   website: string | null;
+
+  // ✅ neu: Bild-URL (Profilbild)
+  imageUrl: string | null;
 };
 
 const WEEKDAYS = [
@@ -173,6 +176,9 @@ export default function AdminSettingsPage() {
           city: profile.city,
           instagram: profile.instagram,
           website: profile.website,
+
+          // ✅ neu
+          imageUrl: profile.imageUrl,
         }),
       });
 
@@ -298,6 +304,8 @@ export default function AdminSettingsPage() {
     width: "100%",
   };
 
+  const previewUrl = (profile?.imageUrl ?? "").trim();
+
   return (
     <div style={{ padding: 16, maxWidth: 1020, margin: "0 auto" }}>
       <h1 style={{ margin: 0 }}>Einstellungen</h1>
@@ -362,18 +370,18 @@ export default function AdminSettingsPage() {
                     return (
                       <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fafafa" }}>
                         <div style={{ display: "grid", gap: 12 }}>
-                          <div
-                            style={{
-                              border: "1px solid #eee",
-                              borderRadius: 12,
-                              padding: 12,
-                              background: "#fff",
-                            }}
-                          >
+                          <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fff" }}>
                             <div style={{ fontSize: 12, color: "#666" }}>Profil-Link</div>
                             <div style={{ fontWeight: 900, wordBreak: "break-word", marginTop: 4 }}>{profileUrl}</div>
 
-                            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+                            <div
+                              style={{
+                                marginTop: 10,
+                                display: "grid",
+                                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                                gap: 8,
+                              }}
+                            >
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(profileUrl, "profile")}
@@ -409,18 +417,18 @@ export default function AdminSettingsPage() {
                             </div>
                           </div>
 
-                          <div
-                            style={{
-                              border: "1px solid #eee",
-                              borderRadius: 12,
-                              padding: 12,
-                              background: "#fff",
-                            }}
-                          >
+                          <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, background: "#fff" }}>
                             <div style={{ fontSize: 12, color: "#666" }}>Buchungs-Link</div>
                             <div style={{ fontWeight: 900, wordBreak: "break-word", marginTop: 4 }}>{bookUrl}</div>
 
-                            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+                            <div
+                              style={{
+                                marginTop: 10,
+                                display: "grid",
+                                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                                gap: 8,
+                              }}
+                            >
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(bookUrl, "book")}
@@ -463,6 +471,58 @@ export default function AdminSettingsPage() {
                       </div>
                     );
                   })()}
+                </div>
+              </div>
+
+              {/* ✅ Bild */}
+              <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                <div style={{ fontWeight: 900 }}>Profilbild</div>
+                <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>
+                  Für jetzt als URL (später können wir Upload machen).
+                </div>
+
+                <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                  <Field
+                    label="Profilbild URL"
+                    value={profile.imageUrl ?? ""}
+                    onChange={(v) => setProfile({ ...profile, imageUrl: v.trim() ? v.trim() : null })}
+                    placeholder="https://..."
+                  />
+
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 999,
+                        border: "1px solid #eee",
+                        background: "#fafafa",
+                        overflow: "hidden",
+                        display: "grid",
+                        placeItems: "center",
+                        fontWeight: 900,
+                        color: "#666",
+                      }}
+                    >
+                      {previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={previewUrl}
+                          alt="Profilbild"
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        "—"
+                      )}
+                    </div>
+
+                    <div style={{ color: "#666", fontSize: 12 }}>
+                      Vorschau {previewUrl ? "geladen" : "leer"}
+                    </div>
+                  </div>
                 </div>
               </div>
 
