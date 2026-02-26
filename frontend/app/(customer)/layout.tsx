@@ -37,36 +37,38 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         }
 
         .brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
+  text-decoration: none;
+  color: #111;
+  flex: 0 0 auto;
+}
 
-          text-decoration: none;
-          color: #111;
+.brandInner {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 10px !important;
+  white-space: nowrap !important;
+}
 
-          /* ✅ Branding darf nicht umbrechen */
-          white-space: nowrap;
-          flex: 0 0 auto;
-        }
+.brandIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #111;
 
-        .brandIcon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 40px;
-          height: 40px;
-          border-radius: 12px;
-          background: #111;
-          flex: 0 0 auto;
-        }
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 
-        .brandText {
-          font-weight: 900;
-          font-size: 18px;
-          letter-spacing: -0.4px;
-          line-height: 1;
-          display: inline-block;
-        }
+  flex: 0 0 auto !important;
+}
+
+.brandText {
+  font-weight: 900;
+  font-size: 18px;
+  letter-spacing: -0.4px;
+  display: inline-block !important;
+}
 
         .main {
           max-width: 1020px;
@@ -107,11 +109,13 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       <header className="header">
         <div className="wrap">
           <Link href="/" className="brand" aria-label="Salora">
-            <span className="brandIcon">
-              <Image src="/logo-s.png" alt="Salora" width={22} height={22} priority />
-            </span>
-            <span className="brandText">Salora</span>
-          </Link>
+  <div className="brandInner">
+    <div className="brandIcon">
+      <Image src="/logo-s.png" alt="Salora" width={22} height={22} priority />
+    </div>
+    <div className="brandText">Salora</div>
+  </div>
+</Link>
 
           <div className="navDesktop">
             <CustomerNav />
