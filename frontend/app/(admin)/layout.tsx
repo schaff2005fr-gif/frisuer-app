@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import AdminNav from "./admin/AdminNav";
+import Brand from "@/components/Brand";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         margin: "0 auto",
       }}
     >
+      <Brand />
       <div
         style={{
           display: "flex",
@@ -74,5 +76,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <div style={{ marginTop: 14 }}>{children}</div>
     </div>
+    
   );
 }

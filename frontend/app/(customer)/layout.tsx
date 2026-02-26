@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import CustomerNav from "./CustomerNav";
 import CustomerBottomNav from "./CustomerBottomNav";
+import Brand from "@/components/Brand";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -107,6 +108,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       `}</style>
 
       <header className="header">
+        <Brand />
         <div className="wrap">
           <Link href="/" className="brand" aria-label="Salora">
   <div className="brandInner">
@@ -127,5 +129,6 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
       <CustomerBottomNav />
     </div>
+    
   );
 }
