@@ -33,15 +33,29 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           align-items: center;
         }
 
-        .brandLogo {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 40px;
-          height: 40px;
-          border-radius: 12px;
-          background: #111;
-        }
+        .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.brandIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #111;
+}
+
+.brandText {
+  font-weight: 900;
+  font-size: 18px;
+  color: #111;
+  letter-spacing: -0.5px;
+}
 
         .main {
           max-width: 1020px;
@@ -73,17 +87,19 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       `}</style>
 
       <header className="header">
-        <div className="wrap">
-          <Link href="/" className="brandLogo" aria-label="Salora">
-            <Image src="/logo-s.png" alt="Salora" width={24} height={24} priority />
-          </Link>
+  <div className="wrap">
+    <Link href="/" className="brand">
+      <span className="brandIcon">
+        <Image src="/logo-s.png" alt="Salora" width={22} height={22} priority />
+      </span>
+      <span className="brandText">Salora</span>
+    </Link>
 
-          {/* Desktop: dein altes Menü komplett */}
-          <div className="navDesktop">
-            <CustomerNav />
-          </div>
-        </div>
-      </header>
+    <div className="navDesktop">
+      <CustomerNav />
+    </div>
+  </div>
+</header>
 
       <main className="main">{children}</main>
 
