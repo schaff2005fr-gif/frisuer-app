@@ -34,10 +34,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         }
 
         .brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
   text-decoration: none;
+  flex-direction: row; /* GANZ WICHTIG */
 }
 
 .brandIcon {
