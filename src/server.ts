@@ -507,6 +507,43 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
   return { isOpen: true, windowStartMin, windowEndMin, times };
 }
 
+function berlinTodayStr() {
+  return formatDateBerlin(new Date()); // "YYYY-MM-DD"
+}
+
+function addDaysToYYYYMMDD(dateStr: string, days: number) {
+  const d = new Date(`${dateStr}T00:00:00.000`);
+  d.setDate(d.getDate() + days);
+  return formatDateBerlin(d);
+}
+
+async function findNextAvailableDate(barberId: number, lookaheadDays = 30) {
+  // nimm die kürzeste aktive Service-Dauer (damit "irgendein Termin" möglichst früh gefunden wird)
+  const services = await prisma.service.findMany({
+    where: { barberId, isActive: true },
+    select: { durationMin: true },
+  });
+
+  const minDur = Math.min(...services.map((s) => s.durationMin));
+  if (!Number.isFinite(minDur)) return null;
+
+  const start = berlinTodayStr();
+
+  for (let i = 0; i <= lookaheadDays; i++) {
+    const dateStr = addDaysToYYYYMMDD(start, i);
+
+    const { isOpen, times } = await computeAvailableTimes({
+      barberId,
+      dateStr,
+      serviceDurationMin: minDur,
+    });
+
+    if (isOpen && times.length > 0) return dateStr;
+  }
+
+  return null;
+}
+
 /* ---------- PUBLIC ---------- */
 
 app.get("/barbers", async (_req, res) => {
@@ -525,29 +562,13 @@ app.get("/barbers", async (_req, res) => {
       },
     });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const next = await prisma.booking.groupBy({
-      by: ["barberId"],
-      where: {
-        status: { not: "CANCELLED" as any },
-        date: { gte: today },
-      },
-      _min: { date: true },
-    });
-
-    const nextMap = new Map<number, string>();
-    for (const row of next as any[]) {
-      const barberId = Number(row.barberId);
-      const minDate: Date | null = row._min?.date ?? null;
-      if (barberId && minDate) nextMap.set(barberId, formatDateBerlin(minDate));
-    }
-
-    const out = barbers.map((b) => ({
-      ...b,
-      nextDate: nextMap.get(b.id) ?? null,
-    }));
+    // ✅ nächster freier Tag pro Barber
+    const out = await Promise.all(
+      barbers.map(async (b) => ({
+        ...b,
+        nextDate: await findNextAvailableDate(b.id, 30), // z.B. die nächsten 30 Tage prüfen
+      }))
+    );
 
     res.json({ ok: true, count: out.length, barbers: out });
   } catch (e: any) {
@@ -1028,7 +1049,10 @@ app.post("/bookings", requireAuth, requireRole("CUSTOMER"), async (req, res) => 
       return res.status(400).json({ error: "barberSlug, date, serviceKey, exactTime required" });
     }
     if (!isValidDateYYYYMMDD(dateStr)) return res.status(400).json({ error: "date must be YYYY-MM-DD" });
-
+    const todayStr = formatDateBerlin(new Date());
+if (dateStr < todayStr) {
+  return res.status(400).json({ error: "Du kannst keinen Termin in der Vergangenheit buchen." });
+}
     const me = await prisma.user.findUnique({
       where: { id: userId },
       include: { customer: true },
