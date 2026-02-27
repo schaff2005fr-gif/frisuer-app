@@ -178,7 +178,7 @@ export default function AdminSettingsPage() {
           website: profile.website,
 
           // ✅ neu
-          imageUrl: profile.imageUrl,
+          imageUrl: (profile as any).imageUrl ?? null,
         }),
       });
 
@@ -483,11 +483,11 @@ export default function AdminSettingsPage() {
 
                 <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
                   <Field
-                    label="Profilbild URL"
-                    value={profile.imageUrl ?? ""}
-                    onChange={(v) => setProfile({ ...profile, imageUrl: v.trim() ? v.trim() : null })}
-                    placeholder="https://..."
-                  />
+  label="Profilbild (Link)"
+  value={profile.imageUrl ?? ""}
+  onChange={(v) => setProfile({ ...profile, imageUrl: v || null })}
+  placeholder="https://..."
+/>
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                     <div

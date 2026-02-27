@@ -572,6 +572,7 @@ app.get("/barbers/:slug", async (req, res) => {
         city: true,
         instagram: true,
         website: true,
+        imageUrl: true,
       },
     });
 
@@ -1337,6 +1338,7 @@ app.get("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) =
         city: true,
         instagram: true,
         website: true,
+        imageUrl: true,
       },
     });
 
@@ -1358,6 +1360,7 @@ app.put("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) =
     const city = req.body?.city != null ? String(req.body.city).trim() : null;
     const instagram = req.body?.instagram != null ? String(req.body.instagram).trim() : null;
     const website = req.body?.website != null ? String(req.body.website).trim() : null;
+    const imageUrl = req.body?.imageUrl != null ? String(req.body.imageUrl).trim() : null;
 
     const updated = await prisma.barber.update({
       where: { id: barberId },
@@ -1369,6 +1372,7 @@ app.put("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) =
         city: city || null,
         instagram: instagram || null,
         website: website || null,
+        imageUrl: imageUrl || null,
       },
       select: {
         id: true,
@@ -1381,6 +1385,7 @@ app.put("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) =
         city: true,
         instagram: true,
         website: true,
+        imageUrl: true,
       },
     });
 
