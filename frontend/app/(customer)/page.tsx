@@ -32,6 +32,13 @@ function getTokenSafe() {
   return window.localStorage.getItem("token") || "";
 }
 
+function cleanUrl(u?: string | null) {
+  const s = String(u ?? "").trim();
+  if (!s) return "";
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  return "https://" + s;
+}
+
 function initials(name: string) {
   const s = String(name || "").trim();
   if (!s) return "S";
@@ -418,7 +425,7 @@ export default function HomePage() {
             <div key={b.id} className="card">
               <div className="row">
                 <div className="avatar" aria-label={b.name}>
-                  {b.imageUrl ? <img src={b.imageUrl} alt={b.name} className="avatarImg" /> : initials(b.name)}
+                  {b.imageUrl ? <img src={cleanUrl(b.imageUrl)} alt={b.name} className="avatarImg" /> : initials(b.name)}
                 </div>
 
                 <div>

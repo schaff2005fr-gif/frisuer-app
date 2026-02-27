@@ -521,6 +521,7 @@ app.get("/barbers", async (_req, res) => {
         street: true,
         postalCode: true,
         city: true,
+        imageUrl: true,
       },
     });
 
