@@ -43,7 +43,7 @@ type BarberProfile = {
   instagram: string | null;
   website: string | null;
 
-  // ✅ neu: Bild-URL (Profilbild)
+  // ✅ Bild-URL (Profilbild)
   imageUrl: string | null;
 };
 
@@ -216,8 +216,8 @@ export default function AdminSettingsPage() {
           instagram: profile.instagram,
           website: profile.website,
 
-          // ✅ imageUrl bleibt, wird jetzt auch durch Upload gesetzt
-          imageUrl: (profile as any).imageUrl ?? null,
+          // ✅ imageUrl bleibt
+          imageUrl: profile.imageUrl ?? null,
         }),
       });
 
@@ -230,13 +230,23 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // ✅ neu: Datei wählen -> Cloudinary upload -> profile.imageUrl setzen
+  // ✅ neu: nur Bild speichern (Auto-Save nach Upload)
+  async function saveImageOnly(nextUrl: string | null) {
+    const data = await apiFetch("/admin/profile", {
+      method: "PUT",
+      body: JSON.stringify({ imageUrl: nextUrl }),
+    });
+
+    // server returns { ok:true, barber: updated }
+    setProfile((prev) => (prev ? { ...prev, imageUrl: data?.barber?.imageUrl ?? nextUrl } : prev));
+  }
+
+  // ✅ geändert: Datei wählen -> Cloudinary -> imageUrl setzen -> direkt ins Backend speichern
   async function onPickProfileImage(e: React.ChangeEvent<HTMLInputElement>) {
     setImgMsg("");
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // optional: alte preview URL freigeben
     if (localPreview) URL.revokeObjectURL(localPreview);
 
     if (!file.type.startsWith("image/")) {
@@ -254,15 +264,19 @@ export default function AdminSettingsPage() {
     setUploadingImg(true);
     try {
       const url = await uploadToCloudinary(file);
-      if (profile) {
-        setProfile({ ...profile, imageUrl: url });
-      }
-      setImgMsg("✅ Upload fertig. Jetzt Profil speichern.");
+
+      // lokal sofort setzen
+      if (profile) setProfile({ ...profile, imageUrl: url });
+
+      // ✅ Auto-Save
+      await saveImageOnly(url);
+
+      setImgMsg("✅ Profilbild gespeichert.");
     } catch (err: any) {
       setImgMsg(err?.message || "Upload fehlgeschlagen");
     } finally {
       setUploadingImg(false);
-      // damit man das gleiche Bild nochmal auswählen kann:
+      // allow selecting same file again
       e.target.value = "";
     }
   }
@@ -380,7 +394,6 @@ export default function AdminSettingsPage() {
     width: "100%",
   };
 
-  // ✅ geändert: Vorschau nutzt cleanUrl
   const previewUrl = cleanUrl(profile?.imageUrl ?? "");
   const showPreview = previewUrl || localPreview;
 
@@ -556,11 +569,10 @@ export default function AdminSettingsPage() {
               <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
                 <div style={{ fontWeight: 900 }}>Profilbild</div>
                 <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>
-                  Upload vom Handy/PC (Cloudinary) – danach Profil speichern.
+                  Bild auswählen → Upload → wird automatisch gespeichert.
                 </div>
 
                 <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                  {/* ✅ neu: Upload Input */}
                   <div style={{ display: "grid", gap: 6 }}>
                     <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Bild auswählen</div>
                     <input
@@ -577,7 +589,6 @@ export default function AdminSettingsPage() {
                     ) : null}
                   </div>
 
-                  {/* ✅ dein Link-Feld bleibt drin (nichts gelöscht) */}
                   <Field
                     label="Profilbild (Link)"
                     value={profile.imageUrl ?? ""}
