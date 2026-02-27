@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const API_BASE = "https://frisuer-app.onrender.com";
+// ✅ geändert: API_BASE aus ENV (fallback bleibt gleich)
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app.onrender.com";
+
+// ✅ neu: Cloudinary ENV
+const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
+const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
 
 type Role = "CUSTOMER" | "BARBER";
 
@@ -69,6 +74,35 @@ function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
 }
 
+// ✅ neu: URL säubern (falls ohne https gespeichert)
+function cleanUrl(u?: string | null) {
+  const s = String(u ?? "").trim();
+  if (!s) return "";
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  return "https://" + s;
+}
+
+// ✅ neu: Cloudinary Upload
+async function uploadToCloudinary(file: File): Promise<string> {
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error("Cloudinary ENV fehlt (CLOUD_NAME / UPLOAD_PRESET).");
+  }
+
+  const form = new FormData();
+  form.append("file", file);
+  form.append("upload_preset", UPLOAD_PRESET);
+  form.append("folder", "salora/barbers");
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+    method: "POST",
+    body: form,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || "Upload fehlgeschlagen");
+  return data.secure_url as string;
+}
+
 export default function AdminSettingsPage() {
   const router = useRouter();
 
@@ -80,6 +114,11 @@ export default function AdminSettingsPage() {
   const [message, setMessage] = useState("");
 
   const [copied, setCopied] = useState<"" | "profile" | "book">("");
+
+  // ✅ neu: Upload-States
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [imgMsg, setImgMsg] = useState("");
+  const [localPreview, setLocalPreview] = useState<string>("");
 
   function publicBaseUrl() {
     if (typeof window === "undefined") return "https://frisuer-app.onrender.com";
@@ -177,7 +216,7 @@ export default function AdminSettingsPage() {
           instagram: profile.instagram,
           website: profile.website,
 
-          // ✅ neu
+          // ✅ imageUrl bleibt, wird jetzt auch durch Upload gesetzt
           imageUrl: (profile as any).imageUrl ?? null,
         }),
       });
@@ -188,6 +227,43 @@ export default function AdminSettingsPage() {
       setError(e?.message ?? "Fehler");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ✅ neu: Datei wählen -> Cloudinary upload -> profile.imageUrl setzen
+  async function onPickProfileImage(e: React.ChangeEvent<HTMLInputElement>) {
+    setImgMsg("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // optional: alte preview URL freigeben
+    if (localPreview) URL.revokeObjectURL(localPreview);
+
+    if (!file.type.startsWith("image/")) {
+      setImgMsg("Bitte nur Bilder auswählen.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImgMsg("Bild ist zu groß (max. 5MB).");
+      return;
+    }
+
+    const preview = URL.createObjectURL(file);
+    setLocalPreview(preview);
+
+    setUploadingImg(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      if (profile) {
+        setProfile({ ...profile, imageUrl: url });
+      }
+      setImgMsg("✅ Upload fertig. Jetzt Profil speichern.");
+    } catch (err: any) {
+      setImgMsg(err?.message || "Upload fehlgeschlagen");
+    } finally {
+      setUploadingImg(false);
+      // damit man das gleiche Bild nochmal auswählen kann:
+      e.target.value = "";
     }
   }
 
@@ -304,7 +380,9 @@ export default function AdminSettingsPage() {
     width: "100%",
   };
 
-  const previewUrl = (profile?.imageUrl ?? "").trim();
+  // ✅ geändert: Vorschau nutzt cleanUrl
+  const previewUrl = cleanUrl(profile?.imageUrl ?? "");
+  const showPreview = previewUrl || localPreview;
 
   return (
     <div style={{ padding: 16, maxWidth: 1020, margin: "0 auto" }}>
@@ -478,16 +556,34 @@ export default function AdminSettingsPage() {
               <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
                 <div style={{ fontWeight: 900 }}>Profilbild</div>
                 <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>
-                  Für jetzt als URL (später können wir Upload machen).
+                  Upload vom Handy/PC (Cloudinary) – danach Profil speichern.
                 </div>
 
                 <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                  {/* ✅ neu: Upload Input */}
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Bild auswählen</div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={onPickProfileImage}
+                      disabled={uploadingImg || saving}
+                      style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10, width: "100%" }}
+                    />
+                    {imgMsg ? (
+                      <div style={{ fontSize: 12, fontWeight: 900, color: imgMsg.startsWith("✅") ? "green" : "crimson" }}>
+                        {imgMsg}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* ✅ dein Link-Feld bleibt drin (nichts gelöscht) */}
                   <Field
-  label="Profilbild (Link)"
-  value={profile.imageUrl ?? ""}
-  onChange={(v) => setProfile({ ...profile, imageUrl: v || null })}
-  placeholder="https://..."
-/>
+                    label="Profilbild (Link)"
+                    value={profile.imageUrl ?? ""}
+                    onChange={(v) => setProfile({ ...profile, imageUrl: v || null })}
+                    placeholder="https://..."
+                  />
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                     <div
@@ -504,10 +600,10 @@ export default function AdminSettingsPage() {
                         color: "#666",
                       }}
                     >
-                      {previewUrl ? (
+                      {showPreview ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={previewUrl}
+                          src={showPreview}
                           alt="Profilbild"
                           style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           onError={(e) => {
@@ -520,7 +616,7 @@ export default function AdminSettingsPage() {
                     </div>
 
                     <div style={{ color: "#666", fontSize: 12 }}>
-                      Vorschau {previewUrl ? "geladen" : "leer"}
+                      Vorschau {showPreview ? (uploadingImg ? "lädt…" : "geladen") : "leer"}
                     </div>
                   </div>
                 </div>
