@@ -944,7 +944,10 @@ app.get("/notifications/:id", requireAuth, requireRole("CUSTOMER"), async (req, 
     if (!n || n.customerId !== user.customerId) return res.status(404).json({ error: "not found" });
 
     const booking = n.booking;
-    const barberSlug = booking?.barber?.slug ?? null;
+
+// ✅ slug aus booking ODER aus message (falls booking gelöscht wurde)
+const slugFromMsg = /BarberSlug:\s*([a-z0-9-]+)/i.exec(n.message)?.[1] ?? null;
+const barberSlug = booking?.barber?.slug ?? slugFromMsg ?? null;
     const bookingDate = booking?.date ? formatDateBerlin(new Date(booking.date)) : null;
 
     const timeHHMM =
@@ -1338,9 +1341,11 @@ app.patch("/admin/bookings/:id/status", requireAuth, requireRole("BARBER"), asyn
           customerId: targetCustomerId,
           type: "BOOKING_CANCELLED",
           title: "Termin storniert",
-          message: `Dein Termin wurde storniert.\nFriseur: ${barberName}\nService: ${serviceName}\nDatum: ${dateStr}${
-            when ? `\nZeit: ${when}` : ""
-          }`,
+          message: `Dein Termin wurde storniert.
+BarberSlug: ${existing.barber?.slug ?? ""}
+Friseur: ${barberName}
+Service: ${serviceName}
+Datum: ${dateStr}${when ? `\nZeit: ${when}` : ""}`,
           bookingId: null,
         });
       } else {
