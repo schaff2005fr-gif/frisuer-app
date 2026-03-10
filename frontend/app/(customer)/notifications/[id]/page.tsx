@@ -13,6 +13,9 @@ type Notification = {
   link: string | null;
   isRead: boolean;
   createdAt: string;
+
+  // ✅ optional für später (wenn Backend das liefert)
+  barberSlug?: string | null;
 };
 
 function getToken() {
@@ -40,6 +43,22 @@ function extractDetailsFromBody(body: string) {
   return { friseur, service, datum, timeStr };
 }
 
+function stripDetailsFromBody(body: string) {
+  let t = String(body ?? "");
+
+  t = t.replace(/Friseur:\s*[^\n•]+/gi, "").trim();
+  t = t.replace(/Service:\s*[^\n•]+/gi, "").trim();
+  t = t.replace(/Datum:\s*\d{4}-\d{2}-\d{2}/gi, "").trim();
+  t = t.replace(/Zeit:\s*[0-9]{1,2}:[0-9]{2}\s*-\s*[0-9]{1,2}:[0-9]{2}/gi, "").trim();
+
+  // separator cleanup
+  t = t.replace(/[•·]\s*[•·]/g, "•");
+  t = t.replace(/\s{2,}/g, " ").trim();
+  t = t.replace(/^[-•·\s]+/, "").trim();
+
+  return t;
+}
+
 export default function NotificationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -47,7 +66,6 @@ export default function NotificationDetailPage() {
 
   const [item, setItem] = useState<Notification | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busyRead, setBusyRead] = useState(false);
   const [error, setError] = useState("");
 
   async function load() {
@@ -75,7 +93,7 @@ export default function NotificationDetailPage() {
       const n = (data?.notification ?? null) as Notification | null;
       setItem(n);
 
-      // ✅ auto mark as read beim Öffnen
+      // ✅ Backup: falls direkt URL geöffnet -> als gelesen markieren
       if (n && !n.isRead) {
         fetch(`${API_BASE}/notifications/${n.id}/read`, {
           method: "PATCH",
@@ -91,34 +109,6 @@ export default function NotificationDetailPage() {
     }
   }
 
-  async function markReadNow() {
-    if (!item || item.isRead) return;
-    setBusyRead(true);
-    setError("");
-    try {
-      const token = getToken();
-      if (!token) return router.replace("/login");
-
-      const res = await fetch(`${API_BASE}/notifications/${item.id}/read`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data?.error || "Konnte nicht als gelesen markieren.");
-        return;
-      }
-
-      setItem({ ...item, isRead: true });
-    } catch (e) {
-      console.error(e);
-      setError("Fehler.");
-    } finally {
-      setBusyRead(false);
-    }
-  }
-
   useEffect(() => {
     if (!Number.isFinite(id)) {
       setError("Ungültige ID.");
@@ -131,6 +121,19 @@ export default function NotificationDetailPage() {
 
   const details = useMemo(() => extractDetailsFromBody(item?.body ?? ""), [item?.body]);
   const hasSummary = !!(details.friseur || details.service || details.datum || details.timeStr);
+
+  // ✅ Body ohne Doppel-Details
+  const cleanBody = useMemo(() => {
+    if (!item) return "";
+    const t = hasSummary ? stripDetailsFromBody(item.body) : item.body;
+    // Wenn nach dem Strip kaum Text übrig bleibt, lassen wir den Body weg
+    if (!t || t === "." || t.length < 3) return "";
+    return t;
+  }, [item, hasSummary]);
+
+  // ✅ Link zum Barber (Stufe 2 später über barberSlug)
+  const barberProfileHref = item?.barberSlug ? `/b/${item.barberSlug}` : null;
+  const barberBookHref = item?.barberSlug ? `/b/${item.barberSlug}/book` : null;
 
   return (
     <div className="page">
@@ -162,17 +165,6 @@ export default function NotificationDetailPage() {
           color: #666;
           font-size: 12px;
           font-weight: 900;
-        }
-        .badgeNew {
-          margin-top: 8px;
-          display: inline-block;
-          padding: 6px 10px;
-          border-radius: 999px;
-          border: 1px solid #111;
-          background: #111;
-          color: #fff;
-          font-weight: 1000;
-          font-size: 12px;
         }
         .summary {
           margin-top: 12px;
@@ -250,8 +242,6 @@ export default function NotificationDetailPage() {
             <div className="time">{formatDateTimeBerlinShort(item.createdAt)}</div>
           </div>
 
-          {!item.isRead ? <div className="badgeNew">Neu</div> : null}
-
           {hasSummary ? (
             <div className="summary">
               {details.friseur ? (
@@ -278,23 +268,40 @@ export default function NotificationDetailPage() {
             </div>
           ) : null}
 
-          <div className="body">{item.body}</div>
+          {/* ✅ kein Doppeltext */}
+          {cleanBody ? <div className="body">{cleanBody}</div> : null}
 
           <div className="actions">
             <button className="btnGhost" onClick={() => router.back()}>
               Zurück
             </button>
 
+            {/* ✅ Default: Termine */}
             <a className="btnPrimary" href="/my-bookings">
               Zu meinen Terminen →
             </a>
 
-            {!item.isRead ? (
-              <button className="btnGhost" onClick={markReadNow} disabled={busyRead}>
-                {busyRead ? "…" : "Als gelesen markieren"}
-              </button>
+            {/* ✅ Optional: später direkt Barber-Profil/Buchung wenn slug verfügbar */}
+            {barberProfileHref ? (
+              <a className="btnGhost" href={barberProfileHref}>
+                Profil öffnen →
+              </a>
+            ) : null}
+
+            {barberBookHref ? (
+              <a className="btnPrimary" href={barberBookHref}>
+                Neu buchen →
+              </a>
             ) : null}
           </div>
+
+          {/* ✅ Hinweis, falls slug noch nicht da ist */}
+          {!item.barberSlug ? (
+            <div style={{ marginTop: 10, color: "#666", fontSize: 12 }}>
+              Tipp: “Neu buchen” geht aktuell über <b>Meine Termine</b> (Button oben). Direkt zum Barber-Profil machen wir,
+              sobald das Backend den Barber-Slug mitsendet.
+            </div>
+          ) : null}
         </div>
       )}
     </div>
