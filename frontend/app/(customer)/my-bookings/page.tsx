@@ -393,7 +393,6 @@ export default function MyBookingsPage() {
       <div className="header">
         <div style={{ width: "100%" }}>
           <h1 style={{ margin: 0 }}>Meine Termine</h1>
-          <div className="subtitle">Standard: nur aktive, zukünftige Termine. (Heute: {todayStr})</div>
 
           <div className="topActions" style={{ marginTop: 12 }}>
             <button onClick={loadBookings} disabled={loading} className="btnPrimary">

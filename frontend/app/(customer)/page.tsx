@@ -9,14 +9,12 @@ type Barber = {
   name: string;
   slug: string;
 
-  // optional: falls Backend es schon liefert / später erweitert
   city?: string | null;
   street?: string | null;
   postalCode?: string | null;
   imageUrl?: string | null;
 
-  // optional: falls Backend mal "nextDate" liefern kann
-  nextDate?: string | null; // "YYYY-MM-DD" oder ISO
+  nextDate?: string | null;
 };
 
 type Me = {
@@ -49,10 +47,15 @@ function initials(name: string) {
 }
 
 function formatDateDE(dateStr: string) {
-  // akzeptiert "YYYY-MM-DD" oder ISO
   const d = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr);
   if (Number.isNaN(d.getTime())) return dateStr;
   return new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeZone: "Europe/Berlin" }).format(d);
+}
+
+function firstName(full: string) {
+  const s = String(full || "").trim();
+  if (!s) return "";
+  return s.split(/\s+/).filter(Boolean)[0] ?? "";
 }
 
 export default function HomePage() {
@@ -106,7 +109,14 @@ export default function HomePage() {
   }, []);
 
   const isCustomer = me?.role === "CUSTOMER";
-  const displayName = (me?.customer?.name ?? "").trim() || me?.email || "";
+  const fn = firstName(me?.customer?.name ?? "");
+
+  const titleText = loadingMe ? "Salora" : me && isCustomer ? `Hallo ${fn || "👋"}` : "Friseure";
+  const subText = loadingMe
+    ? "Lade…"
+    : me && isCustomer
+    ? "Wohin soll’s gehen?"
+    : "Suche nach Name oder Stadt.";
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -135,62 +145,47 @@ export default function HomePage() {
 
         .title {
           margin: 0;
-          font-size: 44px;
+          font-size: 36px;
           line-height: 1.05;
-          letter-spacing: -1.2px;
+          letter-spacing: -1px;
         }
 
         .sub {
           color: #666;
-          margin-top: 10px;
-          font-size: 18px;
+          margin-top: 8px;
+          font-size: 16px;
           line-height: 1.4;
           max-width: 720px;
         }
 
-        .topRow {
-          margin-top: 14px;
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          align-items: center;
-          flex-wrap: wrap;
-        }
-
-        .meBadge {
-          border: 1px solid #eee;
-          border-radius: 14px;
-          padding: 10px 12px;
-          background: #fff;
-          font-weight: 900;
-          white-space: nowrap;
-          max-width: 100%;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .meBadgeMuted {
-          border: 1px solid #eee;
-          border-radius: 14px;
-          padding: 10px 12px;
-          background: #fff;
-          font-weight: 900;
-          color: #666;
-        }
-
+        /* ✅ Suchbox jetzt wie Card */
         .searchBox {
+          margin-top: 14px;
           border: 1px solid #eee;
-          border-radius: 16px;
+          border-radius: 18px;
           padding: 14px;
           background: #fff;
           display: grid;
-          grid-template-columns: 1fr 1.4fr auto;
-          gap: 12px;
-          align-items: center;
+          gap: 10px;
+        }
+
+        .searchTop {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
         }
 
         .searchTitle {
+          font-weight: 1000;
+        }
+
+        .countText {
+          color: #666;
+          font-size: 12px;
           font-weight: 900;
+          white-space: nowrap;
         }
 
         .searchHint {
@@ -204,16 +199,7 @@ export default function HomePage() {
           border: 1px solid #ddd;
           border-radius: 14px;
           width: 100%;
-          max-width: 100%;
           font-size: 16px;
-        }
-
-        .countText {
-          color: #666;
-          font-size: 12px;
-          font-weight: 900;
-          text-align: right;
-          white-space: nowrap;
         }
 
         .cards {
@@ -316,12 +302,6 @@ export default function HomePage() {
           background: #111;
         }
 
-        .hint {
-          margin-top: 16px;
-          color: #666;
-          font-size: 12px;
-        }
-
         .alertErr {
           margin-top: 12px;
           padding: 12px;
@@ -340,22 +320,19 @@ export default function HomePage() {
           color: #666;
         }
 
-        /* ✅ Mobile */
+        .hint {
+          margin-top: 16px;
+          color: #666;
+          font-size: 12px;
+        }
+
         @media (max-width: 720px) {
           .page {
             padding: 14px;
           }
 
           .title {
-            font-size: 44px;
-          }
-
-          .searchBox {
-            grid-template-columns: 1fr;
-          }
-
-          .countText {
-            text-align: left;
+            font-size: 34px;
           }
 
           .row {
@@ -375,36 +352,26 @@ export default function HomePage() {
       `}</style>
 
       <div className="hero">
-        <h1 className="title">Friseur buchen</h1>
-        <div className="sub">Wähle deinen Friseur aus und buche deinen Termin online.</div>
+        <h1 className="title">{titleText}</h1>
+        <div className="sub">{subText}</div>
 
-        <div className="topRow">
-          <div className="searchBox">
+        {/* ✅ Suchbox jetzt wie Card & volle Breite */}
+        <div className="searchBox">
+          <div className="searchTop">
             <div>
               <div className="searchTitle">Suche</div>
               <div className="searchHint">Name, Stadt oder Slug</div>
             </div>
 
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="z.B. Ali, Essen, barber-essen..."
-              className="searchInput"
-            />
-
             <div className="countText">{loading ? "…" : `${filtered.length} Friseur(e)`}</div>
           </div>
 
-          {loadingMe ? (
-            <div style={{ color: "#666", fontWeight: 800 }}>lädt…</div>
-          ) : me ? (
-            <div className="meBadge" title={displayName}>
-              {isCustomer ? "👤 " : "🔧 "}
-              {displayName}
-            </div>
-          ) : (
-            <div className="meBadgeMuted">Nicht eingeloggt</div>
-          )}
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="z.B. Ali, Essen, barber-essen..."
+            className="searchInput"
+          />
         </div>
       </div>
 
@@ -418,7 +385,6 @@ export default function HomePage() {
           const addr =
             [b.street, [b.postalCode, b.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null;
 
-          // Falls Backend später nextDate liefert: zeigen wir nur Datum
           const nextLabel = b.nextDate ? `Nächster Termin: ${formatDateDE(b.nextDate)}` : "Nächster Termin: —";
 
           return (
@@ -430,9 +396,7 @@ export default function HomePage() {
 
                 <div>
                   <div className="name">{b.name}</div>
-                  <div className="meta">
-                    {addr ? addr : `/b/${b.slug}`}
-                  </div>
+                  <div className="meta">{addr ? addr : `/b/${b.slug}`}</div>
                 </div>
 
                 <div className="chip chipStrong">{nextLabel}</div>
