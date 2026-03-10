@@ -517,7 +517,7 @@ function addDaysToYYYYMMDD(dateStr: string, days: number) {
   return formatDateBerlin(d);
 }
 
-async function findNextAvailableDate(barberId: number, lookaheadDays = 30) {
+async function findNextAvailableDate(barberId: number, lookaheadDays = 7) {
   // nimm die kürzeste aktive Service-Dauer (damit "irgendein Termin" möglichst früh gefunden wird)
   const services = await prisma.service.findMany({
     where: { barberId, isActive: true },
