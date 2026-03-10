@@ -1291,23 +1291,7 @@ app.patch("/admin/bookings/:id/status", requireAuth, requireRole("BARBER"), asyn
       data: { status: status as any },
     });
 
-    if (existing.customerId) {
-      const details = buildBookingDetailsText({
-        date: existing.date,
-        exactTime: existing.exactTime,
-        durationMin: existing.durationMin,
-        barber: existing.barber ? { name: existing.barber.name } : null,
-        service: existing.service ? { name: existing.service.name } : null,
-      });
-
-      await createCustomerNotification({
-        customerId: existing.customerId,
-        type: "BOOKING_STATUS_CHANGED",
-        title: "Termin-Status geändert",
-        message: `Neuer Status: ${status}\n${details}`,
-        bookingId: existing.id,
-      });
-    }
+    
 
     res.json({ ok: true, id: updated.id, status: updated.status });
   } catch (e: any) {

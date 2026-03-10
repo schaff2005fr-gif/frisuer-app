@@ -18,27 +18,16 @@ function getToken() {
   return localStorage.getItem("token") || "";
 }
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function minToHHMM(min: number) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${pad2(h)}:${pad2(m)}`;
-}
-
 function formatDateTimeBerlinShort(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat("de-DE", {
     timeZone: "Europe/Berlin",
     dateStyle: "medium",
-    timeStyle: "short", // ✅ ohne Sekunden
+    timeStyle: "short",
   }).format(d);
 }
 
-// ✅ Body kürzen
 function truncate(s: string, n = 140) {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
   if (!t) return "";
@@ -46,7 +35,6 @@ function truncate(s: string, n = 140) {
   return t.slice(0, n).trimEnd() + "…";
 }
 
-// ✅ aus deinem body eine kurze “Termin-Zusammenfassung” extrahieren (ohne Backend ändern)
 function extractDetailsFromBody(body: string) {
   const t = String(body ?? "");
 
@@ -63,13 +51,11 @@ function extractDetailsFromBody(body: string) {
 function stripDetailsFromBody(body: string) {
   let t = String(body ?? "");
 
-  // Entferne typische Detail-Zeilen/Segmente
   t = t.replace(/Friseur:\s*[^\n•]+/gi, "").trim();
   t = t.replace(/Service:\s*[^\n•]+/gi, "").trim();
   t = t.replace(/Datum:\s*\d{4}-\d{2}-\d{2}/gi, "").trim();
   t = t.replace(/Zeit:\s*[0-9]{1,2}:[0-9]{2}\s*-\s*[0-9]{1,2}:[0-9]{2}/gi, "").trim();
 
-  // Bullet/Separator cleanup
   t = t.replace(/[•·]\s*[•·]/g, "•");
   t = t.replace(/\s{2,}/g, " ").trim();
   t = t.replace(/^[-•·\s]+/, "").trim();
@@ -371,12 +357,13 @@ export default function NotificationsPage() {
 
         .btnRead {
           border: 1px solid #111;
-          padding: 9px 10px;
+          padding: 12px;
           border-radius: 12px;
           background: #111;
           color: #fff;
           font-weight: 900;
           cursor: pointer;
+          flex: 1 1 160px;
         }
 
         .btnRead:disabled {
@@ -384,14 +371,16 @@ export default function NotificationsPage() {
           opacity: 0.7;
         }
 
-        .btnLink {
+        .btnOpen {
           text-decoration: none;
-          padding: 9px 10px;
+          padding: 12px;
           border-radius: 12px;
           border: 1px solid #ddd;
           background: #fff;
           color: #111;
-          font-weight: 900;
+          font-weight: 1000;
+          text-align: center;
+          flex: 1 1 160px;
         }
 
         @media (max-width: 520px) {
@@ -410,7 +399,6 @@ export default function NotificationsPage() {
 
           .footerActions > * {
             width: 100%;
-            text-align: center;
           }
 
           .metaTime {
@@ -458,8 +446,16 @@ export default function NotificationsPage() {
       ) : (
         <div className="list">
           {items.map((n) => {
+            // ✅ Wenn du Backend umgestellt hast, sollten eh nur CANCELLED reinkommen.
+            // Trotzdem filtern wir Status-Changed raus, falls noch alte in DB sind:
+            if (n.type === "BOOKING_STATUS_CHANGED") return null;
+
             const details = extractDetailsFromBody(n.body);
             const hasSummary = !!(details.friseur || details.service || details.datum || details.timeStr);
+
+            // ✅ Bei "Termin storniert" reicht Title + Summary, Body oft unnötig
+            const cleanedBody = hasSummary ? stripDetailsFromBody(n.body) : n.body;
+            const showBody = truncate(cleanedBody, 180);
 
             return (
               <div key={n.id} className={`card ${n.isRead ? "" : "cardUnread"}`}>
@@ -496,16 +492,13 @@ export default function NotificationsPage() {
                   </div>
                 ) : null}
 
-                <div className="body">
-  {truncate(hasSummary ? stripDetailsFromBody(n.body) : n.body, hasSummary ? 120 : 180)}
-</div>
+                {/* ✅ Body nur wenn er wirklich was bringt */}
+                {showBody && showBody !== "Dein Termin wurde storniert." ? <div className="body">{showBody}</div> : null}
 
                 <div className="footerActions">
-                  {n.link ? (
-                    <a className="btnLink" href={n.link}>
-                      Öffnen →
-                    </a>
-                  ) : null}
+                  <a className="btnOpen" href="/my-bookings">
+                    Öffnen →
+                  </a>
 
                   {!n.isRead ? (
                     <button onClick={() => markRead(n.id)} disabled={busyId === n.id} className="btnRead">
