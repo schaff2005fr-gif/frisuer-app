@@ -132,8 +132,8 @@ export default function NotificationDetailPage() {
   }, [item, hasSummary]);
 
   // ✅ Link zum Barber (Stufe 2 später über barberSlug)
-  const barberProfileHref = item?.barberSlug ? `/b/${item.barberSlug}` : null;
-  const barberBookHref = item?.barberSlug ? `/b/${item.barberSlug}/book` : null;
+  const barberProfileHref = (item as any)?.barberProfileLink ?? (item?.barberSlug ? `/b/${item.barberSlug}` : null);
+const barberBookHref = (item as any)?.barberBookLink ?? (item?.barberSlug ? `/b/${item.barberSlug}/book` : null);
 
   return (
     <div className="page">

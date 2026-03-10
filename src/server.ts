@@ -944,7 +944,7 @@ app.get("/notifications/:id", requireAuth, requireRole("CUSTOMER"), async (req, 
     if (!n || n.customerId !== user.customerId) return res.status(404).json({ error: "not found" });
 
     const booking = n.booking;
-
+    const barberSlug = booking?.barber?.slug ?? null;
     const bookingDate = booking?.date ? formatDateBerlin(new Date(booking.date)) : null;
 
     const timeHHMM =
@@ -970,6 +970,9 @@ app.get("/notifications/:id", requireAuth, requireRole("CUSTOMER"), async (req, 
     res.json({
       ok: true,
       notification: {
+        barberSlug,
+barberProfileLink: barberSlug ? `/b/${barberSlug}` : null,
+barberBookLink: barberSlug ? `/b/${barberSlug}/book` : null,
         id: n.id,
         type: n.type,
         title: n.title,
