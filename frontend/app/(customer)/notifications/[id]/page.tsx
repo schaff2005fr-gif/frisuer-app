@@ -14,7 +14,7 @@ type Notification = {
   isRead: boolean;
   createdAt: string;
 
-  // ✅ neu vom Backend (Detail-Endpoint)
+  // ✅ vom Backend (Detail-Endpoint)
   barberSlug?: string | null;
   barberProfileLink?: string | null;
   barberBookLink?: string | null;
@@ -130,12 +130,9 @@ export default function NotificationDetailPage() {
     return t;
   }, [item, hasSummary]);
 
-  // ✅ jetzt bevorzugt Links aus Backend
-  const barberProfileHref =
-    (item as any)?.barberProfileLink ?? (item?.barberSlug ? `/b/${item.barberSlug}` : null);
-
-  const barberBookHref =
-    (item as any)?.barberBookLink ?? (item?.barberSlug ? `/b/${item.barberSlug}/book` : null);
+  // ✅ Links: erst vom Backend, sonst fallback via barberSlug
+  const barberProfileHref = item?.barberProfileLink ?? (item?.barberSlug ? `/b/${item.barberSlug}` : null);
+  const barberBookHref = item?.barberBookLink ?? (item?.barberSlug ? `/b/${item.barberSlug}/book` : null);
 
   return (
     <div className="page">
@@ -270,30 +267,29 @@ export default function NotificationDetailPage() {
             </div>
           ) : null}
 
-          {/* ✅ kein Doppeltext */}
           {cleanBody ? <div className="body">{cleanBody}</div> : null}
 
           <div className="actions">
-  <button className="btnGhost" onClick={() => router.back()}>
-    Zurück
-  </button>
+            <button className="btnGhost" onClick={() => router.back()}>
+              Zurück
+            </button>
 
-  {barberBookHref ? (
-    <a className="btnPrimary" href={barberBookHref}>
-      Neu buchen →
-    </a>
-  ) : (
-    <a className="btnPrimary" href="/my-bookings">
-      Meine Termine →
-    </a>
-  )}
+            {barberBookHref ? (
+              <a className="btnPrimary" href={barberBookHref}>
+                Neu buchen →
+              </a>
+            ) : (
+              <a className="btnPrimary" href="/my-bookings">
+                Meine Termine →
+              </a>
+            )}
 
-  {barberProfileHref ? (
-    <a className="btnGhost" href={barberProfileHref}>
-      Profil öffnen →
-    </a>
-  ) : null}
-</div>
+            {barberProfileHref ? (
+              <a className="btnGhost" href={barberProfileHref}>
+                Profil öffnen →
+              </a>
+            ) : null}
+          </div>
         </div>
       )}
     </div>
