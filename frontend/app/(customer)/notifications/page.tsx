@@ -496,16 +496,40 @@ export default function NotificationsPage() {
                 {showBody && showBody !== "Dein Termin wurde storniert." ? <div className="body">{showBody}</div> : null}
 
                 <div className="footerActions">
-                  <a className="btnOpen" href="/my-bookings">
-                    Öffnen →
-                  </a>
+  <a
+    className="btnOpen"
+    href={`/notifications/${n.id}`}
+    onClick={(e) => {
+      // ✅ sofort als gelesen markieren, dann weiter navigieren
+      if (n.isRead) return;
 
-                  {!n.isRead ? (
-                    <button onClick={() => markRead(n.id)} disabled={busyId === n.id} className="btnRead">
-                      {busyId === n.id ? "..." : "Als gelesen"}
-                    </button>
-                  ) : null}
-                </div>
+      e.preventDefault();
+
+      const token = getToken();
+      if (!token) {
+        window.location.assign("/login");
+        return;
+      }
+
+      fetch(`${API_BASE}/notifications/${n.id}/read`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .catch(() => {})
+        .finally(() => {
+          // Local UI sofort aktualisieren
+          setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
+          setCount((c) => Math.max(0, c - 1));
+          window.location.assign(`/notifications/${n.id}`);
+        });
+    }}
+  >
+    Öffnen →
+  </a>
+
+  {/* ✅ Kein extra "als gelesen" Button mehr nötig */}
+</div>
+                
               </div>
             );
           })}

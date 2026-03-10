@@ -922,6 +922,68 @@ app.get("/notifications/unread-count", requireAuth, requireRole("CUSTOMER"), asy
   }
 });
 
+app.get("/notifications/:id", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { customerId: true },
+    });
+    if (!user?.customerId) return res.status(403).json({ error: "no customer profile" });
+
+    const n = await prisma.notification.findUnique({
+      where: { id },
+      include: {
+        booking: { include: { service: true, barber: true } },
+      },
+    });
+
+    if (!n || n.customerId !== user.customerId) return res.status(404).json({ error: "not found" });
+
+    const booking = n.booking;
+
+    const bookingDate = booking?.date ? formatDateBerlin(new Date(booking.date)) : null;
+
+    const timeHHMM =
+      booking?.exactTime != null && booking?.durationMin != null
+        ? `${toHHMM(booking.exactTime)} - ${toHHMM(booking.exactTime + booking.durationMin)}`
+        : null;
+
+    const barberName = booking?.barber?.name ?? null;
+    const serviceName = booking?.service?.name ?? null;
+
+    const extra =
+      bookingDate || timeHHMM || barberName || serviceName
+        ? `\n\n${[
+            barberName ? `Friseur: ${barberName}` : null,
+            serviceName ? `Service: ${serviceName}` : null,
+            bookingDate ? `Datum: ${bookingDate}` : null,
+            timeHHMM ? `Zeit: ${timeHHMM}` : null,
+          ]
+            .filter(Boolean)
+            .join(" • ")}`
+        : "";
+
+    res.json({
+      ok: true,
+      notification: {
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        body: `${n.message}${extra}`,
+        link: "/my-bookings",
+        isRead: n.readAt != null,
+        createdAt: n.createdAt,
+      },
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
 app.get("/notifications", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
