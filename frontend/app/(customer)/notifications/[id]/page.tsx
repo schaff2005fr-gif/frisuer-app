@@ -14,8 +14,10 @@ type Notification = {
   isRead: boolean;
   createdAt: string;
 
-  // ✅ optional für später (wenn Backend das liefert)
+  // ✅ neu vom Backend (Detail-Endpoint)
   barberSlug?: string | null;
+  barberProfileLink?: string | null;
+  barberBookLink?: string | null;
 };
 
 function getToken() {
@@ -51,7 +53,6 @@ function stripDetailsFromBody(body: string) {
   t = t.replace(/Datum:\s*\d{4}-\d{2}-\d{2}/gi, "").trim();
   t = t.replace(/Zeit:\s*[0-9]{1,2}:[0-9]{2}\s*-\s*[0-9]{1,2}:[0-9]{2}/gi, "").trim();
 
-  // separator cleanup
   t = t.replace(/[•·]\s*[•·]/g, "•");
   t = t.replace(/\s{2,}/g, " ").trim();
   t = t.replace(/^[-•·\s]+/, "").trim();
@@ -122,18 +123,19 @@ export default function NotificationDetailPage() {
   const details = useMemo(() => extractDetailsFromBody(item?.body ?? ""), [item?.body]);
   const hasSummary = !!(details.friseur || details.service || details.datum || details.timeStr);
 
-  // ✅ Body ohne Doppel-Details
   const cleanBody = useMemo(() => {
     if (!item) return "";
     const t = hasSummary ? stripDetailsFromBody(item.body) : item.body;
-    // Wenn nach dem Strip kaum Text übrig bleibt, lassen wir den Body weg
     if (!t || t === "." || t.length < 3) return "";
     return t;
   }, [item, hasSummary]);
 
-  // ✅ Link zum Barber (Stufe 2 später über barberSlug)
-  const barberProfileHref = (item as any)?.barberProfileLink ?? (item?.barberSlug ? `/b/${item.barberSlug}` : null);
-const barberBookHref = (item as any)?.barberBookLink ?? (item?.barberSlug ? `/b/${item.barberSlug}/book` : null);
+  // ✅ jetzt bevorzugt Links aus Backend
+  const barberProfileHref =
+    (item as any)?.barberProfileLink ?? (item?.barberSlug ? `/b/${item.barberSlug}` : null);
+
+  const barberBookHref =
+    (item as any)?.barberBookLink ?? (item?.barberSlug ? `/b/${item.barberSlug}/book` : null);
 
   return (
     <div className="page">
@@ -276,32 +278,26 @@ const barberBookHref = (item as any)?.barberBookLink ?? (item?.barberSlug ? `/b/
               Zurück
             </button>
 
-            {/* ✅ Default: Termine */}
-            <a className="btnPrimary" href="/my-bookings">
-              Zu meinen Terminen →
-            </a>
+            {barberBookHref ? (
+              <a className="btnPrimary" href={barberBookHref}>
+                Neu buchen →
+              </a>
+            ) : (
+              <a className="btnPrimary" href="/my-bookings">
+                Zu meinen Terminen →
+              </a>
+            )}
 
-            {/* ✅ Optional: später direkt Barber-Profil/Buchung wenn slug verfügbar */}
             {barberProfileHref ? (
               <a className="btnGhost" href={barberProfileHref}>
                 Profil öffnen →
               </a>
             ) : null}
 
-            {barberBookHref ? (
-              <a className="btnPrimary" href={barberBookHref}>
-                Neu buchen →
-              </a>
-            ) : null}
+            <a className="btnGhost" href="/my-bookings">
+              Meine Termine
+            </a>
           </div>
-
-          {/* ✅ Hinweis, falls slug noch nicht da ist */}
-          {!item.barberSlug ? (
-            <div style={{ marginTop: 10, color: "#666", fontSize: 12 }}>
-              Tipp: “Neu buchen” geht aktuell über <b>Meine Termine</b> (Button oben). Direkt zum Barber-Profil machen wir,
-              sobald das Backend den Barber-Slug mitsendet.
-            </div>
-          ) : null}
         </div>
       )}
     </div>
