@@ -32,6 +32,13 @@ export default function CustomerSettingsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    router.replace("/login");
+    router.refresh();
+  }
+
   async function loadMe() {
     setLoading(true);
     setError("");
@@ -245,6 +252,16 @@ export default function CustomerSettingsPage() {
           opacity: 0.7;
         }
 
+        .btnGhost {
+          padding: 12px;
+          border-radius: 12px;
+          border: 1px solid #ddd;
+          background: #fff;
+          color: #111;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
         .muted {
           color: #666;
           font-size: 12px;
@@ -333,6 +350,11 @@ export default function CustomerSettingsPage() {
           <div className="muted">
             Eingeloggt als: <b>{me?.email}</b>
           </div>
+
+          {/* ✅ neu: Logout Button */}
+          <button onClick={logout} className="btnGhost">
+            Ausloggen
+          </button>
 
           <div className="danger">
             <div className="dangerTitle">Gefährliche Aktion</div>
