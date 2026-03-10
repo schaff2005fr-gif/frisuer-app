@@ -274,30 +274,26 @@ export default function NotificationDetailPage() {
           {cleanBody ? <div className="body">{cleanBody}</div> : null}
 
           <div className="actions">
-            <button className="btnGhost" onClick={() => router.back()}>
-              Zurück
-            </button>
+  <button className="btnGhost" onClick={() => router.back()}>
+    Zurück
+  </button>
 
-            {barberBookHref ? (
-              <a className="btnPrimary" href={barberBookHref}>
-                Neu buchen →
-              </a>
-            ) : (
-              <a className="btnPrimary" href="/my-bookings">
-                Zu meinen Terminen →
-              </a>
-            )}
+  {barberBookHref ? (
+    <a className="btnPrimary" href={barberBookHref}>
+      Neu buchen →
+    </a>
+  ) : (
+    <a className="btnPrimary" href="/my-bookings">
+      Meine Termine →
+    </a>
+  )}
 
-            {barberProfileHref ? (
-              <a className="btnGhost" href={barberProfileHref}>
-                Profil öffnen →
-              </a>
-            ) : null}
-
-            <a className="btnGhost" href="/my-bookings">
-              Meine Termine
-            </a>
-          </div>
+  {barberProfileHref ? (
+    <a className="btnGhost" href={barberProfileHref}>
+      Profil öffnen →
+    </a>
+  ) : null}
+</div>
         </div>
       )}
     </div>
