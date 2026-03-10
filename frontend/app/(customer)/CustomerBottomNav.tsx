@@ -41,11 +41,11 @@ export default function CustomerBottomNav() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  const items = [
-    { href: "/", icon: Home },
-    { href: "/my-bookings", icon: Calendar },
-    { href: "/notifications", icon: Bell, badge: unread },
-    { href: "/settings", icon: User },
+  const items: Array<{ href: string; icon: any; label: string; badge?: number }> = [
+    { href: "/", icon: Home, label: "Home" },
+    { href: "/my-bookings", icon: Calendar, label: "Termine" },
+    { href: "/notifications", icon: Bell, label: "Inbox", badge: unread },
+    { href: "/settings", icon: User, label: "Profil" },
   ];
 
   return (
@@ -61,48 +61,70 @@ export default function CustomerBottomNav() {
           border-top: 1px solid #eee;
           backdrop-filter: blur(10px);
 
-          /* ✅ exakt gleicher Rand links/rechts */
-          padding: 12px 22px;
-          padding-bottom: calc(12px + env(safe-area-inset-bottom));
+          padding: 10px 18px;
+          padding-bottom: calc(10px + env(safe-area-inset-bottom));
 
           box-sizing: border-box;
           display: none;
         }
 
-        /* ✅ GARANTIERT nebeneinander */
         .cbn_row {
           width: 100%;
-          display: flex !important;
-          flex-direction: row !important;
-          flex-wrap: nowrap !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          gap: 10px !important;
+          display: flex;
+          flex-direction: row;
+          flex-wrap: nowrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
           box-sizing: border-box;
         }
 
         .cbn_item {
-          flex: 1 1 0px !important;
-          min-width: 0 !important;
+          flex: 1 1 0px;
+          min-width: 0;
 
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
 
-          height: 58px !important;
+          height: 62px;
           border-radius: 16px;
 
-          color: #888;
+          color: #777;
           text-decoration: none;
-
           position: relative;
+
           transition: all 0.15s ease;
           box-sizing: border-box;
+          user-select: none;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .cbn_item:active {
+          transform: scale(0.98);
         }
 
         .cbn_active {
           color: #111;
           background: #f4f4f4;
+        }
+
+        .cbn_label {
+          margin-top: 4px;
+          font-size: 11px;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.1px;
+          opacity: 0.95;
+        }
+
+        .cbn_dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 999px;
+          background: #111;
+          margin-top: 4px;
         }
 
         .cbn_badge {
@@ -140,12 +162,12 @@ export default function CustomerBottomNav() {
           const active = isActive(pathname, it.href);
 
           return (
-            <Link
-              key={it.href}
-              href={it.href}
-              className={`cbn_item ${active ? "cbn_active" : ""}`}
-            >
-              <Icon size={32} strokeWidth={2.2} />
+            <Link key={it.href} href={it.href} className={`cbn_item ${active ? "cbn_active" : ""}`}>
+              <Icon size={26} strokeWidth={2.2} />
+              <div className="cbn_label">{it.label}</div>
+
+              {active ? <div className="cbn_dot" /> : <div style={{ height: 9 }} />}
+
               {it.badge != null && it.badge > 0 ? (
                 <span className="cbn_badge">{it.badge > 99 ? "99+" : it.badge}</span>
               ) : null}
