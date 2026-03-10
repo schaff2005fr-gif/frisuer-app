@@ -60,6 +60,23 @@ function extractDetailsFromBody(body: string) {
   return { friseur, service, datum, timeStr };
 }
 
+function stripDetailsFromBody(body: string) {
+  let t = String(body ?? "");
+
+  // Entferne typische Detail-Zeilen/Segmente
+  t = t.replace(/Friseur:\s*[^\n•]+/gi, "").trim();
+  t = t.replace(/Service:\s*[^\n•]+/gi, "").trim();
+  t = t.replace(/Datum:\s*\d{4}-\d{2}-\d{2}/gi, "").trim();
+  t = t.replace(/Zeit:\s*[0-9]{1,2}:[0-9]{2}\s*-\s*[0-9]{1,2}:[0-9]{2}/gi, "").trim();
+
+  // Bullet/Separator cleanup
+  t = t.replace(/[•·]\s*[•·]/g, "•");
+  t = t.replace(/\s{2,}/g, " ").trim();
+  t = t.replace(/^[-•·\s]+/, "").trim();
+
+  return t;
+}
+
 export default function NotificationsPage() {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -479,7 +496,9 @@ export default function NotificationsPage() {
                   </div>
                 ) : null}
 
-                <div className="body">{truncate(n.body, hasSummary ? 120 : 180)}</div>
+                <div className="body">
+  {truncate(hasSummary ? stripDetailsFromBody(n.body) : n.body, hasSummary ? 120 : 180)}
+</div>
 
                 <div className="footerActions">
                   {n.link ? (
