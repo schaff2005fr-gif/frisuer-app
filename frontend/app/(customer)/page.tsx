@@ -115,8 +115,7 @@ export default function HomePage() {
   const subText = loadingMe
     ? "Lade…"
     : me && isCustomer
-    ? "Wohin soll’s gehen?"
-    : "Suche nach Name oder Stadt.";
+    
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();

@@ -12,15 +12,6 @@ type Notification = {
   link: string | null;
   isRead: boolean;
   createdAt: string;
-
-  booking?: {
-    id: number;
-    date: string; // ISO
-    exactTime: number | null;
-    durationMin: number;
-    barber?: { name: string; slug: string } | null;
-    service?: { name: string; durationMin: number } | null;
-  } | null;
 };
 
 function getToken() {
@@ -37,20 +28,36 @@ function minToHHMM(min: number) {
   return `${pad2(h)}:${pad2(m)}`;
 }
 
-function formatDateTimeBerlin(iso: string) {
+function formatDateTimeBerlinShort(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat("de-DE", {
     timeZone: "Europe/Berlin",
     dateStyle: "medium",
-    timeStyle: "medium",
+    timeStyle: "short", // ✅ ohne Sekunden
   }).format(d);
 }
 
-function formatDateBerlinFromISO(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(d);
+// ✅ Body kürzen
+function truncate(s: string, n = 140) {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  if (t.length <= n) return t;
+  return t.slice(0, n).trimEnd() + "…";
+}
+
+// ✅ aus deinem body eine kurze “Termin-Zusammenfassung” extrahieren (ohne Backend ändern)
+function extractDetailsFromBody(body: string) {
+  const t = String(body ?? "");
+
+  const friseur = /Friseur:\s*([^\n•]+)/i.exec(t)?.[1]?.trim() || null;
+  const service = /Service:\s*([^\n•]+)/i.exec(t)?.[1]?.trim() || null;
+  const datum = /Datum:\s*(\d{4}-\d{2}-\d{2})/i.exec(t)?.[1]?.trim() || null;
+
+  const zeit = /Zeit:\s*([0-9]{1,2}:[0-9]{2})\s*-\s*([0-9]{1,2}:[0-9]{2})/i.exec(t);
+  const timeStr = zeit ? `${zeit[1]}–${zeit[2]}` : null;
+
+  return { friseur, service, datum, timeStr };
 }
 
 export default function NotificationsPage() {
@@ -272,10 +279,22 @@ export default function NotificationsPage() {
           border-radius: 14px;
           padding: 14px;
           background: #fff;
+          position: relative;
         }
 
         .cardUnread {
           background: #f7f7ff;
+          border-color: #e7e7ff;
+        }
+
+        .unreadDot {
+          position: absolute;
+          left: 10px;
+          top: 14px;
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #111;
         }
 
         .cardTop {
@@ -284,10 +303,11 @@ export default function NotificationsPage() {
           gap: 10px;
           flex-wrap: wrap;
           align-items: baseline;
+          padding-left: 14px;
         }
 
         .title {
-          font-weight: 900;
+          font-weight: 1000;
           font-size: 14px;
           word-break: break-word;
         }
@@ -298,32 +318,30 @@ export default function NotificationsPage() {
           white-space: nowrap;
         }
 
-        .body {
-          margin-top: 10px;
-          color: #222;
-          word-break: break-word;
-          line-height: 1.45;
-        }
-
-        .bookingBox {
+        .summary {
           margin-top: 10px;
           border: 1px solid #eee;
           border-radius: 12px;
           padding: 12px;
           background: #fff;
-        }
-
-        .bookingLabel {
-          font-size: 12px;
-          color: #666;
-          font-weight: 900;
-        }
-
-        .bookingGrid {
-          margin-top: 6px;
           display: grid;
           gap: 4px;
+          padding-left: 14px;
+        }
+
+        .summaryRow {
+          color: #222;
+          line-height: 1.3;
           word-break: break-word;
+          font-size: 13px;
+        }
+
+        .body {
+          margin-top: 10px;
+          color: #444;
+          word-break: break-word;
+          line-height: 1.45;
+          padding-left: 14px;
         }
 
         .footerActions {
@@ -331,6 +349,7 @@ export default function NotificationsPage() {
           display: flex;
           gap: 10px;
           flex-wrap: wrap;
+          padding-left: 14px;
         }
 
         .btnRead {
@@ -348,18 +367,16 @@ export default function NotificationsPage() {
           opacity: 0.7;
         }
 
-        /* Optionaler Link-Button (nur wenn du später Navigation willst) */
-        .btnLinkDisabled {
-          border: 1px solid #eee;
+        .btnLink {
+          text-decoration: none;
           padding: 9px 10px;
           border-radius: 12px;
+          border: 1px solid #ddd;
+          background: #fff;
           color: #111;
           font-weight: 900;
-          background: #fff;
-          opacity: 0.6;
         }
 
-        /* ✅ Mobile */
         @media (max-width: 520px) {
           .page {
             padding: 14px;
@@ -385,7 +402,6 @@ export default function NotificationsPage() {
         }
       `}</style>
 
-      {/* Header */}
       <div className="header">
         <div>
           <h1 style={{ margin: 0 }}>Nachrichten</h1>
@@ -406,7 +422,6 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* Alerts */}
       {message && (
         <div className="alertOk">
           <b>{message}</b>
@@ -419,7 +434,6 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {/* Content */}
       {loading ? (
         <div style={{ color: "#666" }}>Lädt…</div>
       ) : items.length === 0 ? (
@@ -427,64 +441,51 @@ export default function NotificationsPage() {
       ) : (
         <div className="list">
           {items.map((n) => {
-            const b = n.booking ?? null;
-
-            const barberName = b?.barber?.name ?? null;
-            const serviceName = b?.service?.name ?? null;
-
-            const dateStr = b?.date ? formatDateBerlinFromISO(b.date) : null;
-
-            const timeStr =
-              b?.exactTime != null
-                ? (() => {
-                    const start = minToHHMM(b.exactTime);
-                    const end = b?.durationMin ? minToHHMM(b.exactTime + b.durationMin) : null;
-                    return end ? `${start}–${end}` : start;
-                  })()
-                : null;
+            const details = extractDetailsFromBody(n.body);
+            const hasSummary = !!(details.friseur || details.service || details.datum || details.timeStr);
 
             return (
               <div key={n.id} className={`card ${n.isRead ? "" : "cardUnread"}`}>
+                {!n.isRead ? <div className="unreadDot" /> : null}
+
                 <div className="cardTop">
-                  <div className="title">
-                    {n.title} {!n.isRead ? <span style={{ color: "#555" }}>• neu</span> : null}
-                  </div>
-                  <div className="metaTime">{formatDateTimeBerlin(n.createdAt)}</div>
+                  <div className="title">{n.title}</div>
+                  <div className="metaTime">{formatDateTimeBerlinShort(n.createdAt)}</div>
                 </div>
 
-                {/* Booking Summary */}
-                {b ? (
-                  <div className="bookingBox">
-                    <div className="bookingLabel">Betroffener Termin</div>
-                    <div className="bookingGrid">
-                      <div>
-                        Friseur: <b>{barberName ?? "—"}</b>
+                {hasSummary ? (
+                  <div className="summary">
+                    {details.friseur ? (
+                      <div className="summaryRow">
+                        Friseur: <b>{details.friseur}</b>
                       </div>
-                      <div>
-                        Datum: <b>{dateStr ?? "—"}</b>
-                        {timeStr ? (
+                    ) : null}
+                    {details.service ? (
+                      <div className="summaryRow">
+                        Service: <b>{details.service}</b>
+                      </div>
+                    ) : null}
+                    {details.datum ? (
+                      <div className="summaryRow">
+                        Datum: <b>{details.datum}</b>
+                        {details.timeStr ? (
                           <>
                             {" "}
-                            · Uhrzeit: <b>{timeStr}</b>
+                            · Zeit: <b>{details.timeStr}</b>
                           </>
                         ) : null}
                       </div>
-                      {serviceName ? (
-                        <div>
-                          Service: <b>{serviceName}</b>
-                        </div>
-                      ) : null}
-                    </div>
+                    ) : null}
                   </div>
                 ) : null}
 
-                <div className="body">{n.body}</div>
+                <div className="body">{truncate(n.body, hasSummary ? 120 : 180)}</div>
 
                 <div className="footerActions">
                   {n.link ? (
-                    <div className="btnLinkDisabled" title={n.link}>
+                    <a className="btnLink" href={n.link}>
                       Öffnen →
-                    </div>
+                    </a>
                   ) : null}
 
                   {!n.isRead ? (
