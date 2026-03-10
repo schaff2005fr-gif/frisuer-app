@@ -41,11 +41,11 @@ export default function CustomerBottomNav() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  const items: Array<{ href: string; icon: any; label: string; badge?: number }> = [
-    { href: "/", icon: Home, label: "Home" },
-    { href: "/my-bookings", icon: Calendar, label: "Termine" },
-    { href: "/notifications", icon: Bell, label: "Inbox", badge: unread },
-    { href: "/settings", icon: User, label: "Profil" },
+  const items: Array<{ href: string; icon: any; badge?: number; aria: string }> = [
+    { href: "/", icon: Home, aria: "Home" },
+    { href: "/my-bookings", icon: Calendar, aria: "Meine Termine" },
+    { href: "/notifications", icon: Bell, aria: "Nachrichten", badge: unread },
+    { href: "/settings", icon: User, aria: "Einstellungen" },
   ];
 
   return (
@@ -61,8 +61,8 @@ export default function CustomerBottomNav() {
           border-top: 1px solid #eee;
           backdrop-filter: blur(10px);
 
-          padding: 10px 18px;
-          padding-bottom: calc(10px + env(safe-area-inset-bottom));
+          padding: 12px 22px;
+          padding-bottom: calc(12px + env(safe-area-inset-bottom));
 
           box-sizing: border-box;
           display: none;
@@ -75,7 +75,7 @@ export default function CustomerBottomNav() {
           flex-wrap: nowrap;
           align-items: center;
           justify-content: space-between;
-          gap: 8px;
+          gap: 10px;
           box-sizing: border-box;
         }
 
@@ -84,19 +84,19 @@ export default function CustomerBottomNav() {
           min-width: 0;
 
           display: flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
 
-          height: 62px;
+          height: 58px;
           border-radius: 16px;
 
-          color: #777;
+          color: #888;
           text-decoration: none;
-          position: relative;
 
+          position: relative;
           transition: all 0.15s ease;
           box-sizing: border-box;
+
           user-select: none;
           -webkit-tap-highlight-color: transparent;
         }
@@ -108,23 +108,6 @@ export default function CustomerBottomNav() {
         .cbn_active {
           color: #111;
           background: #f4f4f4;
-        }
-
-        .cbn_label {
-          margin-top: 4px;
-          font-size: 11px;
-          font-weight: 900;
-          line-height: 1;
-          letter-spacing: -0.1px;
-          opacity: 0.95;
-        }
-
-        .cbn_dot {
-          width: 5px;
-          height: 5px;
-          border-radius: 999px;
-          background: #111;
-          margin-top: 4px;
         }
 
         .cbn_badge {
@@ -162,12 +145,13 @@ export default function CustomerBottomNav() {
           const active = isActive(pathname, it.href);
 
           return (
-            <Link key={it.href} href={it.href} className={`cbn_item ${active ? "cbn_active" : ""}`}>
-              <Icon size={26} strokeWidth={2.2} />
-              <div className="cbn_label">{it.label}</div>
-
-              {active ? <div className="cbn_dot" /> : <div style={{ height: 9 }} />}
-
+            <Link
+              key={it.href}
+              href={it.href}
+              aria-label={it.aria}
+              className={`cbn_item ${active ? "cbn_active" : ""}`}
+            >
+              <Icon size={30} strokeWidth={2.2} />
               {it.badge != null && it.badge > 0 ? (
                 <span className="cbn_badge">{it.badge > 99 ? "99+" : it.badge}</span>
               ) : null}

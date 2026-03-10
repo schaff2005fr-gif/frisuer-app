@@ -30,6 +30,15 @@ function statusStyles(s: string): React.CSSProperties {
   return { border: "1px solid #eee", background: "#fff", color: "#111" };
 }
 
+// ✅ neu: heute in Berlin als YYYY-MM-DD
+function todayBerlinYYYYMMDD() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
+}
+
+function isValidYYYYMMDD(s: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "").trim());
+}
+
 export default function MyBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +47,10 @@ export default function MyBookingsPage() {
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  // ✅ neu: Filter
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [showPast, setShowPast] = useState(false);
 
   async function loadUnreadCount() {
     try {
@@ -130,15 +143,25 @@ export default function MyBookingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const upcoming = useMemo(
-    () => bookings.filter((b: any) => String(b?.status).toUpperCase() !== "CANCELLED"),
-    [bookings]
-  );
+  const todayStr = useMemo(() => todayBerlinYYYYMMDD(), []);
 
-  const cancelled = useMemo(
-    () => bookings.filter((b: any) => String(b?.status).toUpperCase() === "CANCELLED"),
-    [bookings]
-  );
+  // ✅ neu: erst nach Datum filtern (Zukunft standard)
+  const normalized = useMemo(() => {
+    return bookings.filter((b: any) => {
+      const d = String(b?.date ?? "").trim(); // erwartet YYYY-MM-DD
+      if (!isValidYYYYMMDD(d)) return true; // falls was komisch ist, nicht verstecken
+      if (showPast) return true; // Past anzeigen => kein Date-Filter
+      return d >= todayStr; // Zukunft + heute
+    });
+  }, [bookings, showPast, todayStr]);
+
+  const upcoming = useMemo(() => {
+    return normalized.filter((b: any) => String(b?.status).toUpperCase() !== "CANCELLED");
+  }, [normalized]);
+
+  const cancelled = useMemo(() => {
+    return normalized.filter((b: any) => String(b?.status).toUpperCase() === "CANCELLED");
+  }, [normalized]);
 
   return (
     <div className="page">
@@ -168,6 +191,7 @@ export default function MyBookingsPage() {
           gap: 10px;
           align-items: center;
           flex-wrap: wrap;
+          width: 100%;
         }
 
         .btnPrimary {
@@ -178,11 +202,37 @@ export default function MyBookingsPage() {
           color: #fff;
           font-weight: 900;
           cursor: pointer;
+          flex: 1 1 220px;
         }
 
         .btnPrimary:disabled {
           cursor: not-allowed;
           opacity: 0.7;
+        }
+
+        /* ✅ neu: Filter-Chips */
+        .filters {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          width: 100%;
+        }
+
+        .chipBtn {
+          padding: 10px 12px;
+          border-radius: 999px;
+          border: 1px solid #ddd;
+          background: #fff;
+          font-weight: 900;
+          cursor: pointer;
+          color: #111;
+          flex: 1 1 140px;
+        }
+
+        .chipBtnActive {
+          border: 1px solid #111;
+          background: #111;
+          color: #fff;
         }
 
         .alertOk {
@@ -323,16 +373,9 @@ export default function MyBookingsPage() {
             padding: 14px;
           }
 
-          .header {
-            align-items: flex-start;
-          }
-
-          .topActions {
-            width: 100%;
-          }
-
           .btnPrimary {
             width: 100%;
+            flex: 1 1 100%;
           }
 
           .actions > * {
@@ -348,16 +391,33 @@ export default function MyBookingsPage() {
 
       {/* Header */}
       <div className="header">
-        <div>
+        <div style={{ width: "100%" }}>
           <h1 style={{ margin: 0 }}>Meine Termine</h1>
-          <div className="subtitle">Übersicht über deine Buchungen. Du kannst Termine auch stornieren.</div>
-          {/* unreadCount aktuell nur geladen, nicht angezeigt – falls du willst, bauen wir ein Badge ein */}
-        </div>
+          <div className="subtitle">Standard: nur aktive, zukünftige Termine. (Heute: {todayStr})</div>
 
-        <div className="topActions">
-          <button onClick={loadBookings} disabled={loading} className="btnPrimary">
-            {loading ? "Lädt..." : "Neu laden"}
-          </button>
+          <div className="topActions" style={{ marginTop: 12 }}>
+            <button onClick={loadBookings} disabled={loading} className="btnPrimary">
+              {loading ? "Lädt..." : "Neu laden"}
+            </button>
+
+            <div className="filters">
+              <button
+                type="button"
+                className={`chipBtn ${showCancelled ? "chipBtnActive" : ""}`}
+                onClick={() => setShowCancelled((v) => !v)}
+              >
+                Stornierte {showCancelled ? "✓" : ""}
+              </button>
+
+              <button
+                type="button"
+                className={`chipBtn ${showPast ? "chipBtnActive" : ""}`}
+                onClick={() => setShowPast((v) => !v)}
+              >
+                Vergangene {showPast ? "✓" : ""}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -394,7 +454,7 @@ export default function MyBookingsPage() {
             <div className="sectionTitle">Aktive Termine ({upcoming.length})</div>
 
             {upcoming.length === 0 ? (
-              <div className="muted">Keine aktiven Termine.</div>
+              <div className="muted">Keine aktiven (zukünftigen) Termine.</div>
             ) : (
               <div className="list">
                 {upcoming.map((b: any) => {
@@ -457,8 +517,8 @@ export default function MyBookingsPage() {
             )}
           </div>
 
-          {/* Cancelled */}
-          {cancelled.length > 0 ? (
+          {/* Cancelled (nur wenn Filter aktiviert) */}
+          {showCancelled && cancelled.length > 0 ? (
             <div className="section">
               <div className="sectionTitle">Stornierte Termine ({cancelled.length})</div>
 
@@ -506,6 +566,14 @@ export default function MyBookingsPage() {
                   );
                 })}
               </div>
+            </div>
+          ) : null}
+
+          {/* wenn Filter an aber nix da */}
+          {showCancelled && cancelled.length === 0 ? (
+            <div className="section">
+              <div className="sectionTitle">Stornierte Termine (0)</div>
+              <div className="muted">Keine stornierten Termine in der Auswahl.</div>
             </div>
           ) : null}
         </div>
