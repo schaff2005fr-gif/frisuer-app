@@ -104,6 +104,14 @@ function getBearerToken(req: express.Request): string | null {
   if (type !== "Bearer" || !token) return null;
   return token;
 }
+
+function stripInternalFields(msg: string) {
+  return String(msg ?? "")
+    .replace(/\n?BarberSlug:\s*[a-z0-9-]+\s*\n?/gi, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = getBearerToken(req);
   if (!token) return res.status(401).json({ error: "Unauthorized" });
@@ -979,7 +987,7 @@ barberBookLink: barberSlug ? `/b/${barberSlug}/book` : null,
         id: n.id,
         type: n.type,
         title: n.title,
-        body: `${n.message}${extra}`,
+        body: `${stripInternalFields(n.message)}${extra}`,
         link: "/my-bookings",
         isRead: n.readAt != null,
         createdAt: n.createdAt,
@@ -1041,7 +1049,7 @@ app.get("/notifications", requireAuth, requireRole("CUSTOMER"), async (req, res)
         id: n.id,
         type: n.type,
         title: n.title,
-        body: `${n.message}${extra}`,
+        body: `${stripInternalFields(n.message)}${extra}`,
         link: "/my-bookings",
         isRead: n.readAt != null,
         createdAt: n.createdAt,
@@ -1341,8 +1349,7 @@ app.patch("/admin/bookings/:id/status", requireAuth, requireRole("BARBER"), asyn
           customerId: targetCustomerId,
           type: "BOOKING_CANCELLED",
           title: "Termin storniert",
-          message: `Dein Termin wurde storniert.
-BarberSlug: ${existing.barber?.slug ?? ""}
+          message: `BarberSlug: ${existing.barber?.slug ?? ""}
 Friseur: ${barberName}
 Service: ${serviceName}
 Datum: ${dateStr}${when ? `\nZeit: ${when}` : ""}`,
