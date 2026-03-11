@@ -8,7 +8,7 @@ type Role = "CUSTOMER" | "BARBER";
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://frisuer-app.onrender.com";
+  "https://frisuer-app-1.onrender.com";
 
 function normalizeBase(url: string) {
   return String(url || "").replace(/\/+$/, "");

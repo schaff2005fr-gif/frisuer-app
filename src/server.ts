@@ -574,7 +574,7 @@ app.get("/barbers", async (_req, res) => {
     const out = await Promise.all(
       barbers.map(async (b) => ({
         ...b,
-        nextDate: await findNextAvailableDate(b.id, 30), // z.B. die nächsten 30 Tage prüfen
+        nextDate: await findNextAvailableDate(b.id, 7), // z.B. die nächsten 30 Tage prüfen
       }))
     );
 

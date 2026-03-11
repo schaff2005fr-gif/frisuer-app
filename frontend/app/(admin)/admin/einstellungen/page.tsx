@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 // ✅ geändert: API_BASE aus ENV (fallback bleibt gleich)
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
 // ✅ neu: Cloudinary ENV
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
@@ -121,7 +121,7 @@ export default function AdminSettingsPage() {
   const [localPreview, setLocalPreview] = useState<string>("");
 
   function publicBaseUrl() {
-    if (typeof window === "undefined") return "https://frisuer-app.onrender.com";
+    if (typeof window === "undefined") return "https://frisuer-app-1.onrender.com";
     return window.location.origin;
   }
 

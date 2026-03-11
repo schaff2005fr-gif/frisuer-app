@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Calendar, Home, Bell, User } from "lucide-react";
 import { useEffect, useState } from "react";
 
-const API_BASE = "https://frisuer-app.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
 function getToken() {
   return localStorage.getItem("token") || "";

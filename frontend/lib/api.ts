@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://frisuer-app.onrender.com";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -9,7 +9,7 @@ export async function apiFetch<T>(
   path: string,
   opts: RequestInit & { auth?: boolean } = {}
 ): Promise<T> {
-  const url = `${API_URL}${path}`;
+  const url = `${API_BASE}${path}`;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
