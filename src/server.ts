@@ -564,7 +564,7 @@ app.get("/barbers", async (_req, res) => {
         name: true,
         slug: true,
         street: true,
-        postalCode: true,
+         alCode: true,
         city: true,
         imageUrl: true,
       },
@@ -1241,6 +1241,168 @@ if (dateStr < todayStr) {
     });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.post("/admin/manual-bookings", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+
+    const customerName = String(req.body?.customerName ?? "").trim();
+    const customerPhoneRaw =
+      req.body?.customerPhone != null ? String(req.body.customerPhone).trim() : "";
+    const serviceKey = String(req.body?.serviceKey ?? "").trim();
+    const dateStr = String(req.body?.date ?? "").trim();
+    const startTimeRaw = String(req.body?.startTime ?? "").trim();
+    const note = req.body?.note != null ? String(req.body.note).trim() : null;
+
+    if (!customerName || !serviceKey || !dateStr || !startTimeRaw) {
+      return res
+        .status(400)
+        .json({ error: "customerName, serviceKey, date und startTime sind erforderlich." });
+    }
+
+    if (!isValidDateYYYYMMDD(dateStr)) {
+      return res.status(400).json({ error: "date must be YYYY-MM-DD" });
+    }
+
+    const todayStr = formatDateBerlin(new Date());
+    if (dateStr < todayStr) {
+      return res.status(400).json({ error: "Du kannst keinen Termin in der Vergangenheit anlegen." });
+    }
+
+    const barberId = await getBarberIdFromUser(userId);
+    if (!barberId) {
+      return res.status(400).json({ error: "Barber profile missing" });
+    }
+
+    const barber = await prisma.barber.findUnique({
+      where: { id: barberId },
+      select: { id: true, name: true, slug: true, isActive: true },
+    });
+
+    if (!barber || !barber.isActive) {
+      return res.status(404).json({ error: "Barber not found" });
+    }
+
+    const service = await prisma.service.findUnique({
+      where: { barberId_key: { barberId: barber.id, key: serviceKey } },
+    });
+
+    if (!service || !service.isActive) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+
+    const exactTime = parseHHMMToMin(startTimeRaw);
+    if (exactTime == null || exactTime < 0 || exactTime > 1439) {
+      return res.status(400).json({ error: "startTime must be HH:MM" });
+    }
+
+    const durationMin = service.durationMin;
+    const requestedStart = exactTime;
+    const requestedEnd = exactTime + durationMin;
+
+    const settings = await getSettings(barber.id);
+    const wd = weekdayFromDateStr(dateStr);
+    const dayCfg =
+      settings.workingHours.find((x) => x.day === wd) ?? DEFAULT_SETTINGS.workingHours[wd];
+
+    if (!dayCfg.isOpen) {
+      return res.status(400).json({ error: "Barber is closed on this day" });
+    }
+
+    const { windowStartMin, windowEndMin, times } = await computeAvailableTimes({
+      barberId: barber.id,
+      dateStr,
+      serviceDurationMin: durationMin,
+    });
+
+    const earliestAllowed = Math.max(settings.earliestLimitMin, windowStartMin);
+
+    if (requestedStart < earliestAllowed) {
+      return res
+        .status(400)
+        .json({ error: `Too early. Earliest is ${toHHMM(earliestAllowed)}` });
+    }
+
+    if (requestedEnd > windowEndMin) {
+      return res
+        .status(400)
+        .json({ error: `Too late. Must end by ${toHHMM(windowEndMin)}` });
+    }
+
+    if (!times.includes(requestedStart)) {
+      return res.status(409).json({ error: "Time is not available" });
+    }
+
+    const existing = await getDayBookings(barber.id, dateStr);
+    const conflict = existing.some((b) => {
+      if (b.exactTime == null) return false;
+      if (b.status === "CANCELLED") return false;
+      const bStart = b.exactTime as number;
+      const bEnd = bStart + b.durationMin;
+      return overlaps(requestedStart, requestedEnd, bStart, bEnd);
+    });
+
+    if (conflict) {
+      return res.status(409).json({ error: "Time is already booked" });
+    }
+
+    const bookingDate = new Date(`${dateStr}T00:00:00.000`);
+    const normalizedPhone = customerPhoneRaw ? normalizeGermanPhone(customerPhoneRaw) : null;
+
+    const created = await prisma.booking.create({
+      data: {
+        barberId: barber.id,
+
+        // manueller / Gast-Termin:
+        customerId: null,
+        guestName: customerName,
+        guestPhone: normalizedPhone || customerPhoneRaw || null,
+
+        date: bookingDate,
+        windowStart: windowStartMin,
+        windowEnd: windowEndMin,
+        exactTime,
+        durationMin,
+        note: note || null,
+        status: "CONFIRMED",
+        serviceId: service.id,
+      },
+      include: {
+        service: true,
+        customer: true,
+      },
+    });
+
+    const start = created.exactTime as number;
+    const end = start + created.durationMin;
+
+    return res.status(201).json({
+      ok: true,
+      booking: {
+        id: created.id,
+        barber: { name: barber.name, slug: barber.slug },
+        date: dateStr,
+        status: created.status,
+        service: {
+          key: created.service.key,
+          name: created.service.name,
+          durationMin: created.durationMin,
+        },
+        exactTime: created.exactTime,
+        timeHHMM: `${toHHMM(start)} - ${toHHMM(end)}`,
+        customer: {
+          id: null,
+          name: customerName,
+          phone: normalizedPhone || customerPhoneRaw || null,
+        },
+        note: created.note ?? null,
+        isManual: true,
+      },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Server error" });
   }
 });
 
