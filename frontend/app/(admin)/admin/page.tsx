@@ -827,8 +827,8 @@ function DayCalendar(props: {
   const totalMin = props.windowEnd - props.windowStart;
 
   // Mehr Platz zwischen den Stunden
-  const pxPerMin = 1.8;
-  const gridHeight = Math.max(620, totalMin * pxPerMin);
+  const pxPerMin = 2.25;
+const gridHeight = Math.max(760, totalMin * pxPerMin);
 
   const laidOut = layoutOverlappingBookings(props.bookings);
 
@@ -837,7 +837,7 @@ function DayCalendar(props: {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "64px minmax(0, 1fr)",
+          gridTemplateColumns: "68px minmax(0, 1fr)",
           border: "1px solid #eee",
           borderRadius: 14,
           overflow: "hidden",
@@ -846,15 +846,15 @@ function DayCalendar(props: {
         }}
       >
         <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 44, borderBottom: "1px solid #eee" }} />
+          <div style={{ height: 46, borderBottom: "1px solid #eee" }} />
           {props.hours.map((h) => (
             <div
               key={h}
               style={{
-                height: 108,
-                padding: "8px 8px",
+                height: 135,
+                padding: "10px 8px",
                 borderBottom: "1px solid #f0f0f0",
-                fontSize: 12,
+                fontSize: 13,
                 color: "#666",
                 fontWeight: 800,
                 boxSizing: "border-box",
@@ -869,7 +869,7 @@ function DayCalendar(props: {
           {/* Kein zweiter großer Tages-Titel mehr */}
           <div
             style={{
-              height: 44,
+              height: 46,
               borderBottom: "1px solid #eee",
               display: "flex",
               alignItems: "center",
@@ -918,11 +918,11 @@ function DayCalendar(props: {
             {laidOut.map((b) => {
               const colors = statusColors(b.status);
               const top = (b.startMin - props.windowStart) * pxPerMin + 4;
-              const rawHeight = (b.endMin - b.startMin) * pxPerMin - 6;
-              const height = Math.max(34, rawHeight);
+              const rawHeight = (b.endMin - b.startMin) * pxPerMin - 8;
+const height = Math.max(40, rawHeight);
 
-              const compact = height < 72;
-              const veryCompact = height < 52;
+              const compact = height < 82;
+const veryCompact = height < 58;
               const selected = props.selectedBookingId === b.id;
 
               const gap = 6;
@@ -941,10 +941,10 @@ function DayCalendar(props: {
                     width,
                     top,
                     height,
-                    borderRadius: 12,
+                    borderRadius: 14,
                     border: selected ? "2px solid #111" : "1px solid #e5e5e5",
                     background: colors.soft,
-                    padding: compact ? "6px 8px" : "10px 10px",
+                    padding: compact ? "6px 8px" : "10px 12px",
                     textAlign: "left",
                     cursor: "pointer",
                     overflow: "hidden",
@@ -954,7 +954,7 @@ function DayCalendar(props: {
                   <div
                     style={{
                       fontWeight: 900,
-                      fontSize: compact ? 11 : 13,
+                      fontSize: compact ? 12 : 14,
                       lineHeight: 1.15,
                       color: "#111",
                       whiteSpace: "nowrap",
@@ -969,7 +969,7 @@ function DayCalendar(props: {
                     style={{
                       marginTop: compact ? 3 : 6,
                       fontWeight: 800,
-                      fontSize: compact ? 11 : 13,
+                      fontSize: compact ? 12 : 14,
                       lineHeight: 1.15,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
@@ -984,7 +984,7 @@ function DayCalendar(props: {
                     <div
                       style={{
                         marginTop: 3,
-                        fontSize: 11,
+                        fontSize: 12,
                         color: "#555",
                         lineHeight: 1.15,
                         whiteSpace: "nowrap",
@@ -1004,7 +1004,7 @@ function DayCalendar(props: {
                         justifyContent: "space-between",
                         gap: 6,
                         alignItems: "center",
-                        fontSize: 10,
+                        fontSize: 11,
                         color: "#666",
                         overflow: "hidden",
                       }}
@@ -1047,8 +1047,8 @@ function WeekCalendar(props: {
   onSelectBooking: (id: number) => void;
 }) {
   const totalMin = props.windowEnd - props.windowStart;
-  const pxPerMin = 0.9;
-  const gridHeight = Math.max(560, totalMin * pxPerMin);
+  const pxPerMin = 1.05;
+  const gridHeight = Math.max(640, totalMin * pxPerMin);
 
   return (
     <div style={{ minWidth: 1100 }}>
@@ -1068,7 +1068,7 @@ function WeekCalendar(props: {
             <div
               key={h}
               style={{
-                height: 64,
+                height: 74,
                 padding: "8px 10px",
                 borderBottom: "1px solid #f0f0f0",
                 fontSize: 13,
@@ -1123,10 +1123,10 @@ function WeekCalendar(props: {
                 {laidOut.map((b) => {
                   const colors = statusColors(b.status);
                   const top = (b.startMin - props.windowStart) * pxPerMin + 4;
-                  const rawHeight = (b.endMin - b.startMin) * pxPerMin - 4;
-                  const height = Math.max(16, rawHeight);
-                  const compact = height < 34;
-                  const veryCompact = height < 24;
+                 const rawHeight = (b.endMin - b.startMin) * pxPerMin - 4;
+const height = Math.max(22, rawHeight);
+const compact = height < 40;
+const veryCompact = height < 28;
                   const selected = props.selectedBookingId === b.id;
 
                   const gap = 4;
@@ -1148,7 +1148,7 @@ function WeekCalendar(props: {
                         borderRadius: 10,
                         border: selected ? "2px solid #111" : "1px solid #e5e5e5",
                         background: colors.soft,
-                        padding: compact ? "2px 4px" : "6px 7px",
+                        padding: compact ? "3px 5px" : "6px 8px",
                         textAlign: "left",
                         cursor: "pointer",
                         overflow: "hidden",
