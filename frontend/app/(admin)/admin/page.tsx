@@ -109,28 +109,32 @@ function statusColors(s: BookingStatus) {
 
 function GhostButtonStyle(active?: boolean): React.CSSProperties {
   return {
-    padding: "10px 12px",
-    borderRadius: 12,
+    padding: "10px 14px",
+    borderRadius: 14,
     border: active ? "1px solid #111" : "1px solid #ddd",
     background: active ? "#111" : "#fff",
     color: active ? "#fff" : "#111",
     fontWeight: 900,
+    fontSize: 15,
     cursor: "pointer",
     whiteSpace: "nowrap",
+    minHeight: 46,
   };
 }
 
 function PrimaryButtonStyle(disabled?: boolean): React.CSSProperties {
   return {
-    padding: "10px 12px",
-    borderRadius: 12,
+    padding: "10px 14px",
+    borderRadius: 14,
     border: "1px solid #111",
     background: "#111",
     color: "#fff",
     fontWeight: 900,
+    fontSize: 15,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.75 : 1,
     whiteSpace: "nowrap",
+    minHeight: 46,
   };
 }
 
@@ -260,15 +264,49 @@ function StatCard(props: { title: string; value: string; sub: string }) {
   return (
     <div
       style={{
-        border: "1px solid #eee",
-        borderRadius: 14,
+        border: "1px solid #ececec",
+        borderRadius: 16,
         padding: 14,
         background: "#fff",
+        minWidth: 0,
       }}
     >
-      <div style={{ color: "#666", fontSize: 12, fontWeight: 900 }}>{props.title}</div>
-      <div style={{ marginTop: 8, fontSize: 24, fontWeight: 1000 }}>{props.value}</div>
-      <div style={{ marginTop: 6, color: "#666", fontSize: 12 }}>{props.sub}</div>
+      <div
+        style={{
+          color: "#666",
+          fontSize: 12,
+          fontWeight: 800,
+          lineHeight: 1.1,
+        }}
+      >
+        {props.title}
+      </div>
+
+      <div
+        style={{
+          marginTop: 10,
+          fontSize: 34,
+          lineHeight: 1,
+          fontWeight: 1000,
+          color: "#111",
+        }}
+      >
+        {props.value}
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          color: "#777",
+          fontSize: 12,
+          lineHeight: 1.2,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {props.sub}
+      </div>
     </div>
   );
 }
@@ -522,72 +560,120 @@ export default function AdminPage() {
   return (
     <div style={{ padding: 20, maxWidth: 1280, margin: "0 auto" }}>
       <div
-        className="headTop"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "end",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0 }}>Dashboard</h1>
-          <div style={{ marginTop: 6, color: "#666" }}>
-            {view === "day"
-              ? `Tagesansicht · ${formatDayHeadline(anchorDate)}`
-              : `Wochenansicht · ab ${formatShortDay(startOfWeekMonday(anchorDate))}`}
-          </div>
-        </div>
+  className="headTop"
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+  }}
+>
+  <div>
+    <h1
+      style={{
+        margin: 0,
+        fontSize: 34,
+        lineHeight: 1,
+        fontWeight: 1000,
+        color: "#111",
+      }}
+    >
+      Dashboard
+    </h1>
 
-        <div className="headActions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={() => setView("day")} style={GhostButtonStyle(view === "day")}>
-            Tag
-          </button>
-          <button onClick={() => setView("week")} style={GhostButtonStyle(view === "week")}>
-            Woche
-          </button>
-          <button onClick={goToday} style={GhostButtonStyle(false)}>
-            Heute
-          </button>
-          <button
-            onClick={loadCurrentView}
-            disabled={calendarLoading}
-            style={PrimaryButtonStyle(calendarLoading)}
-          >
-            {calendarLoading ? "Lade..." : "Neu laden"}
-          </button>
-        </div>
-      </div>
+    <div
+      style={{
+        marginTop: 8,
+        color: "#666",
+        fontSize: 15,
+        fontWeight: 500,
+      }}
+    >
+      {view === "day"
+        ? `Tagesansicht · ${formatDayHeadline(anchorDate)}`
+        : `Wochenansicht · ab ${formatShortDay(startOfWeekMonday(anchorDate))}`}
+    </div>
+  </div>
+
+  <div
+    className="headActions"
+    style={{
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      alignItems: "center",
+    }}
+  >
+    <button onClick={() => setView("day")} style={GhostButtonStyle(view === "day")}>
+      Tag
+    </button>
+    <button onClick={() => setView("week")} style={GhostButtonStyle(view === "week")}>
+      Woche
+    </button>
+    <button onClick={goToday} style={GhostButtonStyle(false)}>
+      Heute
+    </button>
+    <button
+      onClick={loadCurrentView}
+      disabled={calendarLoading}
+      style={PrimaryButtonStyle(calendarLoading)}
+    >
+      {calendarLoading ? "Lade..." : "Neu laden"}
+    </button>
+  </div>
+</div>
 
       {message ? (
-        <div style={{ marginTop: 12, color: "green" }}>
-          <b>{message}</b>
-        </div>
-      ) : null}
+  <div
+    style={{
+      marginTop: 12,
+      padding: "10px 12px",
+      borderRadius: 12,
+      border: "1px solid #d9f0dd",
+      background: "#f3fbf4",
+      color: "#187a2f",
+      fontSize: 14,
+      fontWeight: 800,
+    }}
+  >
+    {message}
+  </div>
+) : null}
 
-      {error ? (
-        <div style={{ marginTop: 12, color: "crimson" }}>
-          <b>{error}</b>
-        </div>
-      ) : null}
+{error ? (
+  <div
+    style={{
+      marginTop: 12,
+      padding: "10px 12px",
+      borderRadius: 12,
+      border: "1px solid #f3d3da",
+      background: "#fff5f7",
+      color: "#b00020",
+      fontSize: 14,
+      fontWeight: 800,
+    }}
+  >
+    {error}
+  </div>
+) : null}
 
       <div
-        style={{
-          marginTop: 16,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <StatCard title="Termine" value={String(stats.total)} sub={`${stats.confirmed} bestätigt`} />
-        <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} No-Show`} />
-        <StatCard
-          title="Storniert"
-          value={String(stats.cancelled)}
-          sub={view === "day" ? "Aktueller Tag" : "Aktuelle Woche"}
-        />
-      </div>
+  style={{
+    marginTop: 14,
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 10,
+  }}
+>
+  <StatCard title="Termine" value={String(stats.total)} sub={`${stats.confirmed} bestätigt`} />
+  <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} No-Show`} />
+  <StatCard
+    title="Storniert"
+    value={String(stats.cancelled)}
+    sub={view === "day" ? "Heute" : "Woche"}
+  />
+</div>
 
       <div
         style={{
@@ -789,28 +875,36 @@ export default function AdminPage() {
       )}
 
       <style jsx>{`
-        @media (max-width: 760px) {
-          .statusRow {
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
+  @media (max-width: 760px) {
+    .statusRow {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
 
-        @media (max-width: 640px) {
-          .headActions {
-            width: 100%;
-          }
+  @media (max-width: 640px) {
+    .headTop {
+      align-items: stretch !important;
+    }
 
-          .calendarTopBar {
-            flex-direction: column;
-            align-items: stretch !important;
-          }
+    .headActions {
+      width: 100%;
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px !important;
+    }
 
-          .calendarTopBar > :nth-child(2) {
-            order: -1;
-          }
-        }
-      `}</style>
+    .calendarTopBar {
+      flex-direction: column;
+      align-items: stretch !important;
+    }
+
+    .calendarTopBar > :nth-child(2) {
+      order: -1;
+      text-align: center;
+    }
+  }
+`}</style>
     </div>
   );
 }
