@@ -139,28 +139,24 @@ function getToken() {
 }
 
 function getDayWindow(bookings: ApiBooking[]) {
-  const starts = bookings
-    .map((b) => parseStartEndFromTimeHHMM(b.timeHHMM)?.startMin)
-    .filter((v): v is number => Number.isFinite(v));
+  const parsed = bookings
+    .map((b) => parseStartEndFromTimeHHMM(b.timeHHMM))
+    .filter((x): x is { startMin: number; endMin: number } => !!x);
 
-  const ends = bookings
-    .map((b) => parseStartEndFromTimeHHMM(b.timeHHMM)?.endMin)
-    .filter((v): v is number => Number.isFinite(v));
+  if (parsed.length === 0) {
+    return { start: 9 * 60, end: 18 * 60 };
+  }
 
-  const rawStart =
-    (bookings.find((b) => Number.isFinite(b.windowStart as any))?.windowStart as
-      | number
-      | undefined) ?? (starts.length ? Math.min(...starts) : 9 * 60);
+  const minStart = Math.min(...parsed.map((x) => x.startMin));
+  const maxEnd = Math.max(...parsed.map((x) => x.endMin));
 
-  const rawEnd =
-    (bookings.find((b) => Number.isFinite(b.windowEnd as any))?.windowEnd as
-      | number
-      | undefined) ?? (ends.length ? Math.max(...ends) : 18 * 60);
+  const start = Math.max(6 * 60, Math.floor(minStart / 60) * 60);
+  const end = Math.min(22 * 60, Math.ceil(maxEnd / 60) * 60);
 
-  const start = Math.max(6 * 60, Math.floor(rawStart / 60) * 60);
-  const end = Math.min(22 * 60, Math.ceil(rawEnd / 60) * 60 + 60);
-
-  return { start, end: Math.max(end, start + 60) };
+  return {
+    start,
+    end: Math.max(end, start + 60),
+  };
 }
 
 function formatDayHeadline(iso: string) {
@@ -637,14 +633,15 @@ export default function AdminPage() {
         </div>
 
         <div
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          style={{
-            overflowX: "auto",
-            overflowY: "hidden",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
+  onTouchStart={handleTouchStart}
+  onTouchEnd={handleTouchEnd}
+  style={{
+    overflowX: view === "day" ? "hidden" : "auto",
+    overflowY: "hidden",
+    width: "100%",
+    WebkitOverflowScrolling: "touch",
+  }}
+>
           {calendarLoading ? (
             <div style={{ padding: 30, color: "#666" }}>Lade Kalender...</div>
           ) : view === "day" ? (
@@ -828,34 +825,39 @@ function DayCalendar(props: {
   onSelectBooking: (id: number) => void;
 }) {
   const totalMin = props.windowEnd - props.windowStart;
-  const pxPerMin = 1.15;
-  const gridHeight = Math.max(460, totalMin * pxPerMin);
+
+  // Mehr Platz zwischen den Stunden
+  const pxPerMin = 1.8;
+  const gridHeight = Math.max(620, totalMin * pxPerMin);
+
   const laidOut = layoutOverlappingBookings(props.bookings);
 
   return (
-    <div style={{ minWidth: 720 }}>
+    <div style={{ width: "100%" }}>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "76px 1fr",
+          gridTemplateColumns: "64px minmax(0, 1fr)",
           border: "1px solid #eee",
           borderRadius: 14,
           overflow: "hidden",
           background: "#fff",
+          width: "100%",
         }}
       >
         <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 56, borderBottom: "1px solid #eee" }} />
+          <div style={{ height: 44, borderBottom: "1px solid #eee" }} />
           {props.hours.map((h) => (
             <div
               key={h}
               style={{
-                height: 72,
-                padding: "8px 10px",
+                height: 108,
+                padding: "8px 8px",
                 borderBottom: "1px solid #f0f0f0",
-                fontSize: 13,
+                fontSize: 12,
                 color: "#666",
                 fontWeight: 800,
+                boxSizing: "border-box",
               }}
             >
               {minToHHMM(h)}
@@ -863,19 +865,21 @@ function DayCalendar(props: {
           ))}
         </div>
 
-        <div style={{ position: "relative", background: "#fff" }}>
+        <div style={{ position: "relative", background: "#fff", minWidth: 0 }}>
+          {/* Kein zweiter großer Tages-Titel mehr */}
           <div
             style={{
-              height: 56,
+              height: 44,
               borderBottom: "1px solid #eee",
               display: "flex",
               alignItems: "center",
-              padding: "0 14px",
-              fontWeight: 900,
-              fontSize: 18,
+              padding: "0 12px",
+              fontWeight: 800,
+              fontSize: 14,
+              color: "#444",
             }}
           >
-            {formatDayHeadline(props.date)}
+            Termine
           </div>
 
           <div style={{ position: "relative", height: gridHeight }}>
@@ -913,14 +917,15 @@ function DayCalendar(props: {
 
             {laidOut.map((b) => {
               const colors = statusColors(b.status);
-              const top = (b.startMin - props.windowStart) * pxPerMin + 6;
+              const top = (b.startMin - props.windowStart) * pxPerMin + 4;
               const rawHeight = (b.endMin - b.startMin) * pxPerMin - 6;
-              const height = Math.max(18, rawHeight);
-              const compact = height < 42;
-              const veryCompact = height < 30;
+              const height = Math.max(34, rawHeight);
+
+              const compact = height < 72;
+              const veryCompact = height < 52;
               const selected = props.selectedBookingId === b.id;
 
-              const gap = 8;
+              const gap = 6;
               const colWidth = 100 / b.laneCount;
               const left = `calc(${b.lane * colWidth}% + ${gap / 2}px)`;
               const width = `calc(${colWidth}% - ${gap}px)`;
@@ -936,13 +941,14 @@ function DayCalendar(props: {
                     width,
                     top,
                     height,
-                    borderRadius: 14,
+                    borderRadius: 12,
                     border: selected ? "2px solid #111" : "1px solid #e5e5e5",
                     background: colors.soft,
-                    padding: compact ? "4px 6px" : "10px 12px",
+                    padding: compact ? "6px 8px" : "10px 10px",
                     textAlign: "left",
                     cursor: "pointer",
                     overflow: "hidden",
+                    boxSizing: "border-box",
                   }}
                 >
                   <div
@@ -950,39 +956,77 @@ function DayCalendar(props: {
                       fontWeight: 900,
                       fontSize: compact ? 11 : 13,
                       lineHeight: 1.15,
+                      color: "#111",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
                   </div>
 
+                  <div
+                    style={{
+                      marginTop: compact ? 3 : 6,
+                      fontWeight: 800,
+                      fontSize: compact ? 11 : 13,
+                      lineHeight: 1.15,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      color: "#111",
+                    }}
+                  >
+                    {b.customer?.name || "Ohne Name"}
+                  </div>
+
                   {veryCompact ? null : (
                     <div
                       style={{
-                        marginTop: compact ? 2 : 5,
-                        fontWeight: 800,
-                        fontSize: compact ? 11 : 14,
+                        marginTop: 3,
+                        fontSize: 11,
+                        color: "#555",
                         lineHeight: 1.15,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                       }}
                     >
-                      {b.customer?.name || "Ohne Name"}
+                      {b.service?.name || b.service?.key || "Service"}
                     </div>
                   )}
 
-                  {compact || veryCompact ? null : (
+                  {compact ? null : (
                     <div
                       style={{
                         marginTop: 4,
-                        fontSize: 12,
-                        color: "#555",
-                        whiteSpace: "nowrap",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 6,
+                        alignItems: "center",
+                        fontSize: 10,
+                        color: "#666",
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
                       }}
                     >
-                      {b.service?.name || b.service?.key || "Service"}
+                      <span
+                        style={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        #{b.id}
+                      </span>
+                      <span
+                        style={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {statusLabel(b.status)}
+                      </span>
                     </div>
                   )}
                 </button>
@@ -994,7 +1038,6 @@ function DayCalendar(props: {
     </div>
   );
 }
-
 function WeekCalendar(props: {
   days: DayData[];
   hours: number[];
