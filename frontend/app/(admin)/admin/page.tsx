@@ -228,7 +228,7 @@ export default function AdminPage() {
   const [dayData, setDayData] = useState<DayData | null>(null);
   const [weekData, setWeekData] = useState<DayData[]>([]);
 
-  const [loading, setLoading] = useState(false);
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [message, setMessage] = useState<string>("");
 
@@ -262,7 +262,7 @@ export default function AdminPage() {
   }
 
   async function loadCurrentView() {
-    setLoading(true);
+    setCalendarLoading(true);
     setError("");
     setMessage("");
 
@@ -294,7 +294,7 @@ export default function AdminPage() {
       setDayData(null);
       setWeekData([]);
     } finally {
-      setLoading(false);
+      setCalendarLoading(false);
     }
   }
 
@@ -471,9 +471,13 @@ export default function AdminPage() {
           <button onClick={goToday} style={GhostButtonStyle(false)}>
             Heute
           </button>
-          <button onClick={loadCurrentView} disabled={loading} style={PrimaryButtonStyle(loading)}>
-            {loading ? "Lade..." : "Neu laden"}
-          </button>
+          <button
+  onClick={loadCurrentView}
+  disabled={calendarLoading}
+  style={PrimaryButtonStyle(calendarLoading)}
+>
+  {calendarLoading ? "Lade..." : "Neu laden"}
+</button>
         </div>
       </div>
 
@@ -550,9 +554,9 @@ export default function AdminPage() {
             WebkitOverflowScrolling: "touch",
           }}
         >
-          {loading ? (
-            <div style={{ padding: 30, color: "#666" }}>Lade Kalender...</div>
-          ) : view === "day" ? (
+          {calendarLoading ? (
+  <div style={{ padding: 30, color: "#666" }}>Lade Kalender...</div>
+) : view === "day" ? (
             <DayCalendar
               date={anchorDate}
               bookings={dayData?.bookings ?? []}
@@ -733,7 +737,80 @@ function DayCalendar(props: {
       if (!se) return null;
       return { ...b, startMin: se.startMin, endMin: se.endMin };
     })
-    .filter((b): b is ApiBooking & { startMin: number; endMin: number } => !!b);
+    .filter((b): b is ApiBooking & { startMin: number; endMin: number } => !!b)
+    .sort((a, b) => {
+      if (a.startMin !== b.startMin) return a.startMin - b.startMin;
+      return a.endMin - b.endMin;
+    });
+
+  type LayoutBooking = (ApiBooking & {
+    startMin: number;
+    endMin: number;
+    lane: number;
+    laneCount: number;
+  });
+
+  const laidOut: LayoutBooking[] = [];
+  let group: Array<ApiBooking & { startMin: number; endMin: number }> = [];
+  let groupEnd = -1;
+
+  function flushGroup() {
+    if (group.length === 0) return;
+
+    const laneEndTimes: number[] = [];
+    const temp: LayoutBooking[] = [];
+
+    for (const b of group) {
+      let assignedLane = -1;
+
+      for (let i = 0; i < laneEndTimes.length; i++) {
+        if (b.startMin >= laneEndTimes[i]) {
+          assignedLane = i;
+          laneEndTimes[i] = b.endMin;
+          break;
+        }
+      }
+
+      if (assignedLane === -1) {
+        assignedLane = laneEndTimes.length;
+        laneEndTimes.push(b.endMin);
+      }
+
+      temp.push({
+        ...b,
+        lane: assignedLane,
+        laneCount: 0,
+      });
+    }
+
+    const laneCount = laneEndTimes.length;
+    for (const t of temp) {
+      t.laneCount = laneCount;
+      laidOut.push(t);
+    }
+
+    group = [];
+    groupEnd = -1;
+  }
+
+  for (const b of parsedBookings) {
+    if (group.length === 0) {
+      group = [b];
+      groupEnd = b.endMin;
+      continue;
+    }
+
+    if (b.startMin < groupEnd) {
+      group.push(b);
+      groupEnd = Math.max(groupEnd, b.endMin);
+    } else {
+      flushGroup();
+      group = [b];
+      groupEnd = b.endMin;
+    }
+  }
+
+  flushGroup();
 
   return (
     <div style={{ minWidth: 320 }}>
@@ -796,7 +873,7 @@ function DayCalendar(props: {
               );
             })}
 
-            {parsedBookings.length === 0 ? (
+            {laidOut.length === 0 ? (
               <div
                 style={{
                   position: "absolute",
@@ -812,11 +889,17 @@ function DayCalendar(props: {
               </div>
             ) : null}
 
-            {parsedBookings.map((b) => {
+            {laidOut.map((b) => {
               const colors = statusColors(b.status);
               const top = (b.startMin - props.windowStart) * pxPerMin + 6;
               const height = Math.max(44, (b.endMin - b.startMin) * pxPerMin - 8);
               const selected = props.selectedBookingId === b.id;
+
+              const gap = 6;
+              const totalHorizontalGap = gap * (b.laneCount + 1);
+              const widthPercent = (100 / b.laneCount);
+              const leftCalc = `calc(${b.lane * widthPercent}% + ${gap}px)`;
+              const boxWidth = `calc(${widthPercent}% - ${Math.ceil(totalHorizontalGap / b.laneCount)}px)`;
 
               return (
                 <button
@@ -824,8 +907,8 @@ function DayCalendar(props: {
                   onClick={() => props.onSelectBooking(b.id)}
                   style={{
                     position: "absolute",
-                    left: 8,
-                    right: 8,
+                    left: leftCalc,
+                    width: boxWidth,
                     top,
                     height,
                     borderRadius: 14,
