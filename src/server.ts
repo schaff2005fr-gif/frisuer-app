@@ -564,7 +564,6 @@ app.get("/barbers", async (_req, res) => {
         name: true,
         slug: true,
         street: true,
-         alCode: true,
         city: true,
         imageUrl: true,
       },
