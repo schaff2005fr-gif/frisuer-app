@@ -27,16 +27,20 @@ type DayData = {
   bookings: ApiBooking[];
 };
 
+type PositionedBooking = ApiBooking & {
+  startMin: number;
+  endMin: number;
+  lane: number;
+  laneCount: number;
+};
+
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
 function todayIsoLocal() {
   const d = new Date();
-  const y = d.getFullYear();
-  const m = pad2(d.getMonth() + 1);
-  const day = pad2(d.getDate());
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 function parseIsoDateLocal(iso: string) {
@@ -56,7 +60,7 @@ function addDays(iso: string, amount: number) {
 
 function startOfWeekMonday(iso: string) {
   const d = parseIsoDateLocal(iso);
-  const day = d.getDay(); // 0=So,1=Mo
+  const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return toIsoLocal(d);
@@ -144,12 +148,14 @@ function getDayWindow(bookings: ApiBooking[]) {
     .filter((v): v is number => Number.isFinite(v));
 
   const rawStart =
-    (bookings.find((b) => Number.isFinite(b.windowStart as any))?.windowStart as number | undefined) ??
-    (starts.length ? Math.min(...starts) : 9 * 60);
+    (bookings.find((b) => Number.isFinite(b.windowStart as any))?.windowStart as
+      | number
+      | undefined) ?? (starts.length ? Math.min(...starts) : 9 * 60);
 
   const rawEnd =
-    (bookings.find((b) => Number.isFinite(b.windowEnd as any))?.windowEnd as number | undefined) ??
-    (ends.length ? Math.max(...ends) : 18 * 60);
+    (bookings.find((b) => Number.isFinite(b.windowEnd as any))?.windowEnd as
+      | number
+      | undefined) ?? (ends.length ? Math.max(...ends) : 18 * 60);
 
   const start = Math.max(6 * 60, Math.floor(rawStart / 60) * 60);
   const end = Math.min(22 * 60, Math.ceil(rawEnd / 60) * 60 + 60);
@@ -172,6 +178,86 @@ function formatShortDay(iso: string) {
     day: "2-digit",
     month: "2-digit",
   }).format(parseIsoDateLocal(iso));
+}
+
+function layoutOverlappingBookings(bookings: ApiBooking[]): PositionedBooking[] {
+  const parsed = bookings
+    .map((b) => {
+      const se = parseStartEndFromTimeHHMM(b.timeHHMM);
+      if (!se) return null;
+      return { ...b, startMin: se.startMin, endMin: se.endMin };
+    })
+    .filter((b): b is ApiBooking & { startMin: number; endMin: number } => !!b)
+    .sort((a, b) => {
+      if (a.startMin !== b.startMin) return a.startMin - b.startMin;
+      if (a.endMin !== b.endMin) return a.endMin - b.endMin;
+      return a.id - b.id;
+    });
+
+  const result: PositionedBooking[] = [];
+
+  let group: Array<ApiBooking & { startMin: number; endMin: number }> = [];
+  let groupEnd = -1;
+
+  function flushGroup() {
+    if (group.length === 0) return;
+
+    const laneEndTimes: number[] = [];
+    const temp: PositionedBooking[] = [];
+
+    for (const b of group) {
+      let lane = -1;
+
+      for (let i = 0; i < laneEndTimes.length; i++) {
+        if (b.startMin >= laneEndTimes[i]) {
+          lane = i;
+          laneEndTimes[i] = b.endMin;
+          break;
+        }
+      }
+
+      if (lane === -1) {
+        lane = laneEndTimes.length;
+        laneEndTimes.push(b.endMin);
+      }
+
+      temp.push({
+        ...b,
+        lane,
+        laneCount: 0,
+      });
+    }
+
+    const laneCount = laneEndTimes.length;
+    for (const item of temp) {
+      item.laneCount = laneCount;
+      result.push(item);
+    }
+
+    group = [];
+    groupEnd = -1;
+  }
+
+  for (const b of parsed) {
+    if (group.length === 0) {
+      group = [b];
+      groupEnd = b.endMin;
+      continue;
+    }
+
+    if (b.startMin < groupEnd) {
+      group.push(b);
+      groupEnd = Math.max(groupEnd, b.endMin);
+    } else {
+      flushGroup();
+      group = [b];
+      groupEnd = b.endMin;
+    }
+  }
+
+  flushGroup();
+
+  return result;
 }
 
 function StatCard(props: { title: string; value: string; sub: string }) {
@@ -363,15 +449,18 @@ export default function AdminPage() {
   }
 
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    if (view !== "day") return;
     swipeStartX.current = e.changedTouches[0]?.clientX ?? null;
   }
 
   function handleTouchEnd(e: React.TouchEvent<HTMLDivElement>) {
+    if (view !== "day") return;
     if (swipeStartX.current == null) return;
+
     const endX = e.changedTouches[0]?.clientX ?? 0;
     const diff = endX - swipeStartX.current;
 
-    if (Math.abs(diff) > 60) {
+    if (Math.abs(diff) > 70) {
       if (diff < 0) goNext();
       else goPrev();
     }
@@ -407,16 +496,12 @@ export default function AdminPage() {
   }, [anchorDate, view]);
 
   const selectedBooking = useMemo(() => {
-    const all = [
-      ...(dayData?.bookings ?? []),
-      ...weekData.flatMap((d) => d.bookings),
-    ];
+    const all = [...(dayData?.bookings ?? []), ...weekData.flatMap((d) => d.bookings)];
     return all.find((b) => b.id === selectedBookingId) || null;
   }, [dayData, weekData, selectedBookingId]);
 
   const stats = useMemo(() => {
-    const allBookings =
-      view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
+    const allBookings = view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
 
     const total = allBookings.length;
     const confirmed = allBookings.filter((b) => b.status === "CONFIRMED").length;
@@ -429,9 +514,7 @@ export default function AdminPage() {
 
   const commonWindow = useMemo(() => {
     if (view === "day") return getDayWindow(dayData?.bookings ?? []);
-
-    const all = weekData.flatMap((d) => d.bookings);
-    return getDayWindow(all);
+    return getDayWindow(weekData.flatMap((d) => d.bookings));
   }, [view, dayData, weekData]);
 
   const hours = useMemo(() => {
@@ -441,7 +524,7 @@ export default function AdminPage() {
   }, [commonWindow]);
 
   return (
-    <div style={{ padding: 20, maxWidth: 1120, margin: "0 auto" }}>
+    <div style={{ padding: 20, maxWidth: 1280, margin: "0 auto" }}>
       <div
         className="headTop"
         style={{
@@ -461,7 +544,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="headActions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setView("day")} style={GhostButtonStyle(view === "day")}>
             Tag
           </button>
@@ -472,12 +555,12 @@ export default function AdminPage() {
             Heute
           </button>
           <button
-  onClick={loadCurrentView}
-  disabled={calendarLoading}
-  style={PrimaryButtonStyle(calendarLoading)}
->
-  {calendarLoading ? "Lade..." : "Neu laden"}
-</button>
+            onClick={loadCurrentView}
+            disabled={calendarLoading}
+            style={PrimaryButtonStyle(calendarLoading)}
+          >
+            {calendarLoading ? "Lade..." : "Neu laden"}
+          </button>
         </div>
       </div>
 
@@ -503,7 +586,11 @@ export default function AdminPage() {
       >
         <StatCard title="Termine" value={String(stats.total)} sub={`${stats.confirmed} bestätigt`} />
         <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} No-Show`} />
-        <StatCard title="Storniert" value={String(stats.cancelled)} sub={view === "day" ? "Aktueller Tag" : "Aktuelle Woche"} />
+        <StatCard
+          title="Storniert"
+          value={String(stats.cancelled)}
+          sub={view === "day" ? "Aktueller Tag" : "Aktuelle Woche"}
+        />
       </div>
 
       <div
@@ -516,6 +603,7 @@ export default function AdminPage() {
         }}
       >
         <div
+          className="calendarTopBar"
           style={{
             display: "flex",
             justifyContent: "space-between",
@@ -535,7 +623,9 @@ export default function AdminPage() {
           <div style={{ fontWeight: 900, textAlign: "center" }}>
             {view === "day"
               ? formatDayHeadline(anchorDate)
-              : `${formatShortDay(getWeekDates(anchorDate)[0])} – ${formatShortDay(getWeekDates(anchorDate)[6])}`}
+              : `${formatShortDay(getWeekDates(anchorDate)[0])} – ${formatShortDay(
+                  getWeekDates(anchorDate)[6]
+                )}`}
           </div>
 
           <button onClick={goNext} style={GhostButtonStyle(false)}>
@@ -551,12 +641,13 @@ export default function AdminPage() {
           onTouchEnd={handleTouchEnd}
           style={{
             overflowX: "auto",
+            overflowY: "hidden",
             WebkitOverflowScrolling: "touch",
           }}
         >
           {calendarLoading ? (
-  <div style={{ padding: 30, color: "#666" }}>Lade Kalender...</div>
-) : view === "day" ? (
+            <div style={{ padding: 30, color: "#666" }}>Lade Kalender...</div>
+          ) : view === "day" ? (
             <DayCalendar
               date={anchorDate}
               bookings={dayData?.bookings ?? []}
@@ -579,14 +670,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 14,
-          color: "#666",
-          fontSize: 12,
-        }}
-      >
-        Tipp: Auf dem Handy kannst du im Kalender nach links oder rechts swipen.
+      <div style={{ marginTop: 14, color: "#666", fontSize: 12 }}>
+        {view === "day"
+          ? "Tipp: In der Tagesansicht kannst du auf dem Handy nach links oder rechts swipen."
+          : "In der Wochenansicht kannst du horizontal durch den Kalender scrollen, ohne direkt die Woche zu wechseln."}
       </div>
 
       {selectedBooking ? (
@@ -612,9 +699,7 @@ export default function AdminPage() {
               <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
                 TERMIN #{selectedBooking.id}
               </div>
-              <h3 style={{ margin: "6px 0 0 0" }}>
-                {selectedBooking.customer?.name || "Ohne Namen"}
-              </h3>
+              <h3 style={{ margin: "6px 0 0 0" }}>{selectedBooking.customer?.name || "Ohne Namen"}</h3>
             </div>
 
             <span
@@ -702,7 +787,7 @@ export default function AdminPage() {
             color: "#666",
           }}
         >
-          Tippe auf einen Termin im Kalender, um die Details und Status-Aktionen zu sehen.
+          Tippe oder klicke auf einen Termin im Kalender, um die Details und Status-Aktionen zu sehen.
         </div>
       )}
 
@@ -711,6 +796,21 @@ export default function AdminPage() {
           .statusRow {
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 640px) {
+          .headActions {
+            width: 100%;
+          }
+
+          .calendarTopBar {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+
+          .calendarTopBar > :nth-child(2) {
+            order: -1;
           }
         }
       `}</style>
@@ -728,111 +828,32 @@ function DayCalendar(props: {
   onSelectBooking: (id: number) => void;
 }) {
   const totalMin = props.windowEnd - props.windowStart;
-  const pxPerMin = 1.2;
-  const gridHeight = Math.max(420, totalMin * pxPerMin);
-
-  const parsedBookings = props.bookings
-    .map((b) => {
-      const se = parseStartEndFromTimeHHMM(b.timeHHMM);
-      if (!se) return null;
-      return { ...b, startMin: se.startMin, endMin: se.endMin };
-    })
-    .filter((b): b is ApiBooking & { startMin: number; endMin: number } => !!b)
-    .sort((a, b) => {
-      if (a.startMin !== b.startMin) return a.startMin - b.startMin;
-      return a.endMin - b.endMin;
-    });
-
-  type LayoutBooking = (ApiBooking & {
-    startMin: number;
-    endMin: number;
-    lane: number;
-    laneCount: number;
-  });
-
-  const laidOut: LayoutBooking[] = [];
-  let group: Array<ApiBooking & { startMin: number; endMin: number }> = [];
-  let groupEnd = -1;
-
-  function flushGroup() {
-    if (group.length === 0) return;
-
-    const laneEndTimes: number[] = [];
-    const temp: LayoutBooking[] = [];
-
-    for (const b of group) {
-      let assignedLane = -1;
-
-      for (let i = 0; i < laneEndTimes.length; i++) {
-        if (b.startMin >= laneEndTimes[i]) {
-          assignedLane = i;
-          laneEndTimes[i] = b.endMin;
-          break;
-        }
-      }
-
-      if (assignedLane === -1) {
-        assignedLane = laneEndTimes.length;
-        laneEndTimes.push(b.endMin);
-      }
-
-      temp.push({
-        ...b,
-        lane: assignedLane,
-        laneCount: 0,
-      });
-    }
-
-    const laneCount = laneEndTimes.length;
-    for (const t of temp) {
-      t.laneCount = laneCount;
-      laidOut.push(t);
-    }
-
-    group = [];
-    groupEnd = -1;
-  }
-
-  for (const b of parsedBookings) {
-    if (group.length === 0) {
-      group = [b];
-      groupEnd = b.endMin;
-      continue;
-    }
-
-    if (b.startMin < groupEnd) {
-      group.push(b);
-      groupEnd = Math.max(groupEnd, b.endMin);
-    } else {
-      flushGroup();
-      group = [b];
-      groupEnd = b.endMin;
-    }
-  }
-
-  flushGroup();
+  const pxPerMin = 1.15;
+  const gridHeight = Math.max(460, totalMin * pxPerMin);
+  const laidOut = layoutOverlappingBookings(props.bookings);
 
   return (
-    <div style={{ minWidth: 320 }}>
+    <div style={{ minWidth: 720 }}>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "68px 1fr",
+          gridTemplateColumns: "76px 1fr",
           border: "1px solid #eee",
           borderRadius: 14,
           overflow: "hidden",
+          background: "#fff",
         }}
       >
         <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 50, borderBottom: "1px solid #eee" }} />
+          <div style={{ height: 56, borderBottom: "1px solid #eee" }} />
           {props.hours.map((h) => (
             <div
               key={h}
               style={{
                 height: 72,
-                padding: "6px 8px",
+                padding: "8px 10px",
                 borderBottom: "1px solid #f0f0f0",
-                fontSize: 12,
+                fontSize: 13,
                 color: "#666",
                 fontWeight: 800,
               }}
@@ -845,12 +866,13 @@ function DayCalendar(props: {
         <div style={{ position: "relative", background: "#fff" }}>
           <div
             style={{
-              height: 50,
+              height: 56,
               borderBottom: "1px solid #eee",
               display: "flex",
               alignItems: "center",
-              padding: "0 12px",
+              padding: "0 14px",
               fontWeight: 900,
+              fontSize: 18,
             }}
           >
             {formatDayHeadline(props.date)}
@@ -892,43 +914,77 @@ function DayCalendar(props: {
             {laidOut.map((b) => {
               const colors = statusColors(b.status);
               const top = (b.startMin - props.windowStart) * pxPerMin + 6;
-              const height = Math.max(44, (b.endMin - b.startMin) * pxPerMin - 8);
+              const rawHeight = (b.endMin - b.startMin) * pxPerMin - 6;
+              const height = Math.max(18, rawHeight);
+              const compact = height < 42;
+              const veryCompact = height < 30;
               const selected = props.selectedBookingId === b.id;
 
-              const gap = 6;
-              const totalHorizontalGap = gap * (b.laneCount + 1);
-              const widthPercent = (100 / b.laneCount);
-              const leftCalc = `calc(${b.lane * widthPercent}% + ${gap}px)`;
-              const boxWidth = `calc(${widthPercent}% - ${Math.ceil(totalHorizontalGap / b.laneCount)}px)`;
+              const gap = 8;
+              const colWidth = 100 / b.laneCount;
+              const left = `calc(${b.lane * colWidth}% + ${gap / 2}px)`;
+              const width = `calc(${colWidth}% - ${gap}px)`;
 
               return (
                 <button
                   key={b.id}
                   onClick={() => props.onSelectBooking(b.id)}
+                  title={`${b.customer?.name || "Ohne Name"} · ${b.timeHHMM || ""}`}
                   style={{
                     position: "absolute",
-                    left: leftCalc,
-                    width: boxWidth,
+                    left,
+                    width,
                     top,
                     height,
                     borderRadius: 14,
                     border: selected ? "2px solid #111" : "1px solid #e5e5e5",
                     background: colors.soft,
-                    padding: 10,
+                    padding: compact ? "4px 6px" : "10px 12px",
                     textAlign: "left",
                     cursor: "pointer",
                     overflow: "hidden",
                   }}
                 >
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>
+                  <div
+                    style={{
+                      fontWeight: 900,
+                      fontSize: compact ? 11 : 13,
+                      lineHeight: 1.15,
+                    }}
+                  >
                     {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
                   </div>
-                  <div style={{ marginTop: 4, fontWeight: 800 }}>
-                    {b.customer?.name || "Ohne Name"}
-                  </div>
-                  <div style={{ marginTop: 3, fontSize: 12, color: "#555" }}>
-                    {b.service?.name || b.service?.key || "Service"}
-                  </div>
+
+                  {veryCompact ? null : (
+                    <div
+                      style={{
+                        marginTop: compact ? 2 : 5,
+                        fontWeight: 800,
+                        fontSize: compact ? 11 : 14,
+                        lineHeight: 1.15,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {b.customer?.name || "Ohne Name"}
+                    </div>
+                  )}
+
+                  {compact || veryCompact ? null : (
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontSize: 12,
+                        color: "#555",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {b.service?.name || b.service?.key || "Service"}
+                    </div>
+                  )}
                 </button>
               );
             })}
@@ -949,14 +1005,14 @@ function WeekCalendar(props: {
 }) {
   const totalMin = props.windowEnd - props.windowStart;
   const pxPerMin = 0.9;
-  const gridHeight = Math.max(520, totalMin * pxPerMin);
+  const gridHeight = Math.max(560, totalMin * pxPerMin);
 
   return (
-    <div style={{ minWidth: 860 }}>
+    <div style={{ minWidth: 1100 }}>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "68px repeat(7, minmax(110px, 1fr))",
+          gridTemplateColumns: "76px repeat(7, minmax(145px, 1fr))",
           border: "1px solid #eee",
           borderRadius: 14,
           overflow: "hidden",
@@ -964,15 +1020,15 @@ function WeekCalendar(props: {
         }}
       >
         <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 54, borderBottom: "1px solid #eee" }} />
+          <div style={{ height: 56, borderBottom: "1px solid #eee" }} />
           {props.hours.map((h) => (
             <div
               key={h}
               style={{
                 height: 64,
-                padding: "6px 8px",
+                padding: "8px 10px",
                 borderBottom: "1px solid #f0f0f0",
-                fontSize: 12,
+                fontSize: 13,
                 color: "#666",
                 fontWeight: 800,
               }}
@@ -983,24 +1039,22 @@ function WeekCalendar(props: {
         </div>
 
         {props.days.map((day) => {
-          const parsedBookings = day.bookings
-            .map((b) => {
-              const se = parseStartEndFromTimeHHMM(b.timeHHMM);
-              if (!se) return null;
-              return { ...b, startMin: se.startMin, endMin: se.endMin };
-            })
-            .filter((b): b is ApiBooking & { startMin: number; endMin: number } => !!b);
+          const laidOut = layoutOverlappingBookings(day.bookings);
 
           return (
             <div key={day.date} style={{ position: "relative", borderLeft: "1px solid #f0f0f0" }}>
               <div
                 style={{
-                  height: 54,
+                  height: 56,
                   borderBottom: "1px solid #eee",
                   padding: 8,
                   textAlign: "center",
                   fontWeight: 900,
                   background: "#fafafa",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 14,
                 }}
               >
                 {formatShortDay(day.date)}
@@ -1023,11 +1077,19 @@ function WeekCalendar(props: {
                   );
                 })}
 
-                {parsedBookings.map((b) => {
+                {laidOut.map((b) => {
                   const colors = statusColors(b.status);
                   const top = (b.startMin - props.windowStart) * pxPerMin + 4;
-                  const height = Math.max(28, (b.endMin - b.startMin) * pxPerMin - 6);
+                  const rawHeight = (b.endMin - b.startMin) * pxPerMin - 4;
+                  const height = Math.max(16, rawHeight);
+                  const compact = height < 34;
+                  const veryCompact = height < 24;
                   const selected = props.selectedBookingId === b.id;
+
+                  const gap = 4;
+                  const colWidth = 100 / b.laneCount;
+                  const left = `calc(${b.lane * colWidth}% + ${gap / 2}px)`;
+                  const width = `calc(${colWidth}% - ${gap}px)`;
 
                   return (
                     <button
@@ -1036,26 +1098,48 @@ function WeekCalendar(props: {
                       title={`${b.customer?.name || "Ohne Name"} · ${b.timeHHMM || ""}`}
                       style={{
                         position: "absolute",
-                        left: 4,
-                        right: 4,
+                        left,
+                        width,
                         top,
                         height,
                         borderRadius: 10,
                         border: selected ? "2px solid #111" : "1px solid #e5e5e5",
                         background: colors.soft,
-                        padding: "6px 7px",
+                        padding: compact ? "2px 4px" : "6px 7px",
                         textAlign: "left",
                         cursor: "pointer",
                         overflow: "hidden",
                         fontSize: 11,
                       }}
                     >
-                      <div style={{ fontWeight: 900 }}>
+                      <div
+                        style={{
+                          fontWeight: 900,
+                          fontSize: compact ? 10 : 11,
+                          lineHeight: 1.1,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
                         {b.customer?.name || "Ohne Name"}
                       </div>
-                      <div style={{ marginTop: 2, color: "#555" }}>
-                        {b.timeHHMM || ""}
-                      </div>
+
+                      {veryCompact ? null : (
+                        <div
+                          style={{
+                            marginTop: 2,
+                            color: "#555",
+                            fontSize: compact ? 9 : 10,
+                            lineHeight: 1.1,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {b.timeHHMM || ""}
+                        </div>
+                      )}
                     </button>
                   );
                 })}
