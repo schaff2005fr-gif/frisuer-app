@@ -1412,8 +1412,12 @@ app.get("/admin/services", requireAuth, requireRole("BARBER"), async (req, res) 
     const { userId } = (req as any).user as JwtPayload;
     const barberId = await getBarberIdFromUser(userId);
 
+    if (!barberId) {
+      return res.status(400).json({ error: "Barber profile missing" });
+    }
+
     const services = await prisma.service.findMany({
-      where: { barberId },
+      where: { barberId, isActive: true },
       orderBy: [{ id: "asc" }],
     });
 

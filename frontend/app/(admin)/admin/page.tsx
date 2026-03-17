@@ -498,7 +498,7 @@ export default function AdminPage() {
 
   async function fetchServices() {
     const token = getToken();
-    const res = await fetch(`${API_BASE}/services`, {
+    const res = await fetch(`${API_BASE}/admin/services`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -888,7 +888,8 @@ export default function AdminPage() {
   }, [view, anchorDate, recurringBlocks, timeBlocksByDate]);
 
   const stats = useMemo(() => {
-    const allBookings = view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
+    const allBookings =
+      view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
 
     const total = allBookings.length;
     const confirmed = allBookings.filter((b) => b.status === "CONFIRMED").length;
@@ -980,9 +981,6 @@ export default function AdminPage() {
           </button>
           <button onClick={goToday} style={GhostButtonStyle(false)}>
             Heute
-          </button>
-          <button onClick={openCreateModal} style={GhostButtonStyle(false)}>
-            + Termin
           </button>
           <button
             onClick={loadCurrentView}
@@ -1080,12 +1078,39 @@ export default function AdminPage() {
                 )}`}
           </div>
 
-          <button onClick={goNext} style={GhostButtonStyle(false)}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              {view === "day" ? "Nächster Tag" : "Nächste Woche"}
-              <ChevronRight size={16} />
-            </span>
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              aria-label="Termin hinzufügen"
+              title="Termin hinzufügen"
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 14,
+                border: "1px solid #111",
+                background: "#111",
+                color: "#fff",
+                fontWeight: 900,
+                fontSize: 24,
+                cursor: "pointer",
+                lineHeight: 1,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              +
+            </button>
+
+            <button onClick={goNext} style={GhostButtonStyle(false)}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                {view === "day" ? "Nächster Tag" : "Nächste Woche"}
+                <ChevronRight size={16} />
+              </span>
+            </button>
+          </div>
         </div>
 
         <div
@@ -1500,6 +1525,12 @@ export default function AdminPage() {
                     </option>
                   ))}
                 </select>
+
+                {services.length === 0 ? (
+                  <div style={{ marginTop: 6, fontSize: 12, color: "#b00020" }}>
+                    Keine Services geladen.
+                  </div>
+                ) : null}
               </div>
 
               <div>
@@ -1587,6 +1618,13 @@ export default function AdminPage() {
           .calendarTopBar > :nth-child(2) {
             order: -1;
             text-align: center;
+          }
+
+          .calendarTopBar > :nth-child(3) {
+            display: grid !important;
+            grid-template-columns: 46px 1fr;
+            gap: 8px;
+            align-items: stretch;
           }
 
           .createGrid2 {
