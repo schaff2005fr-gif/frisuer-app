@@ -356,7 +356,7 @@ export default function AdminPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   const swipeStartX = useRef<number | null>(null);
-
+  
   async function fetchDay(date: string): Promise<DayData> {
     const token = getToken();
     const res = await fetch(`${API_BASE}/admin/bookings?date=${encodeURIComponent(date)}`, {
@@ -470,6 +470,9 @@ export default function AdminPage() {
     }
   }
 
+  function closeBookingModal() {
+  setSelectedBookingId(null);
+}
   function goPrev() {
     setAnchorDate((prev) => addDays(prev, view === "day" ? -1 : -7));
   }
@@ -501,6 +504,16 @@ export default function AdminPage() {
 
     swipeStartX.current = null;
   }
+  useEffect(() => {
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      setSelectedBookingId(null);
+    }
+  }
+
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
+}, []);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -760,119 +773,191 @@ export default function AdminPage() {
       </div>
 
       {selectedBooking ? (
+  <div
+    onClick={closeBookingModal}
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.35)",
+      zIndex: 200,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 16,
+    }}
+  >
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        width: "100%",
+        maxWidth: 520,
+        maxHeight: "85vh",
+        overflowY: "auto",
+        background: "#fff",
+        borderRadius: 20,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+        border: "1px solid #eee",
+        padding: 18,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
+            TERMIN #{selectedBooking.id}
+          </div>
+          <h3 style={{ margin: "6px 0 0 0", fontSize: 24, lineHeight: 1.1 }}>
+            {selectedBooking.customer?.name || "Ohne Namen"}
+          </h3>
+        </div>
+
+        <button
+          type="button"
+          onClick={closeBookingModal}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 999,
+            border: "1px solid #ddd",
+            background: "#fff",
+            color: "#111",
+            fontSize: 22,
+            fontWeight: 700,
+            cursor: "pointer",
+            lineHeight: 1,
+            flexShrink: 0,
+          }}
+          aria-label="Schließen"
+        >
+          ×
+        </button>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <span
+          style={{
+            display: "inline-flex",
+            padding: "7px 12px",
+            borderRadius: 999,
+            background: statusColors(selectedBooking.status).bg,
+            color: statusColors(selectedBooking.status).text,
+            fontSize: 12,
+            fontWeight: 900,
+          }}
+        >
+          {statusLabel(selectedBooking.status)}
+        </span>
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          display: "grid",
+          gap: 10,
+        }}
+      >
         <div
           style={{
-            marginTop: 16,
             border: "1px solid #eee",
-            borderRadius: 16,
-            background: "#fff",
-            padding: 16,
+            borderRadius: 14,
+            padding: 12,
+            background: "#fafafa",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
-                TERMIN #{selectedBooking.id}
-              </div>
-              <h3 style={{ margin: "6px 0 0 0" }}>{selectedBooking.customer?.name || "Ohne Namen"}</h3>
-            </div>
-
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                background: statusColors(selectedBooking.status).bg,
-                color: statusColors(selectedBooking.status).text,
-                fontSize: 12,
-                fontWeight: 900,
-              }}
-            >
-              {statusLabel(selectedBooking.status)}
-            </span>
-          </div>
-
-          <div
-            style={{
-              marginTop: 14,
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            <div>
-              Zeit: <b>{selectedBooking.timeHHMM || "—"}</b>
-            </div>
-            <div>
-              Service: <b>{selectedBooking.service?.name || selectedBooking.service?.key || "—"}</b>
-              {selectedBooking.service?.durationMin ? ` (${selectedBooking.service.durationMin} min)` : ""}
-            </div>
-            <div>
-              Kunde: <b>{selectedBooking.customer?.name || "—"}</b>
-              {selectedBooking.customer?.phone ? ` · ${selectedBooking.customer.phone}` : ""}
-            </div>
-            {selectedBooking.note ? (
-              <div>
-                Notiz: <i>{selectedBooking.note}</i>
-              </div>
-            ) : null}
-          </div>
-
-          <div
-            className="statusRow"
-            style={{
-              marginTop: 16,
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <StatusButton
-              label="Bestätigt"
-              active={selectedBooking.status === "CONFIRMED"}
-              disabled={updatingId === selectedBooking.id}
-              onClick={() => updateStatus(selectedBooking.id, "CONFIRMED")}
-            />
-            <StatusButton
-              label="Erledigt"
-              active={selectedBooking.status === "COMPLETED"}
-              disabled={updatingId === selectedBooking.id}
-              onClick={() => updateStatus(selectedBooking.id, "COMPLETED")}
-            />
-            <StatusButton
-              label="No-Show"
-              active={selectedBooking.status === "NO_SHOW"}
-              disabled={updatingId === selectedBooking.id}
-              onClick={() => updateStatus(selectedBooking.id, "NO_SHOW")}
-            />
-            <StatusButton
-              label="Storniert"
-              active={selectedBooking.status === "CANCELLED"}
-              disabled={updatingId === selectedBooking.id}
-              onClick={() => updateStatus(selectedBooking.id, "CANCELLED")}
-            />
-          </div>
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Zeit</div>
+          <div style={{ marginTop: 4, fontWeight: 900 }}>{selectedBooking.timeHHMM || "—"}</div>
         </div>
-      ) : (
+
         <div
           style={{
-            marginTop: 16,
-            border: "1px dashed #ddd",
-            borderRadius: 16,
-            background: "#fff",
-            padding: 16,
-            color: "#666",
+            border: "1px solid #eee",
+            borderRadius: 14,
+            padding: 12,
+            background: "#fafafa",
           }}
         >
-          Tippe oder klicke auf einen Termin im Kalender, um die Details und Status-Aktionen zu sehen.
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Service</div>
+          <div style={{ marginTop: 4, fontWeight: 900 }}>
+            {selectedBooking.service?.name || selectedBooking.service?.key || "—"}
+            {selectedBooking.service?.durationMin ? ` (${selectedBooking.service.durationMin} min)` : ""}
+          </div>
         </div>
-      )}
+
+        <div
+          style={{
+            border: "1px solid #eee",
+            borderRadius: 14,
+            padding: 12,
+            background: "#fafafa",
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Kunde</div>
+          <div style={{ marginTop: 4, fontWeight: 900 }}>
+            {selectedBooking.customer?.name || "—"}
+          </div>
+          {selectedBooking.customer?.phone ? (
+            <div style={{ marginTop: 4, color: "#555" }}>{selectedBooking.customer.phone}</div>
+          ) : null}
+        </div>
+
+        {selectedBooking.note ? (
+          <div
+            style={{
+              border: "1px solid #eee",
+              borderRadius: 14,
+              padding: 12,
+              background: "#fafafa",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Notiz</div>
+            <div style={{ marginTop: 4, color: "#111" }}>{selectedBooking.note}</div>
+          </div>
+        ) : null}
+      </div>
+
+      <div
+        className="statusRow"
+        style={{
+          marginTop: 18,
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <StatusButton
+          label="Bestätigt"
+          active={selectedBooking.status === "CONFIRMED"}
+          disabled={updatingId === selectedBooking.id}
+          onClick={() => updateStatus(selectedBooking.id, "CONFIRMED")}
+        />
+        <StatusButton
+          label="Erledigt"
+          active={selectedBooking.status === "COMPLETED"}
+          disabled={updatingId === selectedBooking.id}
+          onClick={() => updateStatus(selectedBooking.id, "COMPLETED")}
+        />
+        <StatusButton
+          label="No-Show"
+          active={selectedBooking.status === "NO_SHOW"}
+          disabled={updatingId === selectedBooking.id}
+          onClick={() => updateStatus(selectedBooking.id, "NO_SHOW")}
+        />
+        <StatusButton
+          label="Storniert"
+          active={selectedBooking.status === "CANCELLED"}
+          disabled={updatingId === selectedBooking.id}
+          onClick={() => updateStatus(selectedBooking.id, "CANCELLED")}
+        />
+      </div>
+    </div>
+  </div>
+) : null}
 
       <style jsx>{`
   @media (max-width: 760px) {
