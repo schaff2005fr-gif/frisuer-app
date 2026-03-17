@@ -922,7 +922,7 @@ const gridHeight = Math.max(760, totalMin * pxPerMin);
 const height = Math.max(40, rawHeight);
 
               const compact = height < 82;
-const veryCompact = height < 58;
+
               const selected = props.selectedBookingId === b.id;
 
               const gap = 6;
@@ -944,7 +944,7 @@ const veryCompact = height < 58;
                     borderRadius: 14,
                     border: selected ? "2px solid #111" : "1px solid #e5e5e5",
                     background: colors.soft,
-                    padding: compact ? "6px 8px" : "10px 12px",
+                    padding: compact ? "5px 7px" : "9px 11px",
                     textAlign: "left",
                     cursor: "pointer",
                     overflow: "hidden",
@@ -952,83 +952,47 @@ const veryCompact = height < 58;
                   }}
                 >
                   <div
-                    style={{
-                      fontWeight: 900,
-                      fontSize: compact ? 12 : 14,
-                      lineHeight: 1.15,
-                      color: "#111",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
-                  </div>
+  style={{
+    fontWeight: 900,
+    fontSize: compact ? 11 : 13,
+    lineHeight: 1.1,
+    color: "#111",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }}
+>
+  {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
+</div>
 
-                  <div
-                    style={{
-                      marginTop: compact ? 3 : 6,
-                      fontWeight: 800,
-                      fontSize: compact ? 12 : 14,
-                      lineHeight: 1.15,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      color: "#111",
-                    }}
-                  >
-                    {b.customer?.name || "Ohne Name"}
-                  </div>
+<div
+  style={{
+    marginTop: 2,
+    fontWeight: 800,
+    fontSize: compact ? 11 : 13,
+    lineHeight: 1.1,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    color: "#111",
+  }}
+>
+  {b.customer?.name || "Ohne Name"}
+</div>
 
-                  {veryCompact ? null : (
-                    <div
-                      style={{
-                        marginTop: 3,
-                        fontSize: 12,
-                        color: "#555",
-                        lineHeight: 1.15,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {b.service?.name || b.service?.key || "Service"}
-                    </div>
-                  )}
-
-                  {compact ? null : (
-                    <div
-                      style={{
-                        marginTop: 4,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 6,
-                        alignItems: "center",
-                        fontSize: 11,
-                        color: "#666",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <span
-                        style={{
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        #{b.id}
-                      </span>
-                      <span
-                        style={{
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {statusLabel(b.status)}
-                      </span>
-                    </div>
-                  )}
+<div
+  style={{
+    marginTop: 2,
+    fontSize: compact ? 10 : 11,
+    color: "#555",
+    lineHeight: 1.1,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }}
+>
+  {b.service?.name || b.service?.key || "Service"}
+</div>
                 </button>
               );
             })}
