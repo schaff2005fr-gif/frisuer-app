@@ -944,7 +944,7 @@ const height = Math.max(40, rawHeight);
                     borderRadius: 14,
                     border: selected ? "2px solid #111" : "1px solid #e5e5e5",
                     background: colors.soft,
-                    padding: compact ? "5px 7px" : "9px 11px",
+                    padding: compact ? "6px 8px" : "9px 11px",
                     textAlign: "left",
                     cursor: "pointer",
                     overflow: "hidden",
@@ -965,34 +965,53 @@ const height = Math.max(40, rawHeight);
   {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
 </div>
 
-<div
-  style={{
-    marginTop: 2,
-    fontWeight: 800,
-    fontSize: compact ? 11 : 13,
-    lineHeight: 1.1,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    color: "#111",
-  }}
->
-  {b.customer?.name || "Ohne Name"}
-</div>
+{compact ? (
+  <div
+    style={{
+      marginTop: 2,
+      fontWeight: 800,
+      fontSize: 11,
+      lineHeight: 1.1,
+      color: "#111",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    }}
+  >
+    {b.customer?.name || "Ohne Name"} · {b.service?.name || b.service?.key || "Service"}
+  </div>
+) : (
+  <>
+    <div
+      style={{
+        marginTop: 2,
+        fontWeight: 800,
+        fontSize: 13,
+        lineHeight: 1.1,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        color: "#111",
+      }}
+    >
+      {b.customer?.name || "Ohne Name"}
+    </div>
 
-<div
-  style={{
-    marginTop: 2,
-    fontSize: compact ? 10 : 11,
-    color: "#555",
-    lineHeight: 1.1,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  }}
->
-  {b.service?.name || b.service?.key || "Service"}
-</div>
+    <div
+      style={{
+        marginTop: 2,
+        fontSize: 11,
+        color: "#555",
+        lineHeight: 1.1,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+    >
+      {b.service?.name || b.service?.key || "Service"}
+    </div>
+  </>
+)}
                 </button>
               );
             })}
