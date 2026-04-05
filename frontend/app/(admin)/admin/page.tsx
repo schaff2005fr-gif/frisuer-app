@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
@@ -148,54 +148,26 @@ function statusColors(s: BookingStatus) {
   return { bg: "#b00020", text: "#fff", soft: "#fff0f3" };
 }
 
-function GhostButtonStyle(active?: boolean) {
-  return {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: active ? "1px solid #111" : "1px solid #ddd",
-    background: active ? "#111" : "#fff",
-    color: active ? "#fff" : "#111",
-    fontWeight: 900,
-    fontSize: 15,
-    cursor: "pointer",
-    whiteSpace: "nowrap" as const,
-    minHeight: 46,
-  };
-}
-
-function PrimaryButtonStyle(disabled?: boolean) {
-  return {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: "1px solid #111",
-    background: "#111",
-    color: "#fff",
-    fontWeight: 900,
-    fontSize: 15,
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.75 : 1,
-    whiteSpace: "nowrap" as const,
-    minHeight: 46,
-  };
-}
-
-function SmallActionButtonStyle(active?: boolean) {
-  return {
-    padding: "9px 12px",
-    borderRadius: 12,
-    border: active ? "1px solid #111" : "1px solid #ddd",
-    background: active ? "#111" : "#fff",
-    color: active ? "#fff" : "#111",
-    fontWeight: 900,
-    fontSize: 14,
-    cursor: "pointer",
-    whiteSpace: "nowrap" as const,
-    minHeight: 42,
-  };
-}
-
 function getToken() {
   return localStorage.getItem("token") || "";
+}
+
+function getNowMinutes() {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+function isSameLocalDate(iso: string) {
+  return iso === todayIsoLocal();
+}
+
+function getWeekdayFromIso(iso: string) {
+  return parseIsoDateLocal(iso).getDay();
+}
+
+function normalizeDateLike(value: string | Date) {
+  if (typeof value === "string") return value.slice(0, 10);
+  return toIsoLocal(value);
 }
 
 function getDayWindow(bookings: ApiBooking[]) {
@@ -236,22 +208,9 @@ function formatShortDay(iso: string) {
   }).format(parseIsoDateLocal(iso));
 }
 
-function getNowMinutes() {
-  const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
-}
-
-function isSameLocalDate(iso: string) {
-  return iso === todayIsoLocal();
-}
-
-function getWeekdayFromIso(iso: string) {
-  return parseIsoDateLocal(iso).getDay();
-}
-
-function normalizeDateLike(value: string | Date) {
-  if (typeof value === "string") return value.slice(0, 10);
-  return toIsoLocal(value);
+function formatWeekRange(anchorIso: string) {
+  const dates = getWeekDates(anchorIso);
+  return `${formatShortDay(dates[0])} – ${formatShortDay(dates[6])}`;
 }
 
 function layoutOverlappingBookings(bookings: ApiBooking[]): PositionedBooking[] {
@@ -334,6 +293,60 @@ function layoutOverlappingBookings(bookings: ApiBooking[]): PositionedBooking[] 
   return result;
 }
 
+function TopButton(props: {
+  active?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={props.onClick}
+      disabled={props.disabled}
+      style={{
+        width: "100%",
+        minHeight: 46,
+        padding: "10px 14px",
+        borderRadius: 14,
+        border: props.active ? "1px solid #111" : "1px solid #ddd",
+        background: props.active ? "#111" : "#fff",
+        color: props.active ? "#fff" : "#111",
+        fontWeight: 900,
+        fontSize: 15,
+        cursor: props.disabled ? "not-allowed" : "pointer",
+        opacity: props.disabled ? 0.75 : 1,
+      }}
+    >
+      {props.children}
+    </button>
+  );
+}
+
+function SmallNavButton(props: {
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={props.onClick}
+      style={{
+        minHeight: 42,
+        padding: "9px 12px",
+        borderRadius: 12,
+        border: "1px solid #ddd",
+        background: "#fff",
+        color: "#111",
+        fontWeight: 900,
+        fontSize: 14,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {props.children}
+    </button>
+  );
+}
+
 function StatCard(props: { title: string; value: string; sub: string }) {
   return (
     <div
@@ -345,35 +358,13 @@ function StatCard(props: { title: string; value: string; sub: string }) {
         minWidth: 0,
       }}
     >
-      <div
-        style={{
-          color: "#666",
-          fontSize: 12,
-          fontWeight: 800,
-          lineHeight: 1.1,
-        }}
-      >
-        {props.title}
-      </div>
-
-      <div
-        style={{
-          marginTop: 8,
-          fontSize: 28,
-          lineHeight: 1,
-          fontWeight: 1000,
-          color: "#111",
-        }}
-      >
-        {props.value}
-      </div>
-
+      <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>{props.title}</div>
+      <div style={{ marginTop: 8, fontSize: 28, lineHeight: 1, fontWeight: 1000 }}>{props.value}</div>
       <div
         style={{
           marginTop: 6,
           color: "#777",
           fontSize: 12,
-          lineHeight: 1.2,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -418,6 +409,7 @@ export default function AdminPage() {
 
   const [view, setView] = useState<ViewMode>("day");
   const [anchorDate, setAnchorDate] = useState<string>(todayIsoLocal());
+  const [isMobile, setIsMobile] = useState(false);
 
   const [dayData, setDayData] = useState<DayData | null>(null);
   const [weekData, setWeekData] = useState<DayData[]>([]);
@@ -816,6 +808,15 @@ export default function AdminPage() {
   }, [router]);
 
   useEffect(() => {
+    function update() {
+      setIsMobile(window.innerWidth <= 760);
+    }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
     loadCurrentView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorDate, view]);
@@ -920,7 +921,6 @@ export default function AdminPage() {
       view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
 
     const pauseList = Object.values(pauseBlocksByDate).flat();
-
     const bookingWindow = getDayWindow(bookingList);
 
     if (pauseList.length === 0) return bookingWindow;
@@ -942,63 +942,29 @@ export default function AdminPage() {
 
   return (
     <div style={{ padding: 16, maxWidth: 1180, margin: "0 auto" }}>
-      <div
-        style={{
-          display: "grid",
-          gap: 12,
-        }}
-      >
+      <div style={{ display: "grid", gap: 12 }}>
         <div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 30,
-              lineHeight: 1,
-              fontWeight: 1000,
-              color: "#111",
-            }}
-          >
+          <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1, fontWeight: 1000, color: "#111" }}>
             Dashboard
           </h1>
-
-          <div
-            style={{
-              marginTop: 8,
-              color: "#666",
-              fontSize: 15,
-              fontWeight: 500,
-            }}
-          >
+          <div style={{ marginTop: 8, color: "#666", fontSize: 15, fontWeight: 500 }}>
             {view === "day"
               ? `Tagesansicht · ${formatDayHeadline(anchorDate)}`
-              : `Wochenansicht · ab ${formatShortDay(startOfWeekMonday(anchorDate))}`}
+              : `Wochenansicht · ${formatWeekRange(anchorDate)}`}
           </div>
         </div>
 
-        <div
-          className="headActions"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-            gap: 8,
-          }}
-        >
-          <button onClick={() => setView("day")} style={SmallActionButtonStyle(view === "day")}>
+        <div className="topGrid">
+          <TopButton active={view === "day"} onClick={() => setView("day")}>
             Tag
-          </button>
-          <button onClick={() => setView("week")} style={SmallActionButtonStyle(view === "week")}>
+          </TopButton>
+          <TopButton active={view === "week"} onClick={() => setView("week")}>
             Woche
-          </button>
-          <button onClick={goToday} style={SmallActionButtonStyle(false)}>
-            Heute
-          </button>
-          <button
-            onClick={loadCurrentView}
-            disabled={calendarLoading}
-            style={PrimaryButtonStyle(calendarLoading)}
-          >
+          </TopButton>
+          <TopButton onClick={goToday}>Heute</TopButton>
+          <TopButton onClick={loadCurrentView} disabled={calendarLoading}>
             {calendarLoading ? "Lade..." : "Neu laden"}
-          </button>
+          </TopButton>
         </div>
 
         {message ? (
@@ -1033,21 +999,10 @@ export default function AdminPage() {
           </div>
         ) : null}
 
-        <div
-          className="statsGrid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: 8,
-          }}
-        >
+        <div className="statsGrid">
           <StatCard title="Termine" value={String(stats.total)} sub={`${stats.confirmed} bestätigt`} />
           <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} No-Show`} />
-          <StatCard
-            title="Storniert"
-            value={String(stats.cancelled)}
-            sub={view === "day" ? "Heute" : "Woche"}
-          />
+          <StatCard title="Storniert" value={String(stats.cancelled)} sub={view === "day" ? "Heute" : "Woche"} />
         </div>
 
         <div
@@ -1058,80 +1013,54 @@ export default function AdminPage() {
             padding: 12,
           }}
         >
-          <div
-            className="calendarTopBar"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "auto 1fr auto",
-              gap: 8,
-              alignItems: "center",
-              marginBottom: 12,
-            }}
-          >
-            <button onClick={goPrev} style={SmallActionButtonStyle(false)}>
+          <div className="calendarHeader">
+            <SmallNavButton onClick={goPrev}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <ChevronLeft size={16} />
-                {view === "day" ? "Zurück" : "Woche"}
+                {view === "day" ? "Zurück" : "Vorherige"}
               </span>
-            </button>
+            </SmallNavButton>
 
             <div
               style={{
+                minWidth: 0,
                 textAlign: "center",
                 fontWeight: 900,
                 fontSize: 18,
-                minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                lineHeight: 1.2,
               }}
             >
-              {view === "day"
-                ? formatDayHeadline(anchorDate)
-                : `${formatShortDay(getWeekDates(anchorDate)[0])} – ${formatShortDay(
-                    getWeekDates(anchorDate)[6]
-                  )}`}
+              {view === "day" ? formatDayHeadline(anchorDate) : formatWeekRange(anchorDate)}
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "46px auto",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
+            <div className="calendarHeaderRight">
               <button
                 type="button"
                 onClick={openCreateModal}
                 aria-label="Termin hinzufügen"
                 title="Termin hinzufügen"
                 style={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: 14,
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
                   border: "1px solid #111",
                   background: "#111",
                   color: "#fff",
-                  fontWeight: 900,
-                  fontSize: 24,
                   cursor: "pointer",
-                  lineHeight: 1,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  flexShrink: 0,
                 }}
               >
-                +
+                <Plus size={20} />
               </button>
 
-              <button onClick={goNext} style={SmallActionButtonStyle(false)}>
+              <SmallNavButton onClick={goNext}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   {view === "day" ? "Weiter" : "Nächste"}
                   <ChevronRight size={16} />
                 </span>
-              </button>
+              </SmallNavButton>
             </div>
           </div>
 
@@ -1163,11 +1092,12 @@ export default function AdminPage() {
               <WeekCalendar
                 days={weekData}
                 pauseBlocksByDate={pauseBlocksByDate}
-                hours={hours}
-                windowStart={commonWindow.start}
-                windowEnd={commonWindow.end}
                 selectedBookingId={selectedBookingId}
                 onSelectBooking={(id) => setSelectedBookingId(id)}
+                windowStart={commonWindow.start}
+                windowEnd={commonWindow.end}
+                hours={hours}
+                isMobile={isMobile}
               />
             )}
           </div>
@@ -1176,7 +1106,7 @@ export default function AdminPage() {
         <div style={{ color: "#666", fontSize: 12 }}>
           {view === "day"
             ? "Tipp: In der Tagesansicht kannst du auf dem Handy nach links oder rechts swipen."
-            : "In der Wochenansicht kannst du horizontal durch den Kalender scrollen."}
+            : "Die Wochenansicht ist auf dem Handy bewusst als übersichtliche Liste aufgebaut."}
         </div>
       </div>
 
@@ -1265,70 +1195,20 @@ export default function AdminPage() {
               </span>
             </div>
 
-            <div
-              style={{
-                marginTop: 18,
-                display: "grid",
-                gap: 10,
-              }}
-            >
-              <div
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 14,
-                  padding: 12,
-                  background: "#fafafa",
-                }}
-              >
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Zeit</div>
-                <div style={{ marginTop: 4, fontWeight: 900 }}>{selectedBooking.timeHHMM || "—"}</div>
-              </div>
-
-              <div
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 14,
-                  padding: 12,
-                  background: "#fafafa",
-                }}
-              >
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Service</div>
-                <div style={{ marginTop: 4, fontWeight: 900 }}>
-                  {selectedBooking.service?.name || selectedBooking.service?.key || "—"}
-                  {selectedBooking.service?.durationMin ? ` (${selectedBooking.service.durationMin} min)` : ""}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 14,
-                  padding: 12,
-                  background: "#fafafa",
-                }}
-              >
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Kunde</div>
-                <div style={{ marginTop: 4, fontWeight: 900 }}>
-                  {selectedBooking.customer?.name || "—"}
-                </div>
-                {selectedBooking.customer?.phone ? (
-                  <div style={{ marginTop: 4, color: "#555" }}>{selectedBooking.customer.phone}</div>
-                ) : null}
-              </div>
-
-              {selectedBooking.note ? (
-                <div
-                  style={{
-                    border: "1px solid #eee",
-                    borderRadius: 14,
-                    padding: 12,
-                    background: "#fafafa",
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>Notiz</div>
-                  <div style={{ marginTop: 4, color: "#111" }}>{selectedBooking.note}</div>
-                </div>
-              ) : null}
+            <div style={{ marginTop: 18, display: "grid", gap: 10 }}>
+              <InfoCard label="Zeit" value={selectedBooking.timeHHMM || "—"} />
+              <InfoCard
+                label="Service"
+                value={`${selectedBooking.service?.name || selectedBooking.service?.key || "—"}${
+                  selectedBooking.service?.durationMin ? ` (${selectedBooking.service.durationMin} min)` : ""
+                }`}
+              />
+              <InfoCard
+                label="Kunde"
+                value={selectedBooking.customer?.name || "—"}
+                sub={selectedBooking.customer?.phone || undefined}
+              />
+              {selectedBooking.note ? <InfoCard label="Notiz" value={selectedBooking.note} /> : null}
             </div>
 
             <div
@@ -1440,110 +1320,50 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div
-              style={{
-                marginTop: 18,
-                display: "grid",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>
-                  Kundenname
-                </div>
+            <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
+              <Field label="Kundenname">
                 <input
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   placeholder="z.B. Max Mustermann"
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    fontSize: 14,
-                    boxSizing: "border-box",
-                  }}
+                  style={fieldInputStyle}
                 />
-              </div>
+              </Field>
 
-              <div>
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>
-                  Telefonnummer (optional)
-                </div>
+              <Field label="Telefonnummer (optional)">
                 <input
                   value={newCustomerPhone}
                   onChange={(e) => setNewCustomerPhone(e.target.value)}
                   placeholder="z.B. 0176..."
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    fontSize: 14,
-                    boxSizing: "border-box",
-                  }}
+                  style={fieldInputStyle}
                 />
-              </div>
+              </Field>
 
-              <div
-                className="createGrid2"
-                style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}
-              >
-                <div>
-                  <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>
-                    Datum
-                  </div>
+              <div className="createGrid2" style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
+                <Field label="Datum">
                   <input
                     type="date"
                     value={newBookingDate}
                     onChange={(e) => setNewBookingDate(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "12px 14px",
-                      borderRadius: 12,
-                      border: "1px solid #ddd",
-                      fontSize: 14,
-                      boxSizing: "border-box",
-                    }}
+                    style={fieldInputStyle}
                   />
-                </div>
+                </Field>
 
-                <div>
-                  <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>
-                    Startzeit
-                  </div>
+                <Field label="Startzeit">
                   <input
                     type="time"
                     value={newBookingTime}
                     onChange={(e) => setNewBookingTime(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "12px 14px",
-                      borderRadius: 12,
-                      border: "1px solid #ddd",
-                      fontSize: 14,
-                      boxSizing: "border-box",
-                    }}
+                    style={fieldInputStyle}
                   />
-                </div>
+                </Field>
               </div>
 
-              <div>
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>
-                  Service
-                </div>
+              <Field label="Service">
                 <select
                   value={newServiceKey}
                   onChange={(e) => setNewServiceKey(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    fontSize: 14,
-                    boxSizing: "border-box",
-                    background: "#fff",
-                  }}
+                  style={{ ...fieldInputStyle, background: "#fff" }}
                 >
                   <option value="">Bitte wählen</option>
                   {services.map((s) => (
@@ -1552,70 +1372,62 @@ export default function AdminPage() {
                     </option>
                   ))}
                 </select>
-
                 {services.length === 0 ? (
                   <div style={{ marginTop: 6, fontSize: 12, color: "#b00020" }}>
                     Keine Services geladen.
                   </div>
                 ) : null}
-              </div>
+              </Field>
 
-              <div>
-                <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>
-                  Notiz (optional)
-                </div>
+              <Field label="Notiz (optional)">
                 <textarea
                   value={newBookingNote}
                   onChange={(e) => setNewBookingNote(e.target.value)}
                   placeholder="z.B. telefonisch vereinbart"
                   rows={4}
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    fontSize: 14,
-                    boxSizing: "border-box",
-                    resize: "vertical",
-                  }}
+                  style={{ ...fieldInputStyle, resize: "vertical" as const }}
                 />
-              </div>
+              </Field>
             </div>
 
-            <div
-              className="createActions"
-              style={{
-                marginTop: 18,
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={closeCreateModal}
-                disabled={creatingBooking}
-                style={GhostButtonStyle(false)}
-              >
+            <div className="createActions" style={{ marginTop: 18, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <TopButton onClick={closeCreateModal} disabled={creatingBooking}>
                 Abbrechen
-              </button>
-
-              <button
-                type="button"
-                onClick={createManualBooking}
-                disabled={creatingBooking}
-                style={PrimaryButtonStyle(creatingBooking)}
-              >
+              </TopButton>
+              <TopButton onClick={createManualBooking} disabled={creatingBooking} active>
                 {creatingBooking ? "Speichere..." : "Termin speichern"}
-              </button>
+              </TopButton>
             </div>
           </div>
         </div>
       ) : null}
 
       <style jsx>{`
-        .createGrid2 {
-          grid-template-columns: 1fr 1fr;
+        .topGrid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .statsGrid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .calendarHeader {
+          display: grid;
+          grid-template-columns: auto 1fr auto;
+          gap: 8px;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .calendarHeaderRight {
+          display: grid;
+          grid-template-columns: 42px auto;
+          gap: 8px;
+          align-items: center;
         }
 
         @media (max-width: 760px) {
@@ -1624,37 +1436,20 @@ export default function AdminPage() {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
-          .statsGrid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          .topGrid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .calendarHeader {
+            grid-template-columns: 1fr;
+          }
+
+          .calendarHeader > :nth-child(2) {
+            order: -1;
           }
         }
 
         @media (max-width: 640px) {
-          .headActions {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-
-          .statsGrid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          }
-
-          .calendarTopBar {
-            grid-template-columns: 1fr !important;
-          }
-
-          .calendarTopBar > :nth-child(2) {
-            order: -1;
-            text-align: center;
-            white-space: normal !important;
-          }
-
-          .calendarTopBar > :nth-child(3) {
-            display: grid !important;
-            grid-template-columns: 46px 1fr;
-            gap: 8px;
-            align-items: stretch;
-          }
-
           .createGrid2 {
             grid-template-columns: 1fr !important;
           }
@@ -1669,6 +1464,41 @@ export default function AdminPage() {
   );
 }
 
+function InfoCard(props: { label: string; value: string; sub?: string }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #eee",
+        borderRadius: 14,
+        padding: 12,
+        background: "#fafafa",
+      }}
+    >
+      <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>{props.label}</div>
+      <div style={{ marginTop: 4, fontWeight: 900 }}>{props.value}</div>
+      {props.sub ? <div style={{ marginTop: 4, color: "#555" }}>{props.sub}</div> : null}
+    </div>
+  );
+}
+
+function Field(props: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>{props.label}</div>
+      {props.children}
+    </div>
+  );
+}
+
+const fieldInputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "1px solid #ddd",
+  fontSize: 14,
+  boxSizing: "border-box",
+};
+
 function DayCalendar(props: {
   date: string;
   bookings: ApiBooking[];
@@ -1681,8 +1511,8 @@ function DayCalendar(props: {
   showNowLine: boolean;
 }) {
   const totalMin = props.windowEnd - props.windowStart;
-  const pxPerMin = 2.25;
-  const gridHeight = Math.max(760, totalMin * pxPerMin);
+  const pxPerMin = 2.15;
+  const gridHeight = Math.max(720, totalMin * pxPerMin);
 
   const laidOut = layoutOverlappingBookings(props.bookings);
 
@@ -1696,7 +1526,7 @@ function DayCalendar(props: {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "68px minmax(0, 1fr)",
+          gridTemplateColumns: "64px minmax(0, 1fr)",
           border: "1px solid #eee",
           borderRadius: 14,
           overflow: "hidden",
@@ -1705,15 +1535,15 @@ function DayCalendar(props: {
         }}
       >
         <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 42, borderBottom: "1px solid #eee" }} />
+          <div style={{ height: 38, borderBottom: "1px solid #eee" }} />
           {props.hours.map((h) => (
             <div
               key={h}
               style={{
-                height: 135,
+                height: 129,
                 padding: "10px 8px",
                 borderBottom: "1px solid #f0f0f0",
-                fontSize: 13,
+                fontSize: 12,
                 color: "#666",
                 fontWeight: 800,
                 boxSizing: "border-box",
@@ -1727,13 +1557,13 @@ function DayCalendar(props: {
         <div style={{ position: "relative", background: "#fff", minWidth: 0 }}>
           <div
             style={{
-              height: 42,
+              height: 38,
               borderBottom: "1px solid #eee",
               display: "flex",
               alignItems: "center",
               padding: "0 12px",
               fontWeight: 800,
-              fontSize: 14,
+              fontSize: 13,
               color: "#444",
             }}
           >
@@ -1960,7 +1790,102 @@ function WeekCalendar(props: {
   windowEnd: number;
   selectedBookingId: number | null;
   onSelectBooking: (id: number) => void;
+  isMobile: boolean;
 }) {
+  if (props.isMobile) {
+    return (
+      <div style={{ display: "grid", gap: 10 }}>
+        {props.days.map((day) => {
+          const pauses = props.pauseBlocksByDate[day.date] ?? [];
+          const bookings = day.bookings
+            .slice()
+            .sort((a, b) => {
+              const sa = parseStartEndFromTimeHHMM(a.timeHHMM)?.startMin ?? 0;
+              const sb = parseStartEndFromTimeHHMM(b.timeHHMM)?.startMin ?? 0;
+              return sa - sb;
+            });
+
+          return (
+            <div
+              key={day.date}
+              style={{
+                border: "1px solid #eee",
+                borderRadius: 16,
+                background: "#fff",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderBottom: "1px solid #eee",
+                  fontWeight: 900,
+                  fontSize: 16,
+                }}
+              >
+                {formatDayHeadline(day.date)}
+              </div>
+
+              <div style={{ padding: 12, display: "grid", gap: 8 }}>
+                {pauses.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      color: "#555",
+                      background:
+                        p.kind === "recurring"
+                          ? "repeating-linear-gradient(-45deg, #f4f4f5, #f4f4f5 8px, #ececef 8px, #ececef 16px)"
+                          : "repeating-linear-gradient(-45deg, #f8f1f1, #f8f1f1 8px, #f1e4e4 8px, #f1e4e4 16px)",
+                      border: "1px dashed #b8b8be",
+                    }}
+                  >
+                    {minToHHMM(p.startMin)} – {minToHHMM(p.endMin)} · {p.reason || "Blockiert"}
+                  </div>
+                ))}
+
+                {bookings.length === 0 && pauses.length === 0 ? (
+                  <div style={{ color: "#888", fontStyle: "italic", padding: "6px 2px" }}>
+                    Keine Termine
+                  </div>
+                ) : null}
+
+                {bookings.map((b) => {
+                  const colors = statusColors(b.status);
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => props.onSelectBooking(b.id)}
+                      style={{
+                        border: "1px solid #e8e8e8",
+                        borderRadius: 14,
+                        background: colors.soft,
+                        padding: 12,
+                        textAlign: "left",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, fontSize: 13 }}>{b.timeHHMM || "—"}</div>
+                      <div style={{ marginTop: 4, fontWeight: 800 }}>
+                        {b.customer?.name || "Ohne Name"}
+                      </div>
+                      <div style={{ marginTop: 3, fontSize: 12, color: "#555" }}>
+                        {b.service?.name || b.service?.key || "Service"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   const totalMin = props.windowEnd - props.windowStart;
   const pxPerMin = 1.05;
   const gridHeight = Math.max(640, totalMin * pxPerMin);
