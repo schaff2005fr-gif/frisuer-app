@@ -36,7 +36,7 @@ type PositionedBooking = ApiBooking & {
 
 type RecurringBlock = {
   id: number;
-  weekday: number; // 0..6
+  weekday: number;
   startMin: number;
   endMin: number;
   reason: string | null;
@@ -176,6 +176,21 @@ function PrimaryButtonStyle(disabled?: boolean) {
     opacity: disabled ? 0.75 : 1,
     whiteSpace: "nowrap" as const,
     minHeight: 46,
+  };
+}
+
+function SmallActionButtonStyle(active?: boolean) {
+  return {
+    padding: "9px 12px",
+    borderRadius: 12,
+    border: active ? "1px solid #111" : "1px solid #ddd",
+    background: active ? "#111" : "#fff",
+    color: active ? "#fff" : "#111",
+    fontWeight: 900,
+    fontSize: 14,
+    cursor: "pointer",
+    whiteSpace: "nowrap" as const,
+    minHeight: 42,
   };
 }
 
@@ -324,8 +339,8 @@ function StatCard(props: { title: string; value: string; sub: string }) {
     <div
       style={{
         border: "1px solid #ececec",
-        borderRadius: 16,
-        padding: 14,
+        borderRadius: 14,
+        padding: 12,
         background: "#fff",
         minWidth: 0,
       }}
@@ -343,8 +358,8 @@ function StatCard(props: { title: string; value: string; sub: string }) {
 
       <div
         style={{
-          marginTop: 10,
-          fontSize: 34,
+          marginTop: 8,
+          fontSize: 28,
           lineHeight: 1,
           fontWeight: 1000,
           color: "#111",
@@ -355,7 +370,7 @@ function StatCard(props: { title: string; value: string; sub: string }) {
 
       <div
         style={{
-          marginTop: 8,
+          marginTop: 6,
           color: "#777",
           fontSize: 12,
           lineHeight: 1.2,
@@ -926,22 +941,18 @@ export default function AdminPage() {
   }, [commonWindow]);
 
   return (
-    <div style={{ padding: 20, maxWidth: 1280, margin: "0 auto" }}>
+    <div style={{ padding: 16, maxWidth: 1180, margin: "0 auto" }}>
       <div
-        className="headTop"
         style={{
-          display: "flex",
-          justifyContent: "space-between",
+          display: "grid",
           gap: 12,
-          flexWrap: "wrap",
-          alignItems: "flex-end",
         }}
       >
         <div>
           <h1
             style={{
               margin: 0,
-              fontSize: 34,
+              fontSize: 30,
               lineHeight: 1,
               fontWeight: 1000,
               color: "#111",
@@ -967,19 +978,18 @@ export default function AdminPage() {
         <div
           className="headActions"
           style={{
-            display: "flex",
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
             gap: 8,
-            flexWrap: "wrap",
-            alignItems: "center",
           }}
         >
-          <button onClick={() => setView("day")} style={GhostButtonStyle(view === "day")}>
+          <button onClick={() => setView("day")} style={SmallActionButtonStyle(view === "day")}>
             Tag
           </button>
-          <button onClick={() => setView("week")} style={GhostButtonStyle(view === "week")}>
+          <button onClick={() => setView("week")} style={SmallActionButtonStyle(view === "week")}>
             Woche
           </button>
-          <button onClick={goToday} style={GhostButtonStyle(false)}>
+          <button onClick={goToday} style={SmallActionButtonStyle(false)}>
             Heute
           </button>
           <button
@@ -990,171 +1000,184 @@ export default function AdminPage() {
             {calendarLoading ? "Lade..." : "Neu laden"}
           </button>
         </div>
-      </div>
 
-      {message ? (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid #d9f0dd",
-            background: "#f3fbf4",
-            color: "#187a2f",
-            fontSize: 14,
-            fontWeight: 800,
-          }}
-        >
-          {message}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid #f3d3da",
-            background: "#fff5f7",
-            color: "#b00020",
-            fontSize: 14,
-            fontWeight: 800,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
-
-      <div
-        style={{
-          marginTop: 14,
-          display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-          gap: 10,
-        }}
-      >
-        <StatCard title="Termine" value={String(stats.total)} sub={`${stats.confirmed} bestätigt`} />
-        <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} No-Show`} />
-        <StatCard
-          title="Storniert"
-          value={String(stats.cancelled)}
-          sub={view === "day" ? "Heute" : "Woche"}
-        />
-      </div>
-
-      <div
-        style={{
-          marginTop: 16,
-          border: "1px solid #eee",
-          borderRadius: 16,
-          background: "#fff",
-          padding: 12,
-        }}
-      >
-        <div
-          className="calendarTopBar"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 10,
-            alignItems: "center",
-            flexWrap: "wrap",
-            marginBottom: 12,
-          }}
-        >
-          <button onClick={goPrev} style={GhostButtonStyle(false)}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <ChevronLeft size={16} />
-              {view === "day" ? "Vorheriger Tag" : "Vorherige Woche"}
-            </span>
-          </button>
-
-          <div style={{ fontWeight: 900, textAlign: "center" }}>
-            {view === "day"
-              ? formatDayHeadline(anchorDate)
-              : `${formatShortDay(getWeekDates(anchorDate)[0])} – ${formatShortDay(
-                  getWeekDates(anchorDate)[6]
-                )}`}
+        {message ? (
+          <div
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid #d9f0dd",
+              background: "#f3fbf4",
+              color: "#187a2f",
+              fontSize: 14,
+              fontWeight: 800,
+            }}
+          >
+            {message}
           </div>
+        ) : null}
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              aria-label="Termin hinzufügen"
-              title="Termin hinzufügen"
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 14,
-                border: "1px solid #111",
-                background: "#111",
-                color: "#fff",
-                fontWeight: 900,
-                fontSize: 24,
-                cursor: "pointer",
-                lineHeight: 1,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              +
-            </button>
+        {error ? (
+          <div
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid #f3d3da",
+              background: "#fff5f7",
+              color: "#b00020",
+              fontSize: 14,
+              fontWeight: 800,
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
 
-            <button onClick={goNext} style={GhostButtonStyle(false)}>
+        <div
+          className="statsGrid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: 8,
+          }}
+        >
+          <StatCard title="Termine" value={String(stats.total)} sub={`${stats.confirmed} bestätigt`} />
+          <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} No-Show`} />
+          <StatCard
+            title="Storniert"
+            value={String(stats.cancelled)}
+            sub={view === "day" ? "Heute" : "Woche"}
+          />
+        </div>
+
+        <div
+          style={{
+            border: "1px solid #eee",
+            borderRadius: 18,
+            background: "#fff",
+            padding: 12,
+          }}
+        >
+          <div
+            className="calendarTopBar"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "auto 1fr auto",
+              gap: 8,
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <button onClick={goPrev} style={SmallActionButtonStyle(false)}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                {view === "day" ? "Nächster Tag" : "Nächste Woche"}
-                <ChevronRight size={16} />
+                <ChevronLeft size={16} />
+                {view === "day" ? "Zurück" : "Woche"}
               </span>
             </button>
+
+            <div
+              style={{
+                textAlign: "center",
+                fontWeight: 900,
+                fontSize: 18,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {view === "day"
+                ? formatDayHeadline(anchorDate)
+                : `${formatShortDay(getWeekDates(anchorDate)[0])} – ${formatShortDay(
+                    getWeekDates(anchorDate)[6]
+                  )}`}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "46px auto",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
+              <button
+                type="button"
+                onClick={openCreateModal}
+                aria-label="Termin hinzufügen"
+                title="Termin hinzufügen"
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: 14,
+                  border: "1px solid #111",
+                  background: "#111",
+                  color: "#fff",
+                  fontWeight: 900,
+                  fontSize: 24,
+                  cursor: "pointer",
+                  lineHeight: 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                +
+              </button>
+
+              <button onClick={goNext} style={SmallActionButtonStyle(false)}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  {view === "day" ? "Weiter" : "Nächste"}
+                  <ChevronRight size={16} />
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            style={{
+              overflowX: view === "day" ? "hidden" : "auto",
+              overflowY: "hidden",
+              width: "100%",
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
+            {calendarLoading ? (
+              <div style={{ padding: 30, color: "#666" }}>Lade Kalender...</div>
+            ) : view === "day" ? (
+              <DayCalendar
+                date={anchorDate}
+                bookings={dayData?.bookings ?? []}
+                pauseBlocks={pauseBlocksByDate[anchorDate] ?? []}
+                hours={hours}
+                windowStart={commonWindow.start}
+                windowEnd={commonWindow.end}
+                selectedBookingId={selectedBookingId}
+                onSelectBooking={(id) => setSelectedBookingId(id)}
+                showNowLine={isSameLocalDate(anchorDate)}
+              />
+            ) : (
+              <WeekCalendar
+                days={weekData}
+                pauseBlocksByDate={pauseBlocksByDate}
+                hours={hours}
+                windowStart={commonWindow.start}
+                windowEnd={commonWindow.end}
+                selectedBookingId={selectedBookingId}
+                onSelectBooking={(id) => setSelectedBookingId(id)}
+              />
+            )}
           </div>
         </div>
 
-        <div
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          style={{
-            overflowX: view === "day" ? "hidden" : "auto",
-            overflowY: "hidden",
-            width: "100%",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          {calendarLoading ? (
-            <div style={{ padding: 30, color: "#666" }}>Lade Kalender...</div>
-          ) : view === "day" ? (
-            <DayCalendar
-              date={anchorDate}
-              bookings={dayData?.bookings ?? []}
-              pauseBlocks={pauseBlocksByDate[anchorDate] ?? []}
-              hours={hours}
-              windowStart={commonWindow.start}
-              windowEnd={commonWindow.end}
-              selectedBookingId={selectedBookingId}
-              onSelectBooking={(id) => setSelectedBookingId(id)}
-              showNowLine={isSameLocalDate(anchorDate)}
-            />
-          ) : (
-            <WeekCalendar
-              days={weekData}
-              pauseBlocksByDate={pauseBlocksByDate}
-              hours={hours}
-              windowStart={commonWindow.start}
-              windowEnd={commonWindow.end}
-              selectedBookingId={selectedBookingId}
-              onSelectBooking={(id) => setSelectedBookingId(id)}
-            />
-          )}
+        <div style={{ color: "#666", fontSize: 12 }}>
+          {view === "day"
+            ? "Tipp: In der Tagesansicht kannst du auf dem Handy nach links oder rechts swipen."
+            : "In der Wochenansicht kannst du horizontal durch den Kalender scrollen."}
         </div>
-      </div>
-
-      <div style={{ marginTop: 14, color: "#666", fontSize: 12 }}>
-        {view === "day"
-          ? "Tipp: In der Tagesansicht kannst du auf dem Handy nach links oder rechts swipen."
-          : "In der Wochenansicht kannst du horizontal durch den Kalender scrollen, ohne direkt die Woche zu wechseln."}
       </div>
 
       {selectedBooking ? (
@@ -1168,7 +1191,8 @@ export default function AdminPage() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: 16,
+            padding: 12,
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -1176,13 +1200,14 @@ export default function AdminPage() {
             style={{
               width: "100%",
               maxWidth: 520,
-              maxHeight: "85vh",
+              maxHeight: "calc(100vh - 24px)",
               overflowY: "auto",
               background: "#fff",
               borderRadius: 20,
               boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
               border: "1px solid #eee",
               padding: 18,
+              boxSizing: "border-box",
             }}
           >
             <div
@@ -1355,7 +1380,8 @@ export default function AdminPage() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: 16,
+            padding: 12,
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -1363,13 +1389,14 @@ export default function AdminPage() {
             style={{
               width: "100%",
               maxWidth: 560,
-              maxHeight: "85vh",
+              maxHeight: "calc(100vh - 24px)",
               overflowY: "auto",
               background: "#fff",
               borderRadius: 20,
               boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
               border: "1px solid #eee",
               padding: 18,
+              boxSizing: "border-box",
             }}
           >
             <div
@@ -1596,28 +1623,29 @@ export default function AdminPage() {
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
+
+          .statsGrid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
         }
 
         @media (max-width: 640px) {
-          .headTop {
-            align-items: stretch !important;
+          .headActions {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
           }
 
-          .headActions {
-            width: 100%;
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px !important;
+          .statsGrid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
           }
 
           .calendarTopBar {
-            flex-direction: column;
-            align-items: stretch !important;
+            grid-template-columns: 1fr !important;
           }
 
           .calendarTopBar > :nth-child(2) {
             order: -1;
             text-align: center;
+            white-space: normal !important;
           }
 
           .calendarTopBar > :nth-child(3) {
@@ -1677,7 +1705,7 @@ function DayCalendar(props: {
         }}
       >
         <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 46, borderBottom: "1px solid #eee" }} />
+          <div style={{ height: 42, borderBottom: "1px solid #eee" }} />
           {props.hours.map((h) => (
             <div
               key={h}
@@ -1699,7 +1727,7 @@ function DayCalendar(props: {
         <div style={{ position: "relative", background: "#fff", minWidth: 0 }}>
           <div
             style={{
-              height: 46,
+              height: 42,
               borderBottom: "1px solid #eee",
               display: "flex",
               alignItems: "center",
@@ -1950,7 +1978,7 @@ function WeekCalendar(props: {
         }}
       >
         <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 56, borderBottom: "1px solid #eee" }} />
+          <div style={{ height: 48, borderBottom: "1px solid #eee" }} />
           {props.hours.map((h) => (
             <div
               key={h}
@@ -1976,7 +2004,7 @@ function WeekCalendar(props: {
             <div key={day.date} style={{ position: "relative", borderLeft: "1px solid #f0f0f0" }}>
               <div
                 style={{
-                  height: 56,
+                  height: 48,
                   borderBottom: "1px solid #eee",
                   padding: 8,
                   textAlign: "center",
