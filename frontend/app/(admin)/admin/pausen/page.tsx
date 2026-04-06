@@ -57,16 +57,6 @@ function normalizeHHMM(value: string) {
   return minToHHMM(parsed);
 }
 
-function formatDateDE(isoDate: string) {
-  const d = new Date(`${isoDate}T00:00:00`);
-  return d.toLocaleDateString("de-DE", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
 const WEEKDAYS = [
   { k: 0, name: "Sonntag" },
   { k: 1, name: "Montag" },
@@ -504,12 +494,6 @@ export default function PausenPage() {
     alignItems: "end",
   };
 
-  const threeColDesktopStyle: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 12,
-  };
-
   const twoColEditGridStyle: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
@@ -520,7 +504,6 @@ export default function PausenPage() {
     <div style={{ padding: 16, maxWidth: 1120, margin: "0 auto", overflowX: "hidden" }}>
       <style jsx>{`
         @media (max-width: 720px) {
-          .threeColDesktop,
           .twoColEdit {
             grid-template-columns: 1fr !important;
           }
@@ -597,7 +580,7 @@ export default function PausenPage() {
               </select>
             </div>
 
-            <div className="threeColDesktop" style={threeColDesktopStyle}>
+            <div className="twoColEdit" style={twoColEditGridStyle}>
               <div style={{ minWidth: 0 }}>
                 <div style={labelStyle}>Start</div>
                 <input
@@ -622,21 +605,6 @@ export default function PausenPage() {
                   onBlur={() => setNewEnd(normalizeHHMM(newEnd))}
                   style={inputStyle}
                 />
-              </div>
-
-              <div style={{ minWidth: 0 }}>
-                <div style={labelStyle}>Format</div>
-                <div
-                  style={{
-                    ...inputStyle,
-                    display: "flex",
-                    alignItems: "center",
-                    color: "#666",
-                    background: "#fafafa",
-                  }}
-                >
-                  HH:MM
-                </div>
               </div>
             </div>
 
@@ -879,7 +847,7 @@ export default function PausenPage() {
               />
             </div>
 
-            <div className="threeColDesktop" style={threeColDesktopStyle}>
+            <div className="twoColEdit" style={twoColEditGridStyle}>
               <div style={{ minWidth: 0 }}>
                 <div style={labelStyle}>Start</div>
                 <input
@@ -905,21 +873,6 @@ export default function PausenPage() {
                   style={inputStyle}
                 />
               </div>
-
-              <div style={{ minWidth: 0 }}>
-                <div style={labelStyle}>Format</div>
-                <div
-                  style={{
-                    ...inputStyle,
-                    display: "flex",
-                    alignItems: "center",
-                    color: "#666",
-                    background: "#fafafa",
-                  }}
-                >
-                  HH:MM
-                </div>
-              </div>
             </div>
 
             <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
@@ -940,21 +893,6 @@ export default function PausenPage() {
               >
                 {savingDayBlock ? "Speichert..." : "Blockzeit speichern"}
               </button>
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 18,
-              padding: 14,
-              borderRadius: 16,
-              background: "#fafafa",
-              border: "1px solid #ececec",
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#666", fontWeight: 800 }}>Ausgewähltes Datum</div>
-            <div style={{ marginTop: 6, fontSize: 18, fontWeight: 900, wordBreak: "break-word" }}>
-              {formatDateDE(selectedDate)}
             </div>
           </div>
 
