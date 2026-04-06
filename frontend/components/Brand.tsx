@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 
-export default function Brand() {
+export default function Brand({ href = "/" }: { href?: string }) {
   return (
     <>
       <style jsx>{`
@@ -36,7 +36,7 @@ export default function Brand() {
         }
       `}</style>
 
-      <Link href="/" className="brand" aria-label="Salora">
+      <Link href={href} className="brand" aria-label="Salora">
         <div className="brandInner">
           <div className="brandIcon">
             <Image src="/logo-s.png" alt="Salora" width={22} height={22} priority />

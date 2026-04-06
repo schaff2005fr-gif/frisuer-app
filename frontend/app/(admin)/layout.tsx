@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Brand from "@/components/Brand";
 import AdminBottomNav from "./admin/AdminBottomNav";
@@ -23,9 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           marginBottom: isDashboard ? 8 : 14,
         }}
       >
-        <Link href="/admin" style={{ textDecoration: "none", color: "inherit", display: "inline-block" }}>
-          <Brand />
-        </Link>
+        <Brand href="/admin" />
       </div>
 
       {isDashboard ? null : (
