@@ -5,20 +5,24 @@ import { useParams } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
-type Service = { key: string; name: string; durationMin: number };
+type Service = {
+  key: string;
+  name: string;
+  durationMin: number;
+};
 
 type Barber = {
   id: number;
   name: string;
   slug: string;
   phone: string | null;
-
   bio?: string | null;
   street?: string | null;
   postalCode?: string | null;
   city?: string | null;
   instagram?: string | null;
   website?: string | null;
+  imageUrl?: string | null;
 };
 
 function cleanUrl(u: string) {
@@ -44,11 +48,14 @@ export default function PublicBarberProfilePage() {
     setError("");
 
     fetch(`${API_BASE}/barbers/${encodeURIComponent(slug)}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(d?.error || "Load failed");
+        return d;
+      })
       .then((d) => {
-        if (d?.error) throw new Error(d.error);
-        setBarber(d.barber);
-        setServices(Array.isArray(d.services) ? d.services : []);
+        setBarber(d?.barber ?? null);
+        setServices(Array.isArray(d?.services) ? d.services : []);
       })
       .catch((e) => setError(e?.message || "Fehler"))
       .finally(() => setLoading(false));
@@ -57,8 +64,8 @@ export default function PublicBarberProfilePage() {
   const address = useMemo(() => {
     if (!barber) return "";
     const parts = [
-      barber.street,
-      [barber.postalCode, barber.city].filter(Boolean).join(" "),
+      barber.street?.trim(),
+      [barber.postalCode?.trim(), barber.city?.trim()].filter(Boolean).join(" "),
     ].filter(Boolean);
     return parts.join(", ");
   }, [barber]);
@@ -76,248 +83,381 @@ export default function PublicBarberProfilePage() {
     return raw ? cleanUrl(raw) : "";
   }, [barber]);
 
-  if (loading) return <div style={{ padding: 20 }}>Lade...</div>;
+  if (loading) {
+    return (
+      <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ color: "#666" }}>Lade Profil...</div>
+      </div>
+    );
+  }
 
   if (error) {
     return (
-      <div style={{ padding: 20 }}>
+      <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
         <div
           style={{
-            padding: 12,
-            border: "1px solid #f2c6c6",
+            padding: 14,
+            border: "1px solid #f1c7c7",
             background: "#fff5f5",
-            borderRadius: 12,
+            borderRadius: 16,
             color: "#8a1c1c",
+            fontWeight: 800,
           }}
         >
-          <b>{error}</b>
+          {error}
         </div>
       </div>
     );
   }
 
-  if (!barber) return <div style={{ padding: 20 }}>Nicht gefunden.</div>;
-
-  return (
-    <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
-      {/* HEADER (mobile-first) */}
-      <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
-        <a
-          href="/book"
-          style={{ textDecoration: "none", color: "#111", fontWeight: 900 }}
-        >
-          ← Friseur wechseln
-        </a>
-
+  if (!barber) {
+    return (
+      <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
         <div
           style={{
-            border: "1px solid #eee",
-            borderRadius: 14,
             padding: 14,
+            border: "1px solid #eee",
             background: "#fff",
-            display: "grid",
-            gap: 8,
+            borderRadius: 16,
+            color: "#666",
+            fontWeight: 700,
           }}
         >
-          <div>
-            <h1 style={{ margin: 0 }}>{barber.name}</h1>
-            <div style={{ color: "#666", marginTop: 6 }}>
-              Profil · Services · Online Buchung
-            </div>
-          </div>
-
-          <a
-            href={`/b/${barber.slug}/book`}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid #111",
-              background: "#111",
-              color: "#fff",
-              fontWeight: 900,
-              textDecoration: "none",
-              textAlign: "center",
-            }}
-          >
-            Termin buchen
-          </a>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12, fontWeight: 900 }}>
-            <a href="/login" style={{ color: "#111", textDecoration: "none" }}>
-              Login
-            </a>
-            <a
-              href="/register"
-              style={{ color: "#111", textDecoration: "none", opacity: 0.8 }}
-            >
-              Registrieren
-            </a>
-          </div>
+          Friseur nicht gefunden.
         </div>
       </div>
+    );
+  }
 
-      {/* CONTENT (1 Spalte) */}
-      <div style={{ display: "grid", gap: 14 }}>
-        {/* Kontakt */}
-        <section
+  const cardStyle: React.CSSProperties = {
+    border: "1px solid #e9e9e9",
+    borderRadius: 24,
+    background: "#fff",
+    padding: 18,
+    boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+    overflow: "hidden",
+  };
+
+  const primaryButton: React.CSSProperties = {
+    display: "inline-flex",
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 50,
+    padding: "0 18px",
+    borderRadius: 14,
+    border: "1px solid #111",
+    background: "#111",
+    color: "#fff",
+    textDecoration: "none",
+    fontWeight: 900,
+    fontSize: 15,
+  };
+
+  const secondaryButton: React.CSSProperties = {
+    display: "inline-flex",
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 46,
+    padding: "0 16px",
+    borderRadius: 14,
+    border: "1px solid #ddd",
+    background: "#fff",
+    color: "#111",
+    textDecoration: "none",
+    fontWeight: 800,
+    fontSize: 14,
+  };
+
+  return (
+    <div style={{ padding: 20, maxWidth: 1120, margin: "0 auto" }}>
+      <style jsx>{`
+        @media (max-width: 840px) {
+          .heroGrid,
+          .infoGrid,
+          .serviceGrid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
+      <div style={{ marginBottom: 14 }}>
+        <a
+          href="/"
           style={{
-            border: "1px solid #eee",
-            borderRadius: 14,
-            padding: 14,
-            background: "#fff",
+            textDecoration: "none",
+            color: "#111",
+            fontWeight: 900,
+            fontSize: 14,
           }}
         >
-          <div style={{ fontWeight: 900, marginBottom: 10 }}>Kontakt</div>
+          ← Zur Übersicht
+        </a>
+      </div>
 
-          <div style={{ display: "grid", gap: 10 }}>
-            <div>
-              <div style={{ fontSize: 12, color: "#666" }}>Adresse</div>
-              <div style={{ fontWeight: 900 }}>{address || "—"}</div>
+      <div
+        className="heroGrid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.15fr) minmax(320px, 0.85fr)",
+          gap: 16,
+          alignItems: "stretch",
+        }}
+      >
+        <section style={{ ...cardStyle, padding: 22 }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+            <div
+              style={{
+                width: 96,
+                height: 96,
+                borderRadius: 999,
+                overflow: "hidden",
+                border: "1px solid #ececec",
+                background: "#fafafa",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 900,
+                color: "#666",
+                flexShrink: 0,
+              }}
+            >
+              {barber.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={barber.imageUrl}
+                  alt={barber.name}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                barber.name.slice(0, 1).toUpperCase()
+              )}
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {barber.phone ? (
-                <a
-                  href={`tel:${barber.phone}`}
-                  style={{
-                    flex: "1 1 140px",
-                    textAlign: "center",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    background: "#fff",
-                    textDecoration: "none",
-                    fontWeight: 900,
-                    color: "#111",
-                  }}
-                >
-                  Anrufen →
-                </a>
-              ) : null}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h1 style={{ margin: 0, fontSize: 36, lineHeight: 1.05, letterSpacing: -0.8 }}>
+                {barber.name}
+              </h1>
 
-              {instaUrl ? (
-                <a
-                  href={instaUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    flex: "1 1 140px",
-                    textAlign: "center",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    background: "#fff",
-                    textDecoration: "none",
-                    fontWeight: 900,
-                    color: "#111",
-                  }}
-                >
-                  Instagram →
-                </a>
-              ) : null}
+              <div style={{ marginTop: 8, color: "#666", fontSize: 16, lineHeight: 1.45 }}>
+                Profil, Services und Online-Terminbuchung an einem Ort.
+              </div>
 
-              {websiteUrl ? (
-                <a
-                  href={websiteUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    flex: "1 1 140px",
-                    textAlign: "center",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    background: "#fff",
-                    textDecoration: "none",
-                    fontWeight: 900,
-                    color: "#111",
-                  }}
-                >
-                  Website →
-                </a>
+              {address ? (
+                <div style={{ marginTop: 10, color: "#444", fontSize: 14, fontWeight: 700 }}>
+                  {address}
+                </div>
               ) : null}
             </div>
           </div>
-        </section>
 
-        {/* Über mich */}
-        <section
-          style={{
-            border: "1px solid #eee",
-            borderRadius: 14,
-            padding: 14,
-            background: "#fff",
-          }}
-        >
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>Über mich</div>
-          <div style={{ lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-            {barber.bio?.trim()
-              ? barber.bio
-              : "Hier kann der Friseur eine kurze Bio schreiben."}
+          <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a href={`/b/${barber.slug}/book`} style={primaryButton}>
+              Termin buchen
+            </a>
+
+            {barber.phone ? (
+              <a href={`tel:${barber.phone}`} style={secondaryButton}>
+                Anrufen
+              </a>
+            ) : null}
+
+            {instaUrl ? (
+              <a href={instaUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
+                Instagram
+              </a>
+            ) : null}
+
+            {websiteUrl ? (
+              <a href={websiteUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
+                Website
+              </a>
+            ) : null}
           </div>
         </section>
 
-        {/* Services */}
-        <section
-          style={{
-            border: "1px solid #eee",
-            borderRadius: 14,
-            padding: 14,
-            background: "#fff",
-          }}
-        >
-          <div style={{ fontWeight: 900 }}>Services ({services.length})</div>
+        <aside style={{ ...cardStyle, padding: 22 }}>
+          <div style={{ fontWeight: 900, fontSize: 18 }}>Schnell buchen</div>
+          <div style={{ marginTop: 6, color: "#666", fontSize: 14, lineHeight: 1.45 }}>
+            Wähle direkt einen Service und gehe sofort zur Buchung.
+          </div>
 
           {services.length === 0 ? (
-            <div style={{ marginTop: 10, color: "#666" }}>
-              Keine Services verfügbar.
+            <div
+              style={{
+                marginTop: 16,
+                border: "1px dashed #e3e3e3",
+                borderRadius: 16,
+                padding: 14,
+                color: "#777",
+                background: "#fcfcfc",
+              }}
+            >
+              Aktuell sind keine Services hinterlegt.
             </div>
           ) : (
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              {services.map((s) => (
-                <div
+            <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+              {services.slice(0, 4).map((s) => (
+                <a
                   key={s.key}
+                  href={`/b/${barber.slug}/book?serviceKey=${encodeURIComponent(s.key)}`}
                   style={{
-                    border: "1px solid #f0f0f0",
-                    borderRadius: 12,
-                    padding: 12,
+                    border: "1px solid #ececec",
+                    borderRadius: 16,
+                    padding: 14,
+                    textDecoration: "none",
+                    color: "#111",
+                    background: "#fff",
                     display: "flex",
                     justifyContent: "space-between",
-                    alignItems: "center",
                     gap: 10,
-                    flexWrap: "wrap",
+                    alignItems: "center",
                   }}
                 >
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 900 }}>{s.name}</div>
-                    <div style={{ fontSize: 12, color: "#666" }}>
-                      {s.durationMin} min
-                    </div>
+                    <div style={{ marginTop: 4, color: "#666", fontSize: 13 }}>{s.durationMin} min</div>
                   </div>
-
-                  <a
-                    href={`/b/${barber.slug}/book?serviceKey=${encodeURIComponent(
-                      s.key
-                    )}`}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 10,
-                      border: "1px solid #111",
-                      background: "#111",
-                      color: "#fff",
-                      fontWeight: 900,
-                      textDecoration: "none",
-                      fontSize: 12,
-                    }}
-                  >
-                    Buchen →
-                  </a>
-                </div>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>Buchen →</div>
+                </a>
               ))}
+
+              {services.length > 4 ? (
+                <a
+                  href={`#services`}
+                  style={{
+                    ...secondaryButton,
+                    width: "100%",
+                  }}
+                >
+                  Alle Services ansehen
+                </a>
+              ) : null}
             </div>
           )}
+        </aside>
+      </div>
+
+      <div
+        className="infoGrid"
+        style={{
+          marginTop: 16,
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 0.9fr)",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
+        <section style={cardStyle}>
+          <div style={{ fontWeight: 900, fontSize: 20 }}>Über mich</div>
+          <div style={{ marginTop: 10, color: "#333", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+            {barber.bio?.trim()
+              ? barber.bio
+              : "Hier kann der Friseur einen kurzen Text zu Erfahrung, Stil und Spezialisierung hinterlegen."}
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div style={{ fontWeight: 900, fontSize: 20 }}>Kontakt & Infos</div>
+
+          <div style={{ marginTop: 14, display: "grid", gap: 14 }}>
+            <div>
+              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Adresse</div>
+              <div style={{ marginTop: 4, fontWeight: 800 }}>{address || "Keine Adresse hinterlegt."}</div>
+            </div>
+
+            <div>
+              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Telefon</div>
+              <div style={{ marginTop: 4, fontWeight: 800 }}>{barber.phone || "Keine Telefonnummer hinterlegt."}</div>
+            </div>
+
+            {(instaUrl || websiteUrl) && (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {instaUrl ? (
+                  <a href={instaUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
+                    Instagram öffnen
+                  </a>
+                ) : null}
+
+                {websiteUrl ? (
+                  <a href={websiteUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
+                    Website öffnen
+                  </a>
+                ) : null}
+              </div>
+            )}
+          </div>
         </section>
       </div>
+
+      <section id="services" style={{ ...cardStyle, marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 22 }}>Services</div>
+            <div style={{ marginTop: 6, color: "#666", fontSize: 14 }}>
+              {services.length} {services.length === 1 ? "Service verfügbar" : "Services verfügbar"}
+            </div>
+          </div>
+
+          <a href={`/b/${barber.slug}/book`} style={primaryButton}>
+            Jetzt buchen
+          </a>
+        </div>
+
+        {services.length === 0 ? (
+          <div
+            style={{
+              marginTop: 16,
+              border: "1px dashed #e3e3e3",
+              borderRadius: 16,
+              padding: 16,
+              color: "#777",
+              background: "#fcfcfc",
+            }}
+          >
+            Aktuell sind keine Services verfügbar.
+          </div>
+        ) : (
+          <div
+            className="serviceGrid"
+            style={{
+              marginTop: 16,
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 12,
+            }}
+          >
+            {services.map((s) => (
+              <div
+                key={s.key}
+                style={{
+                  border: "1px solid #ececec",
+                  borderRadius: 18,
+                  padding: 16,
+                  background: "#fff",
+                  display: "grid",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: 17 }}>{s.name}</div>
+                  <div style={{ marginTop: 6, color: "#666", fontSize: 14 }}>
+                    Dauer: <b>{s.durationMin} Minuten</b>
+                  </div>
+                </div>
+
+                <a
+                  href={`/b/${barber.slug}/book?serviceKey=${encodeURIComponent(s.key)}`}
+                  style={{
+                    ...primaryButton,
+                    width: "100%",
+                  }}
+                >
+                  Diesen Service buchen
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
