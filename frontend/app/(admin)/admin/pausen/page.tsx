@@ -57,6 +57,42 @@ function normalizeHHMM(value: string) {
   return minToHHMM(parsed);
 }
 
+function normalizeISODate(value: string) {
+  const raw = String(value || "").trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(raw);
+  if (de) {
+    const day = Number(de[1]);
+    const month = Number(de[2]);
+    const year = Number(de[3]);
+
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${pad2(month)}-${pad2(day)}`;
+    }
+  }
+
+  const compact = /^(\d{2})(\d{2})(\d{4})$/.exec(raw);
+  if (compact) {
+    const day = Number(compact[1]);
+    const month = Number(compact[2]);
+    const year = Number(compact[3]);
+
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${pad2(month)}-${pad2(day)}`;
+    }
+  }
+
+  return value;
+}
+
+function isoToDisplayDate(iso: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "").trim());
+  if (!m) return iso;
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
 const WEEKDAYS = [
   { k: 0, name: "Sonntag" },
   { k: 1, name: "Montag" },
@@ -73,6 +109,7 @@ export default function PausenPage() {
   const [recurring, setRecurring] = useState<RecurringBlock[]>([]);
   const [oneDayBlocks, setOneDayBlocks] = useState<TimeBlock[]>([]);
   const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDateInput, setSelectedDateInput] = useState(isoToDisplayDate(today));
 
   const [loadingRecurring, setLoadingRecurring] = useState(false);
   const [loadingDay, setLoadingDay] = useState(false);
@@ -112,6 +149,17 @@ export default function PausenPage() {
   function getToken() {
     return localStorage.getItem("token") || "";
   }
+
+  function applySelectedDate(nextValue: string) {
+  const normalized = normalizeISODate(nextValue);
+  setSelectedDateInput(isoToDisplayDate(normalized));
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    setSelectedDate(normalized);
+    setEditingDayBlockId(null);
+    loadDayBlocks(normalized);
+  }
+}
 
   async function apiFetch(path: string, init?: RequestInit) {
     const token = getToken();
@@ -835,16 +883,14 @@ export default function PausenPage() {
             <div style={{ minWidth: 0 }}>
               <div style={labelStyle}>Datum</div>
               <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => {
-                  const d = e.target.value;
-                  setSelectedDate(d);
-                  setEditingDayBlockId(null);
-                  loadDayBlocks(d);
-                }}
-                style={inputStyle}
-              />
+  type="text"
+  inputMode="numeric"
+  placeholder="TT.MM.JJJJ"
+  value={selectedDateInput}
+  onChange={(e) => setSelectedDateInput(e.target.value)}
+  onBlur={() => applySelectedDate(selectedDateInput)}
+  style={inputStyle}
+/>
             </div>
 
             <div className="twoColEdit" style={twoColEditGridStyle}>

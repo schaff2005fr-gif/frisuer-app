@@ -1706,25 +1706,81 @@ app.post("/admin/recurring-blocks", requireAuth, requireRole("BARBER"), async (r
 
 app.patch("/admin/recurring-blocks/:id", requireAuth, requireRole("BARBER"), async (req, res) => {
   try {
-    const { userId } = (req as any).user as JwtPayload;
-    const barberId = await getBarberIdFromUser(userId);
-
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Ungültige ID" });
+    }
 
-    const enabled = Boolean(req.body?.enabled);
+    const { userId } = (req as any).user;
 
-    const existing = await prisma.recurringBlock.findUnique({ where: { id } });
-    if (!existing || existing.barberId !== barberId) return res.status(404).json({ error: "not found" });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { barberId: true },
+    });
+
+    if (!user?.barberId) {
+      return res.status(404).json({ error: "Barber nicht gefunden" });
+    }
+
+    const existing = await prisma.recurringBlock.findFirst({
+      where: {
+        id,
+        barberId: user.barberId,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Pause nicht gefunden" });
+    }
+
+    const { weekday, startMin, endMin, reason, enabled } = req.body ?? {};
+
+    const updateData: any = {};
+
+    if (weekday !== undefined) {
+      if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+        return res.status(400).json({ error: "weekday muss zwischen 0 und 6 liegen" });
+      }
+      updateData.weekday = weekday;
+    }
+
+    if (startMin !== undefined) {
+      if (!Number.isInteger(startMin) || startMin < 0 || startMin > 1439) {
+        return res.status(400).json({ error: "startMin ist ungültig" });
+      }
+      updateData.startMin = startMin;
+    }
+
+    if (endMin !== undefined) {
+      if (!Number.isInteger(endMin) || endMin < 1 || endMin > 1440) {
+        return res.status(400).json({ error: "endMin ist ungültig" });
+      }
+      updateData.endMin = endMin;
+    }
+
+    if (reason !== undefined) {
+      updateData.reason = String(reason || "").trim() || null;
+    }
+
+    if (enabled !== undefined) {
+      updateData.enabled = Boolean(enabled);
+    }
+
+    const nextStart = updateData.startMin ?? existing.startMin;
+    const nextEnd = updateData.endMin ?? existing.endMin;
+
+    if (nextEnd <= nextStart) {
+      return res.status(400).json({ error: "Ende muss nach Start liegen" });
+    }
 
     const updated = await prisma.recurringBlock.update({
       where: { id },
-      data: { enabled },
+      data: updateData,
     });
 
     res.json({ ok: true, block: updated });
   } catch (e: any) {
-    res.status(500).json({ error: e?.message ?? "Server error" });
+    res.status(500).json({ error: e?.message || "Fehler beim Aktualisieren der Pause" });
   }
 });
 
