@@ -412,6 +412,8 @@ export default function PausenPage() {
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
     height: 48,
     borderRadius: 14,
     border: "1px solid #dedede",
@@ -421,6 +423,14 @@ export default function PausenPage() {
     color: "#111",
     outline: "none",
     boxSizing: "border-box",
+    display: "block",
+  };
+
+  const pickerInputStyle: React.CSSProperties = {
+    ...inputStyle,
+    appearance: "none",
+    WebkitAppearance: "none" as any,
+    overflow: "hidden",
   };
 
   const labelStyle: React.CSSProperties = {
@@ -436,6 +446,7 @@ export default function PausenPage() {
     background: "#fff",
     padding: 18,
     boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+    overflow: "hidden",
   };
 
   const primaryButton: React.CSSProperties = {
@@ -467,8 +478,22 @@ export default function PausenPage() {
     border: "1px solid #e3c7c7",
   };
 
+  const formGridStyle: React.CSSProperties = {
+    marginTop: 18,
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
+    gap: 12,
+    alignItems: "end",
+  };
+
+  const twoColEditGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
+    gap: 10,
+  };
+
   return (
-    <div style={{ padding: 16, maxWidth: 1120, margin: "0 auto" }}>
+    <div style={{ padding: 16, maxWidth: 1120, margin: "0 auto", overflowX: "hidden" }}>
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>
           Pausen & Blockzeiten
@@ -488,6 +513,7 @@ export default function PausenPage() {
             background: error ? "#fff5f5" : "#f4fbf4",
             color: error ? "#b42318" : "#17663a",
             fontWeight: 700,
+            overflow: "hidden",
           }}
         >
           {error || message}
@@ -527,18 +553,14 @@ export default function PausenPage() {
             </div>
           </div>
 
-          <div
-            style={{
-              marginTop: 18,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 12,
-              alignItems: "end",
-            }}
-          >
-            <div>
+          <div style={formGridStyle}>
+            <div style={{ minWidth: 0 }}>
               <div style={labelStyle}>Wochentag</div>
-              <select value={newWeekday} onChange={(e) => setNewWeekday(Number(e.target.value))} style={inputStyle}>
+              <select
+                value={newWeekday}
+                onChange={(e) => setNewWeekday(Number(e.target.value))}
+                style={pickerInputStyle}
+              >
                 {WEEKDAYS.map((d) => (
                   <option key={d.k} value={d.k}>
                     {d.name}
@@ -547,17 +569,17 @@ export default function PausenPage() {
               </select>
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={labelStyle}>Start</div>
-              <input type="time" value={newStart} onChange={(e) => setNewStart(e.target.value)} style={inputStyle} />
+              <input type="time" value={newStart} onChange={(e) => setNewStart(e.target.value)} style={pickerInputStyle} />
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={labelStyle}>Ende</div>
-              <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} style={inputStyle} />
+              <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} style={pickerInputStyle} />
             </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
               <div style={labelStyle}>Grund</div>
               <input
                 value={newReason}
@@ -567,8 +589,12 @@ export default function PausenPage() {
               />
             </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              <button onClick={createRecurring} disabled={savingRecurring} style={{ ...primaryButton, opacity: savingRecurring ? 0.7 : 1 }}>
+            <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
+              <button
+                onClick={createRecurring}
+                disabled={savingRecurring}
+                style={{ ...primaryButton, opacity: savingRecurring ? 0.7 : 1 }}
+              >
                 {savingRecurring ? "Speichert..." : "Pause hinzufügen"}
               </button>
             </div>
@@ -596,6 +622,7 @@ export default function PausenPage() {
                         borderRadius: 20,
                         padding: 14,
                         background: "#fcfcfc",
+                        overflow: "hidden",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
@@ -608,6 +635,7 @@ export default function PausenPage() {
                             background: "#f0f0f0",
                             borderRadius: 999,
                             padding: "5px 10px",
+                            whiteSpace: "nowrap",
                           }}
                         >
                           {list.length} {list.length === 1 ? "Eintrag" : "Einträge"}
@@ -642,6 +670,7 @@ export default function PausenPage() {
                                   borderRadius: 16,
                                   background: "#fff",
                                   padding: 12,
+                                  overflow: "hidden",
                                 }}
                               >
                                 {!isEditing ? (
@@ -690,12 +719,12 @@ export default function PausenPage() {
                                 ) : (
                                   <>
                                     <div style={{ display: "grid", gap: 10 }}>
-                                      <div>
+                                      <div style={{ minWidth: 0 }}>
                                         <div style={labelStyle}>Wochentag</div>
                                         <select
                                           value={editRecurringWeekday}
                                           onChange={(e) => setEditRecurringWeekday(Number(e.target.value))}
-                                          style={inputStyle}
+                                          style={pickerInputStyle}
                                         >
                                           {WEEKDAYS.map((day) => (
                                             <option key={day.k} value={day.k}>
@@ -705,35 +734,29 @@ export default function PausenPage() {
                                         </select>
                                       </div>
 
-                                      <div
-                                        style={{
-                                          display: "grid",
-                                          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                                          gap: 10,
-                                        }}
-                                      >
-                                        <div>
+                                      <div style={twoColEditGridStyle}>
+                                        <div style={{ minWidth: 0 }}>
                                           <div style={labelStyle}>Start</div>
                                           <input
                                             type="time"
                                             value={editRecurringStart}
                                             onChange={(e) => setEditRecurringStart(e.target.value)}
-                                            style={inputStyle}
+                                            style={pickerInputStyle}
                                           />
                                         </div>
 
-                                        <div>
+                                        <div style={{ minWidth: 0 }}>
                                           <div style={labelStyle}>Ende</div>
                                           <input
                                             type="time"
                                             value={editRecurringEnd}
                                             onChange={(e) => setEditRecurringEnd(e.target.value)}
-                                            style={inputStyle}
+                                            style={pickerInputStyle}
                                           />
                                         </div>
                                       </div>
 
-                                      <div>
+                                      <div style={{ minWidth: 0 }}>
                                         <div style={labelStyle}>Grund</div>
                                         <input
                                           value={editRecurringReason}
@@ -779,16 +802,8 @@ export default function PausenPage() {
             </div>
           </div>
 
-          <div
-            style={{
-              marginTop: 18,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 12,
-              alignItems: "end",
-            }}
-          >
-            <div>
+          <div style={formGridStyle}>
+            <div style={{ minWidth: 0 }}>
               <div style={labelStyle}>Datum</div>
               <input
                 type="date"
@@ -799,21 +814,21 @@ export default function PausenPage() {
                   setEditingDayBlockId(null);
                   loadDayBlocks(d);
                 }}
-                style={inputStyle}
+                style={pickerInputStyle}
               />
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={labelStyle}>Start</div>
-              <input type="time" value={dayStart} onChange={(e) => setDayStart(e.target.value)} style={inputStyle} />
+              <input type="time" value={dayStart} onChange={(e) => setDayStart(e.target.value)} style={pickerInputStyle} />
             </div>
 
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={labelStyle}>Ende</div>
-              <input type="time" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} style={inputStyle} />
+              <input type="time" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} style={pickerInputStyle} />
             </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
               <div style={labelStyle}>Grund</div>
               <input
                 value={dayReason}
@@ -823,8 +838,12 @@ export default function PausenPage() {
               />
             </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              <button onClick={createDayBlock} disabled={savingDayBlock} style={{ ...primaryButton, opacity: savingDayBlock ? 0.7 : 1 }}>
+            <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
+              <button
+                onClick={createDayBlock}
+                disabled={savingDayBlock}
+                style={{ ...primaryButton, opacity: savingDayBlock ? 0.7 : 1 }}
+              >
                 {savingDayBlock ? "Speichert..." : "Blockzeit speichern"}
               </button>
             </div>
@@ -837,10 +856,13 @@ export default function PausenPage() {
               borderRadius: 16,
               background: "#fafafa",
               border: "1px solid #ececec",
+              overflow: "hidden",
             }}
           >
             <div style={{ fontSize: 13, color: "#666", fontWeight: 800 }}>Ausgewähltes Datum</div>
-            <div style={{ marginTop: 6, fontSize: 18, fontWeight: 900 }}>{formatDateDE(selectedDate)}</div>
+            <div style={{ marginTop: 6, fontSize: 18, fontWeight: 900, wordBreak: "break-word" }}>
+              {formatDateDE(selectedDate)}
+            </div>
           </div>
 
           <div style={{ marginTop: 16 }}>
@@ -875,6 +897,7 @@ export default function PausenPage() {
                           borderRadius: 18,
                           background: "#fff",
                           padding: 14,
+                          overflow: "hidden",
                         }}
                       >
                         {!isEditing ? (
@@ -910,35 +933,29 @@ export default function PausenPage() {
                         ) : (
                           <>
                             <div style={{ display: "grid", gap: 10 }}>
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                                  gap: 10,
-                                }}
-                              >
-                                <div>
+                              <div style={twoColEditGridStyle}>
+                                <div style={{ minWidth: 0 }}>
                                   <div style={labelStyle}>Start</div>
                                   <input
                                     type="time"
                                     value={editDayStart}
                                     onChange={(e) => setEditDayStart(e.target.value)}
-                                    style={inputStyle}
+                                    style={pickerInputStyle}
                                   />
                                 </div>
 
-                                <div>
+                                <div style={{ minWidth: 0 }}>
                                   <div style={labelStyle}>Ende</div>
                                   <input
                                     type="time"
                                     value={editDayEnd}
                                     onChange={(e) => setEditDayEnd(e.target.value)}
-                                    style={inputStyle}
+                                    style={pickerInputStyle}
                                   />
                                 </div>
                               </div>
 
-                              <div>
+                              <div style={{ minWidth: 0 }}>
                                 <div style={labelStyle}>Grund</div>
                                 <input
                                   value={editDayReason}
@@ -982,6 +999,7 @@ export default function PausenPage() {
           color: "#666",
           fontSize: 14,
           lineHeight: 1.5,
+          overflow: "hidden",
         }}
       >
         <b>Hinweis:</b> Wiederkehrende Pausen gelten jede Woche am ausgewählten Wochentag.
