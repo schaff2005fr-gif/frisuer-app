@@ -6,7 +6,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onre
 
 type RecurringBlock = {
   id: number;
-  weekday: number; // 0..6
+  weekday: number;
   startMin: number;
   endMin: number;
   reason: string | null;
@@ -32,9 +32,29 @@ function minToHHMM(min: number) {
 }
 
 function hhmmToMin(hhmm: string) {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm.trim());
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(hhmm || "").trim());
   if (!m) return null;
   return Number(m[1]) * 60 + Number(m[2]);
+}
+
+function normalizeHHMM(value: string) {
+  const raw = String(value || "").replace(/[^\d:]/g, "").trim();
+
+  if (/^\d{1,2}$/.test(raw)) {
+    const h = Number(raw);
+    if (h >= 0 && h <= 23) return `${pad2(h)}:00`;
+  }
+
+  if (/^\d{3,4}$/.test(raw)) {
+    const digits = raw.padStart(4, "0");
+    const h = Number(digits.slice(0, 2));
+    const m = Number(digits.slice(2, 4));
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) return `${pad2(h)}:${pad2(m)}`;
+  }
+
+  const parsed = hhmmToMin(raw);
+  if (parsed == null) return value;
+  return minToHHMM(parsed);
 }
 
 function formatDateDE(isoDate: string) {
@@ -176,6 +196,8 @@ export default function PausenPage() {
       );
       setMessage("Wiederkehrende Pause gespeichert.");
       setNewReason("Pause");
+      setNewStart(minToHHMM(s));
+      setNewEnd(minToHHMM(e));
     } catch (e: any) {
       setError(e?.message ?? "Fehler");
     } finally {
@@ -229,7 +251,7 @@ export default function PausenPage() {
     const s = hhmmToMin(editRecurringStart);
     const e = hhmmToMin(editRecurringEnd);
 
-    if (s == null || e == null) return setError("Bitte gültige Zeiten eingeben.");
+    if (s == null || e == null) return setError("Bitte gültige Zeiten im Format HH:MM eingeben.");
     if (e <= s) return setError("Ende muss nach Start liegen.");
 
     setUpdatingRecurringId(id);
@@ -270,6 +292,8 @@ export default function PausenPage() {
       }
 
       setEditingRecurringId(null);
+      setEditRecurringStart(minToHHMM(s));
+      setEditRecurringEnd(minToHHMM(e));
       setMessage("Wiederkehrende Pause aktualisiert.");
     } catch (e: any) {
       setError(e?.message ?? "Fehler");
@@ -300,8 +324,10 @@ export default function PausenPage() {
       });
 
       setMessage("Blockzeit gespeichert.");
-      await loadDayBlocks(selectedDate);
       setDayReason("Privat");
+      setDayStart(minToHHMM(s));
+      setDayEnd(minToHHMM(e));
+      await loadDayBlocks(selectedDate);
     } catch (e: any) {
       setError(e?.message ?? "Fehler");
     } finally {
@@ -340,7 +366,7 @@ export default function PausenPage() {
     const s = hhmmToMin(editDayStart);
     const e = hhmmToMin(editDayEnd);
 
-    if (s == null || e == null) return setError("Bitte gültige Zeiten eingeben.");
+    if (s == null || e == null) return setError("Bitte gültige Zeiten im Format HH:MM eingeben.");
     if (e <= s) return setError("Ende muss nach Start liegen.");
 
     setUpdatingDayBlockId(id);
@@ -375,6 +401,8 @@ export default function PausenPage() {
       }
 
       setEditingDayBlockId(null);
+      setEditDayStart(minToHHMM(s));
+      setEditDayEnd(minToHHMM(e));
       setMessage("Blockzeit aktualisiert.");
     } catch (e: any) {
       setError(e?.message ?? "Fehler");
@@ -392,18 +420,15 @@ export default function PausenPage() {
   const recurringByDay = useMemo(() => {
     const map = new Map<number, RecurringBlock[]>();
     for (const d of WEEKDAYS) map.set(d.k, []);
-
     for (const r of recurring) {
       const list = map.get(r.weekday) ?? [];
       list.push(r);
       map.set(r.weekday, list);
     }
-
     for (const [k, list] of map.entries()) {
       list.sort((a, b) => a.startMin - b.startMin);
       map.set(k, list);
     }
-
     return map;
   }, [recurring]);
 
@@ -414,23 +439,16 @@ export default function PausenPage() {
     width: "100%",
     minWidth: 0,
     maxWidth: "100%",
-    height: 48,
+    height: 52,
     borderRadius: 14,
     border: "1px solid #dedede",
     background: "#fff",
-    padding: "0 14px",
+    padding: "0 16px",
     fontSize: 16,
     color: "#111",
     outline: "none",
     boxSizing: "border-box",
     display: "block",
-  };
-
-  const pickerInputStyle: React.CSSProperties = {
-    ...inputStyle,
-    appearance: "none",
-    WebkitAppearance: "none" as any,
-    overflow: "hidden",
   };
 
   const labelStyle: React.CSSProperties = {
@@ -450,7 +468,7 @@ export default function PausenPage() {
   };
 
   const primaryButton: React.CSSProperties = {
-    height: 50,
+    height: 52,
     borderRadius: 14,
     border: "1px solid #111",
     background: "#111",
@@ -481,19 +499,34 @@ export default function PausenPage() {
   const formGridStyle: React.CSSProperties = {
     marginTop: 18,
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
+    gridTemplateColumns: "1fr",
     gap: 12,
     alignItems: "end",
   };
 
+  const threeColDesktopStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 12,
+  };
+
   const twoColEditGridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 10,
   };
 
   return (
     <div style={{ padding: 16, maxWidth: 1120, margin: "0 auto", overflowX: "hidden" }}>
+      <style jsx>{`
+        @media (max-width: 720px) {
+          .threeColDesktop,
+          .twoColEdit {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>
           Pausen & Blockzeiten
@@ -513,7 +546,6 @@ export default function PausenPage() {
             background: error ? "#fff5f5" : "#f4fbf4",
             color: error ? "#b42318" : "#17663a",
             fontWeight: 700,
-            overflow: "hidden",
           }}
         >
           {error || message}
@@ -556,11 +588,7 @@ export default function PausenPage() {
           <div style={formGridStyle}>
             <div style={{ minWidth: 0 }}>
               <div style={labelStyle}>Wochentag</div>
-              <select
-                value={newWeekday}
-                onChange={(e) => setNewWeekday(Number(e.target.value))}
-                style={pickerInputStyle}
-              >
+              <select value={newWeekday} onChange={(e) => setNewWeekday(Number(e.target.value))} style={inputStyle}>
                 {WEEKDAYS.map((d) => (
                   <option key={d.k} value={d.k}>
                     {d.name}
@@ -569,14 +597,47 @@ export default function PausenPage() {
               </select>
             </div>
 
-            <div style={{ minWidth: 0 }}>
-              <div style={labelStyle}>Start</div>
-              <input type="time" value={newStart} onChange={(e) => setNewStart(e.target.value)} style={pickerInputStyle} />
-            </div>
+            <div className="threeColDesktop" style={threeColDesktopStyle}>
+              <div style={{ minWidth: 0 }}>
+                <div style={labelStyle}>Start</div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="HH:MM"
+                  value={newStart}
+                  onChange={(e) => setNewStart(e.target.value)}
+                  onBlur={() => setNewStart(normalizeHHMM(newStart))}
+                  style={inputStyle}
+                />
+              </div>
 
-            <div style={{ minWidth: 0 }}>
-              <div style={labelStyle}>Ende</div>
-              <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} style={pickerInputStyle} />
+              <div style={{ minWidth: 0 }}>
+                <div style={labelStyle}>Ende</div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="HH:MM"
+                  value={newEnd}
+                  onChange={(e) => setNewEnd(e.target.value)}
+                  onBlur={() => setNewEnd(normalizeHHMM(newEnd))}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div style={labelStyle}>Format</div>
+                <div
+                  style={{
+                    ...inputStyle,
+                    display: "flex",
+                    alignItems: "center",
+                    color: "#666",
+                    background: "#fafafa",
+                  }}
+                >
+                  HH:MM
+                </div>
+              </div>
             </div>
 
             <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
@@ -622,7 +683,6 @@ export default function PausenPage() {
                         borderRadius: 20,
                         padding: 14,
                         background: "#fcfcfc",
-                        overflow: "hidden",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
@@ -670,7 +730,6 @@ export default function PausenPage() {
                                   borderRadius: 16,
                                   background: "#fff",
                                   padding: 12,
-                                  overflow: "hidden",
                                 }}
                               >
                                 {!isEditing ? (
@@ -724,7 +783,7 @@ export default function PausenPage() {
                                         <select
                                           value={editRecurringWeekday}
                                           onChange={(e) => setEditRecurringWeekday(Number(e.target.value))}
-                                          style={pickerInputStyle}
+                                          style={inputStyle}
                                         >
                                           {WEEKDAYS.map((day) => (
                                             <option key={day.k} value={day.k}>
@@ -734,24 +793,30 @@ export default function PausenPage() {
                                         </select>
                                       </div>
 
-                                      <div style={twoColEditGridStyle}>
+                                      <div className="twoColEdit" style={twoColEditGridStyle}>
                                         <div style={{ minWidth: 0 }}>
                                           <div style={labelStyle}>Start</div>
                                           <input
-                                            type="time"
+                                            type="text"
+                                            inputMode="numeric"
+                                            placeholder="HH:MM"
                                             value={editRecurringStart}
                                             onChange={(e) => setEditRecurringStart(e.target.value)}
-                                            style={pickerInputStyle}
+                                            onBlur={() => setEditRecurringStart(normalizeHHMM(editRecurringStart))}
+                                            style={inputStyle}
                                           />
                                         </div>
 
                                         <div style={{ minWidth: 0 }}>
                                           <div style={labelStyle}>Ende</div>
                                           <input
-                                            type="time"
+                                            type="text"
+                                            inputMode="numeric"
+                                            placeholder="HH:MM"
                                             value={editRecurringEnd}
                                             onChange={(e) => setEditRecurringEnd(e.target.value)}
-                                            style={pickerInputStyle}
+                                            onBlur={() => setEditRecurringEnd(normalizeHHMM(editRecurringEnd))}
+                                            style={inputStyle}
                                           />
                                         </div>
                                       </div>
@@ -768,11 +833,7 @@ export default function PausenPage() {
                                     </div>
 
                                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                                      <button
-                                        onClick={() => saveRecurringEdit(r.id)}
-                                        disabled={isSaving}
-                                        style={secondaryButton}
-                                      >
+                                      <button onClick={() => saveRecurringEdit(r.id)} disabled={isSaving} style={secondaryButton}>
                                         {isSaving ? "Speichert..." : "Speichern"}
                                       </button>
                                       <button onClick={cancelEditRecurring} style={secondaryButton}>
@@ -814,18 +875,51 @@ export default function PausenPage() {
                   setEditingDayBlockId(null);
                   loadDayBlocks(d);
                 }}
-                style={pickerInputStyle}
+                style={inputStyle}
               />
             </div>
 
-            <div style={{ minWidth: 0 }}>
-              <div style={labelStyle}>Start</div>
-              <input type="time" value={dayStart} onChange={(e) => setDayStart(e.target.value)} style={pickerInputStyle} />
-            </div>
+            <div className="threeColDesktop" style={threeColDesktopStyle}>
+              <div style={{ minWidth: 0 }}>
+                <div style={labelStyle}>Start</div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="HH:MM"
+                  value={dayStart}
+                  onChange={(e) => setDayStart(e.target.value)}
+                  onBlur={() => setDayStart(normalizeHHMM(dayStart))}
+                  style={inputStyle}
+                />
+              </div>
 
-            <div style={{ minWidth: 0 }}>
-              <div style={labelStyle}>Ende</div>
-              <input type="time" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} style={pickerInputStyle} />
+              <div style={{ minWidth: 0 }}>
+                <div style={labelStyle}>Ende</div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="HH:MM"
+                  value={dayEnd}
+                  onChange={(e) => setDayEnd(e.target.value)}
+                  onBlur={() => setDayEnd(normalizeHHMM(dayEnd))}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div style={labelStyle}>Format</div>
+                <div
+                  style={{
+                    ...inputStyle,
+                    display: "flex",
+                    alignItems: "center",
+                    color: "#666",
+                    background: "#fafafa",
+                  }}
+                >
+                  HH:MM
+                </div>
+              </div>
             </div>
 
             <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
@@ -856,7 +950,6 @@ export default function PausenPage() {
               borderRadius: 16,
               background: "#fafafa",
               border: "1px solid #ececec",
-              overflow: "hidden",
             }}
           >
             <div style={{ fontSize: 13, color: "#666", fontWeight: 800 }}>Ausgewähltes Datum</div>
@@ -897,60 +990,63 @@ export default function PausenPage() {
                           borderRadius: 18,
                           background: "#fff",
                           padding: 14,
-                          overflow: "hidden",
                         }}
                       >
                         {!isEditing ? (
-                          <>
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                gap: 12,
-                                alignItems: "center",
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <div style={{ minWidth: 220, flex: 1 }}>
-                                <div style={{ fontWeight: 900, fontSize: 16 }}>
-                                  {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
-                                </div>
-                                <div style={{ marginTop: 5, color: "#666", fontSize: 14 }}>
-                                  {b.reason?.trim() || "Ohne Bezeichnung"}
-                                </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 12,
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div style={{ minWidth: 220, flex: 1 }}>
+                              <div style={{ fontWeight: 900, fontSize: 16 }}>
+                                {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
                               </div>
-
-                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                <button onClick={() => startEditDayBlock(b)} style={secondaryButton}>
-                                  Bearbeiten
-                                </button>
-                                <button onClick={() => deleteDayBlock(b.id)} style={dangerButton}>
-                                  Löschen
-                                </button>
+                              <div style={{ marginTop: 5, color: "#666", fontSize: 14 }}>
+                                {b.reason?.trim() || "Ohne Bezeichnung"}
                               </div>
                             </div>
-                          </>
+
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <button onClick={() => startEditDayBlock(b)} style={secondaryButton}>
+                                Bearbeiten
+                              </button>
+                              <button onClick={() => deleteDayBlock(b.id)} style={dangerButton}>
+                                Löschen
+                              </button>
+                            </div>
+                          </div>
                         ) : (
                           <>
                             <div style={{ display: "grid", gap: 10 }}>
-                              <div style={twoColEditGridStyle}>
+                              <div className="twoColEdit" style={twoColEditGridStyle}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={labelStyle}>Start</div>
                                   <input
-                                    type="time"
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder="HH:MM"
                                     value={editDayStart}
                                     onChange={(e) => setEditDayStart(e.target.value)}
-                                    style={pickerInputStyle}
+                                    onBlur={() => setEditDayStart(normalizeHHMM(editDayStart))}
+                                    style={inputStyle}
                                   />
                                 </div>
 
                                 <div style={{ minWidth: 0 }}>
                                   <div style={labelStyle}>Ende</div>
                                   <input
-                                    type="time"
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder="HH:MM"
                                     value={editDayEnd}
                                     onChange={(e) => setEditDayEnd(e.target.value)}
-                                    style={pickerInputStyle}
+                                    onBlur={() => setEditDayEnd(normalizeHHMM(editDayEnd))}
+                                    style={inputStyle}
                                   />
                                 </div>
                               </div>
@@ -967,11 +1063,7 @@ export default function PausenPage() {
                             </div>
 
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                              <button
-                                onClick={() => saveDayBlockEdit(b.id)}
-                                disabled={isSaving}
-                                style={secondaryButton}
-                              >
+                              <button onClick={() => saveDayBlockEdit(b.id)} disabled={isSaving} style={secondaryButton}>
                                 {isSaving ? "Speichert..." : "Speichern"}
                               </button>
                               <button onClick={cancelEditDayBlock} style={secondaryButton}>
@@ -999,7 +1091,6 @@ export default function PausenPage() {
           color: "#666",
           fontSize: 14,
           lineHeight: 1.5,
-          overflow: "hidden",
         }}
       >
         <b>Hinweis:</b> Wiederkehrende Pausen gelten jede Woche am ausgewählten Wochentag.
