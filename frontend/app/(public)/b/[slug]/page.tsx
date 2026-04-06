@@ -190,7 +190,7 @@ export default function PublicBarberProfilePage() {
             fontSize: 14,
           }}
         >
-          ← Zur Übersicht
+          ← Zurück
         </a>
       </div>
 
@@ -207,8 +207,8 @@ export default function PublicBarberProfilePage() {
           <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
             <div
               style={{
-                width: 96,
-                height: 96,
+                width: 90,
+                height: 90,
                 borderRadius: 999,
                 overflow: "hidden",
                 border: "1px solid #ececec",
@@ -233,106 +233,61 @@ export default function PublicBarberProfilePage() {
             </div>
 
             <div style={{ minWidth: 0, flex: 1 }}>
-              <h1 style={{ margin: 0, fontSize: 36, lineHeight: 1.05, letterSpacing: -0.8 }}>
+              <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.1, letterSpacing: -0.4 }}>
                 {barber.name}
               </h1>
 
-              <div style={{ marginTop: 8, color: "#666", fontSize: 16, lineHeight: 1.45 }}>
-                Profil, Services und Online-Terminbuchung an einem Ort.
-              </div>
-
               {address ? (
-                <div style={{ marginTop: 10, color: "#444", fontSize: 14, fontWeight: 700 }}>
+                <div style={{ marginTop: 8, color: "#555", fontSize: 14, fontWeight: 700 }}>
                   {address}
                 </div>
               ) : null}
             </div>
           </div>
 
-          <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 18 }}>
             <a href={`/b/${barber.slug}/book`} style={primaryButton}>
               Termin buchen
             </a>
-
-            {barber.phone ? (
-              <a href={`tel:${barber.phone}`} style={secondaryButton}>
-                Anrufen
-              </a>
-            ) : null}
-
-            {instaUrl ? (
-              <a href={instaUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
-                Instagram
-              </a>
-            ) : null}
-
-            {websiteUrl ? (
-              <a href={websiteUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
-                Website
-              </a>
-            ) : null}
           </div>
         </section>
 
         <aside style={{ ...cardStyle, padding: 22 }}>
-          <div style={{ fontWeight: 900, fontSize: 18 }}>Schnell buchen</div>
-          <div style={{ marginTop: 6, color: "#666", fontSize: 14, lineHeight: 1.45 }}>
-            Wähle direkt einen Service und gehe sofort zur Buchung.
+          <div style={{ fontWeight: 900, fontSize: 18 }}>Kontakt</div>
+
+          <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+            <div>
+              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Adresse</div>
+              <div style={{ marginTop: 4, fontWeight: 800 }}>{address || "Keine Adresse hinterlegt."}</div>
+            </div>
+
+            <div>
+              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Telefon</div>
+              <div style={{ marginTop: 4, fontWeight: 800 }}>{barber.phone || "Keine Telefonnummer hinterlegt."}</div>
+            </div>
+
+            {(barber.phone || instaUrl || websiteUrl) && (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {barber.phone ? (
+                  <a href={`tel:${barber.phone}`} style={secondaryButton}>
+                    Anrufen
+                  </a>
+                ) : null}
+
+                {instaUrl ? (
+                  <a href={instaUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
+                    Instagram
+                  </a>
+                ) : null}
+
+                {websiteUrl ? (
+                  <a href={websiteUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
+                    Website
+                  </a>
+                ) : null}
+              </div>
+            )}
           </div>
-
-          {services.length === 0 ? (
-            <div
-              style={{
-                marginTop: 16,
-                border: "1px dashed #e3e3e3",
-                borderRadius: 16,
-                padding: 14,
-                color: "#777",
-                background: "#fcfcfc",
-              }}
-            >
-              Aktuell sind keine Services hinterlegt.
-            </div>
-          ) : (
-            <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
-              {services.slice(0, 4).map((s) => (
-                <a
-                  key={s.key}
-                  href={`/b/${barber.slug}/book?serviceKey=${encodeURIComponent(s.key)}`}
-                  style={{
-                    border: "1px solid #ececec",
-                    borderRadius: 16,
-                    padding: 14,
-                    textDecoration: "none",
-                    color: "#111",
-                    background: "#fff",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 900 }}>{s.name}</div>
-                    <div style={{ marginTop: 4, color: "#666", fontSize: 13 }}>{s.durationMin} min</div>
-                  </div>
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>Buchen →</div>
-                </a>
-              ))}
-
-              {services.length > 4 ? (
-                <a
-                  href={`#services`}
-                  style={{
-                    ...secondaryButton,
-                    width: "100%",
-                  }}
-                >
-                  Alle Services ansehen
-                </a>
-              ) : null}
-            </div>
-          )}
         </aside>
       </div>
 
@@ -341,7 +296,7 @@ export default function PublicBarberProfilePage() {
         style={{
           marginTop: 16,
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 0.9fr)",
+          gridTemplateColumns: "minmax(0, 1fr)",
           gap: 16,
           alignItems: "start",
         }}
@@ -354,48 +309,11 @@ export default function PublicBarberProfilePage() {
               : "Hier kann der Friseur einen kurzen Text zu Erfahrung, Stil und Spezialisierung hinterlegen."}
           </div>
         </section>
-
-        <section style={cardStyle}>
-          <div style={{ fontWeight: 900, fontSize: 20 }}>Kontakt & Infos</div>
-
-          <div style={{ marginTop: 14, display: "grid", gap: 14 }}>
-            <div>
-              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Adresse</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>{address || "Keine Adresse hinterlegt."}</div>
-            </div>
-
-            <div>
-              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Telefon</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>{barber.phone || "Keine Telefonnummer hinterlegt."}</div>
-            </div>
-
-            {(instaUrl || websiteUrl) && (
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {instaUrl ? (
-                  <a href={instaUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
-                    Instagram öffnen
-                  </a>
-                ) : null}
-
-                {websiteUrl ? (
-                  <a href={websiteUrl} target="_blank" rel="noreferrer" style={secondaryButton}>
-                    Website öffnen
-                  </a>
-                ) : null}
-              </div>
-            )}
-          </div>
-        </section>
       </div>
 
       <section id="services" style={{ ...cardStyle, marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <div>
-            <div style={{ fontWeight: 900, fontSize: 22 }}>Services</div>
-            <div style={{ marginTop: 6, color: "#666", fontSize: 14 }}>
-              {services.length} {services.length === 1 ? "Service verfügbar" : "Services verfügbar"}
-            </div>
-          </div>
+          <div style={{ fontWeight: 900, fontSize: 22 }}>Services</div>
 
           <a href={`/b/${barber.slug}/book`} style={primaryButton}>
             Jetzt buchen
@@ -434,25 +352,11 @@ export default function PublicBarberProfilePage() {
                   padding: 16,
                   background: "#fff",
                   display: "grid",
-                  gap: 12,
+                  gap: 8,
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 900, fontSize: 17 }}>{s.name}</div>
-                  <div style={{ marginTop: 6, color: "#666", fontSize: 14 }}>
-                    Dauer: <b>{s.durationMin} Minuten</b>
-                  </div>
-                </div>
-
-                <a
-                  href={`/b/${barber.slug}/book?serviceKey=${encodeURIComponent(s.key)}`}
-                  style={{
-                    ...primaryButton,
-                    width: "100%",
-                  }}
-                >
-                  Diesen Service buchen
-                </a>
+                <div style={{ fontWeight: 900, fontSize: 17 }}>{s.name}</div>
+                <div style={{ color: "#666", fontSize: 14 }}>{s.durationMin} Minuten</div>
               </div>
             ))}
           </div>
