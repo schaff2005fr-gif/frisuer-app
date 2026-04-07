@@ -35,6 +35,21 @@ function todayYYYYMMDD() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function addDaysToISODate(iso: string, days: number) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatShortDateLabel(iso: string) {
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
 function getTokenSafe() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem("token") || "";
@@ -46,39 +61,8 @@ function buildNextUrl(slug: string, serviceKey?: string) {
   return base;
 }
 
-function isoToDisplayDate(iso: string) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "").trim());
-  if (!m) return iso;
-  return `${m[3]}.${m[2]}.${m[1]}`;
-}
 
-function normalizeISODate(value: string) {
-  const raw = String(value || "").trim();
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-
-  const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(raw);
-  if (de) {
-    const day = Number(de[1]);
-    const month = Number(de[2]);
-    const year = Number(de[3]);
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${year}-${pad2(month)}-${pad2(day)}`;
-    }
-  }
-
-  const compact = /^(\d{2})(\d{2})(\d{4})$/.exec(raw);
-  if (compact) {
-    const day = Number(compact[1]);
-    const month = Number(compact[2]);
-    const year = Number(compact[3]);
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${year}-${pad2(month)}-${pad2(day)}`;
-    }
-  }
-
-  return value;
-}
 
 export default function BarberBookPage() {
   const params = useParams<{ slug: string }>();
@@ -97,7 +81,7 @@ export default function BarberBookPage() {
 
   const [selectedServiceKey, setSelectedServiceKey] = useState(presetServiceKey);
   const [selectedDate, setSelectedDate] = useState(today);
-  const [selectedDateInput, setSelectedDateInput] = useState(isoToDisplayDate(today));
+  
 
   const [availableTimes, setAvailableTimes] = useState<number[]>([]);
   const [selectedTimeMin, setSelectedTimeMin] = useState<number | null>(null);
@@ -131,6 +115,10 @@ export default function BarberBookPage() {
 
   const loginHref = `/login?next=${encodeURIComponent(nextUrl)}`;
   const registerHref = `/register?next=${encodeURIComponent(nextUrl)}`;
+
+  const dateOptions = useMemo(() => {
+  return Array.from({ length: 14 }, (_, i) => addDaysToISODate(today, i));
+}, [today]);
 
   useEffect(() => {
     if (!slug) return;
@@ -200,17 +188,7 @@ export default function BarberBookPage() {
     }
   }
 
-  function applySelectedDate(nextValue: string) {
-    const normalized = normalizeISODate(nextValue);
-    setSelectedDateInput(isoToDisplayDate(normalized));
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-      setSelectedDate(normalized);
-      setSelectedTimeMin(null);
-      setMessage("");
-      setError("");
-    }
-  }
+  
 
   useEffect(() => {
     if (canLoadTimes) loadTimes();
@@ -569,18 +547,50 @@ export default function BarberBookPage() {
             </div>
 
             <div>
-              <div style={labelStyle}>Datum</div>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="TT.MM.JJJJ"
-                value={selectedDateInput}
-                onChange={(e) => setSelectedDateInput(e.target.value)}
-                onBlur={() => applySelectedDate(selectedDateInput)}
-                style={inputStyle}
-              />
-            </div>
+  <div style={labelStyle}>Datum</div>
 
+  <div
+    style={{
+      display: "flex",
+      gap: 8,
+      overflowX: "auto",
+      paddingBottom: 4,
+      WebkitOverflowScrolling: "touch",
+    }}
+  >
+    {dateOptions.map((dateIso) => {
+      const selected = selectedDate === dateIso;
+
+      return (
+        <button
+          key={dateIso}
+          type="button"
+          onClick={() => {
+            setSelectedDate(dateIso);
+            setSelectedTimeMin(null);
+            setMessage("");
+            setError("");
+          }}
+          style={{
+            minWidth: 90,
+            padding: "12px 12px",
+            borderRadius: 14,
+            border: selected ? "1px solid #111" : "1px solid #ddd",
+            background: selected ? "#111" : "#fff",
+            color: selected ? "#fff" : "#111",
+            fontWeight: 900,
+            cursor: "pointer",
+            fontSize: 14,
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          {formatShortDateLabel(dateIso)}
+        </button>
+      );
+    })}
+  </div>
+</div>
             <div>
               <div style={{ ...labelStyle, marginBottom: 10 }}>Uhrzeit</div>
 
@@ -695,7 +705,9 @@ export default function BarberBookPage() {
 
             <div>
               <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Datum</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>{selectedDateInput || "—"}</div>
+              <div style={{ marginTop: 4, fontWeight: 800 }}>
+  {selectedDate ? formatShortDateLabel(selectedDate) : "—"}
+</div>
             </div>
 
             <div>
