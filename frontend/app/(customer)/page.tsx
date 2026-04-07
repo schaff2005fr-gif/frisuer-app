@@ -66,57 +66,95 @@ export default function HomePage() {
 
   const [me, setMe] = useState<Me | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
 
   const [q, setQ] = useState("");
 
-  async function loadMe() {
+  async function loadMeAndProtect() {
     setLoadingMe(true);
+
     try {
       const token = getTokenSafe();
+
       if (!token) {
-        setMe(null);
+        window.location.replace("/login");
         return;
       }
 
       const res = await fetch(`${API_BASE}/me`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
       });
 
       const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        setMe(null);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.replace("/login");
         return;
       }
 
-      setMe(data as Me);
+      const meData = data as Me;
+      setMe(meData);
+
+      if (meData.role === "BARBER") {
+        window.location.replace("/admin");
+        return;
+      }
+
+      if (meData.role !== "CUSTOMER") {
+        window.location.replace("/login");
+        return;
+      }
+
+      setAuthorized(true);
     } catch {
-      setMe(null);
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.replace("/login");
     } finally {
       setLoadingMe(false);
     }
   }
 
+  async function loadBarbers() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await fetch(`${API_BASE}/barbers`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error("Fehler beim Laden");
+      }
+
+      setBarbers(Array.isArray(data?.barbers) ? data.barbers : []);
+    } catch {
+      setError("Fehler beim Laden");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    setLoading(true);
-    setError("");
-
-    fetch(`${API_BASE}/barbers`)
-      .then((r) => r.json())
-      .then((d) => setBarbers(Array.isArray(d?.barbers) ? d.barbers : []))
-      .catch(() => setError("Fehler beim Laden"))
-      .finally(() => setLoading(false));
-
-    loadMe();
+    loadMeAndProtect();
   }, []);
+
+  useEffect(() => {
+    if (!authorized) return;
+    loadBarbers();
+  }, [authorized]);
 
   const isCustomer = me?.role === "CUSTOMER";
   const fn = firstName(me?.customer?.name ?? "");
 
-  const titleText = loadingMe ? "Salora" : me && isCustomer ? `Hallo ${fn || "👋"}` : "Friseure";
+  const titleText = loadingMe ? "Lade..." : isCustomer ? `Hallo ${fn || "👋"}` : "Friseure";
 
   const subText = loadingMe
-    ? "Lade..."
-    : me && isCustomer
+    ? "Prüfe Login..."
+    : isCustomer
     ? "Wähle einen Friseur und buche deinen nächsten Termin."
     : "Finde einen passenden Friseur und buche direkt online.";
 
@@ -131,6 +169,14 @@ export default function HomePage() {
       return name.includes(s) || slug.includes(s) || city.includes(s);
     });
   }, [barbers, q]);
+
+  if (loadingMe || !authorized) {
+    return (
+      <div style={{ padding: 20, maxWidth: 1120, margin: "0 auto", color: "#666" }}>
+        Lade...
+      </div>
+    );
+  }
 
   return (
     <div className="page">
