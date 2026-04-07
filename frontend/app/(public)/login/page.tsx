@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Brand from "@/components/Brand";
 
 type Role = "CUSTOMER" | "BARBER";
 
@@ -10,6 +12,8 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://frisuer-app-1.onrender.com";
 
+const AUTH_BRAND_HREF = "/barbers";
+
 function normalizeBase(url: string) {
   return String(url || "").replace(/\/+$/, "");
 }
@@ -17,6 +21,7 @@ function normalizeBase(url: string) {
 function safeNextPath(raw: string | null) {
   if (!raw) return "";
   const s = String(raw).trim();
+  if (!s) return "";
   if (!s.startsWith("/")) return "";
   if (s.startsWith("//")) return "";
   return s;
@@ -24,7 +29,7 @@ function safeNextPath(raw: string | null) {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 20 }}>Lade…</div>}>
+    <Suspense fallback={<div style={{ padding: 20, maxWidth: 460, margin: "0 auto" }}>Lade…</div>}>
       <LoginInner />
     </Suspense>
   );
@@ -34,6 +39,11 @@ function LoginInner() {
   const sp = useSearchParams();
   const nextRaw = sp.get("next");
   const nextPath = useMemo(() => safeNextPath(nextRaw), [nextRaw]);
+
+  const customerRegisterHref = nextPath ? `/register?next=${encodeURIComponent(nextPath)}` : "/register";
+  const barberRegisterHref = nextPath
+    ? `/register-barber?next=${encodeURIComponent(nextPath)}`
+    : "/register-barber";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -64,7 +74,7 @@ function LoginInner() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(data?.error || `Login fehlgeschlagen`);
+        throw new Error(data?.error || "Login fehlgeschlagen");
       }
 
       const token: string | undefined = data?.token;
@@ -76,9 +86,7 @@ function LoginInner() {
       localStorage.setItem("user", JSON.stringify(user));
 
       const role = (user.role as Role) || "CUSTOMER";
-
-      const target =
-        nextPath || (role === "BARBER" ? "/admin" : "/");
+      const target = nextPath || (role === "BARBER" ? "/admin" : "/");
 
       window.location.assign(target);
     } catch (err: any) {
@@ -90,38 +98,41 @@ function LoginInner() {
 
   return (
     <div style={{ padding: 20, maxWidth: 460, margin: "0 auto" }}>
+      <div style={{ marginBottom: 16 }}>
+        <Brand href={AUTH_BRAND_HREF} />
+      </div>
+
       <h1 style={{ marginTop: 0 }}>Login</h1>
 
-      {error && (
+      {error ? (
         <div style={{ marginTop: 12, color: "crimson" }}>
           <b>{error}</b>
         </div>
-      )}
+      ) : null}
 
       <form onSubmit={onSubmit} style={{ marginTop: 14, display: "grid", gap: 12 }}>
         <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
-            E-Mail
-          </div>
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>E-Mail</div>
           <input
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
             placeholder="max.mustermann@email.de"
+            required
             style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
           />
         </div>
 
         <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
-            Passwort
-          </div>
+          <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>Passwort</div>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             placeholder="••••••••"
+            required
             style={{ padding: 10, border: "1px solid #ddd", borderRadius: 10 }}
           />
         </div>
@@ -144,15 +155,12 @@ function LoginInner() {
         </button>
       </form>
 
-      {/* Registrierung Buttons */}
       <div style={{ marginTop: 20, display: "grid", gap: 10 }}>
-        <div style={{ textAlign: "center", fontSize: 13, color: "#666" }}>
-          Noch kein Konto?
-        </div>
+        <div style={{ textAlign: "center", fontSize: 13, color: "#666" }}>Noch kein Konto?</div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <a
-            href="/register"
+          <Link
+            href={customerRegisterHref}
             style={{
               flex: 1,
               textAlign: "center",
@@ -166,10 +174,10 @@ function LoginInner() {
             }}
           >
             Als Kunde registrieren
-          </a>
+          </Link>
 
-          <a
-            href="/register-barber"
+          <Link
+            href={barberRegisterHref}
             style={{
               flex: 1,
               textAlign: "center",
@@ -183,7 +191,7 @@ function LoginInner() {
             }}
           >
             Als Friseur registrieren
-          </a>
+          </Link>
         </div>
       </div>
     </div>

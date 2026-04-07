@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Brand from "@/components/Brand";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
+const AUTH_BRAND_HREF = "/barbers";
 
 function safeNextPath(raw: string | null) {
   if (!raw) return "";
@@ -16,7 +19,13 @@ function safeNextPath(raw: string | null) {
 
 export default function RegisterCustomerPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 20, maxWidth: 520, margin: "0 auto", color: "#666" }}>Lade…</div>}>
+    <Suspense
+      fallback={
+        <div style={{ padding: 20, maxWidth: 520, margin: "0 auto", color: "#666" }}>
+          Lade…
+        </div>
+      }
+    >
       <RegisterCustomerInner />
     </Suspense>
   );
@@ -79,9 +88,15 @@ function RegisterCustomerInner() {
 
   return (
     <div style={{ padding: 20, maxWidth: 520, margin: "0 auto" }}>
+      <div style={{ marginBottom: 16 }}>
+        <Brand href={AUTH_BRAND_HREF} />
+      </div>
+
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ margin: 0 }}>Konto erstellen</h1>
-        <div style={{ marginTop: 6, color: "#666" }}>Erstelle dein Kundenkonto, um Termine zu buchen.</div>
+        <div style={{ marginTop: 6, color: "#666" }}>
+          Erstelle dein Kundenkonto, um Termine zu buchen.
+        </div>
       </div>
 
       {nextPath ? (
@@ -100,7 +115,7 @@ function RegisterCustomerInner() {
         </div>
       ) : null}
 
-      {error && (
+      {error ? (
         <div
           style={{
             marginBottom: 12,
@@ -113,7 +128,7 @@ function RegisterCustomerInner() {
         >
           <b>{error}</b>
         </div>
-      )}
+      ) : null}
 
       <div style={{ border: "1px solid #eee", borderRadius: 14, padding: 14, background: "#fff" }}>
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
@@ -188,9 +203,9 @@ function RegisterCustomerInner() {
 
           <div style={{ fontSize: 12, color: "#666" }}>
             Schon ein Konto?{" "}
-            <a href={loginHref} style={{ fontWeight: 900, color: "#111" }}>
+            <Link href={loginHref} style={{ fontWeight: 900, color: "#111" }}>
               Zum Login
-            </a>
+            </Link>
           </div>
         </form>
       </div>
