@@ -114,14 +114,15 @@ export default function AdminSettingsPage() {
   const router = useRouter();
 
   const [tab, setTab] = useState<"PROFILE" | "SERVICES" | "HOURS" | "SLOTS">("PROFILE");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   const [copied, setCopied] = useState<"" | "profile" | "book">("");
-
   const [uploadingImg, setUploadingImg] = useState(false);
   const [imgMsg, setImgMsg] = useState("");
   const [localPreview, setLocalPreview] = useState<string>("");
@@ -135,6 +136,57 @@ export default function AdminSettingsPage() {
   function clearAlerts() {
     setError("");
     setMessage("");
+  }
+
+  function getToken() {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("token") || "";
+  }
+
+  function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    router.replace("/login");
+    router.refresh();
+  }
+
+  async function deleteAccount() {
+    const ok = window.confirm(
+      "Willst du deinen Friseur-Account wirklich endgültig löschen?\n\nAlle Daten, Services und Einstellungen gehen dabei verloren."
+    );
+    if (!ok) return;
+
+    setDeletingAccount(true);
+    clearAlerts();
+
+    try {
+      const token = getToken();
+      if (!token) {
+        logout();
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/me`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Account konnte nicht gelöscht werden.");
+      }
+
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.assign("/login");
+    } catch (e: any) {
+      setError(e?.message || "Fehler beim Löschen.");
+    } finally {
+      setDeletingAccount(false);
+    }
   }
 
   function publicBaseUrl() {
@@ -158,22 +210,25 @@ export default function AdminSettingsPage() {
     }
   }
 
-  function getToken() {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("token") || "";
-  }
-
   async function apiFetch(path: string, init?: RequestInit) {
     const token = getToken();
     if (!token) throw new Error("Kein Token. Bitte als BARBER einloggen.");
 
+    const headers: Record<string, string> = {
+  Authorization: `Bearer ${token}`,
+  ...(init?.headers as Record<string, string> | undefined),
+};
+
+const method = String(init?.method || "GET").toUpperCase();
+const hasBody = init?.body != null;
+
+if (hasBody && method !== "GET") {
+  headers["Content-Type"] = "application/json";
+}
+
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: {
-        ...(init?.headers ?? {}),
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers,
     });
 
     const data = await res.json().catch(() => null);
@@ -390,6 +445,22 @@ export default function AdminSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
   const workingHoursUi = useMemo(() => {
     const wh = settings?.workingHours ?? [];
     const map = new Map<number, WorkingHoursRow>();
@@ -488,35 +559,60 @@ export default function AdminSettingsPage() {
     width: "100%",
   };
 
-  const activeTabButton = (active: boolean): React.CSSProperties => ({
-    height: 48,
-    borderRadius: 14,
-    border: active ? "1px solid #111" : "1px solid #ddd",
-    background: active ? "#111" : "#fff",
-    color: active ? "#fff" : "#111",
-    fontWeight: 900,
-    cursor: "pointer",
-    width: "100%",
-    fontSize: 14,
-  });
+  function goTab(next: "PROFILE" | "SERVICES" | "HOURS" | "SLOTS") {
+    setTab(next);
+    setMenuOpen(false);
+  }
 
   return (
     <div style={{ padding: 16, maxWidth: 1120, margin: "0 auto", overflowX: "hidden" }}>
       <style jsx>{`
         @media (max-width: 720px) {
           .twoColGrid,
-          .threeColGrid,
-          .tabGrid {
+          .threeColGrid {
             grid-template-columns: 1fr !important;
           }
         }
       `}</style>
 
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>Einstellungen</h1>
-        <div style={{ marginTop: 8, color: "#666", fontSize: 17, lineHeight: 1.45 }}>
-          Profil, Services, Arbeitszeiten und Slot-Logik verwalten.
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <div>
+          <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>Einstellungen</h1>
+          <div style={{ marginTop: 8, color: "#666", fontSize: 17, lineHeight: 1.45 }}>
+            Profil, Services, Arbeitszeiten und Slot-Logik verwalten.
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Menü öffnen"
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 14,
+            border: "1px solid #ddd",
+            background: "#fff",
+            cursor: "pointer",
+            flexShrink: 0,
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          <div style={{ display: "grid", gap: 4 }}>
+            <span style={{ width: 18, height: 2, background: "#111", display: "block", borderRadius: 999 }} />
+            <span style={{ width: 18, height: 2, background: "#111", display: "block", borderRadius: 999 }} />
+            <span style={{ width: 18, height: 2, background: "#111", display: "block", borderRadius: 999 }} />
+          </div>
+        </button>
       </div>
 
       {(message || error) && (
@@ -535,28 +631,122 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
-      <div
-        className="tabGrid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <button style={activeTabButton(tab === "PROFILE")} onClick={() => setTab("PROFILE")}>
-          Profil
-        </button>
-        <button style={activeTabButton(tab === "SERVICES")} onClick={() => setTab("SERVICES")}>
-          Services
-        </button>
-        <button style={activeTabButton(tab === "HOURS")} onClick={() => setTab("HOURS")}>
-          Arbeitszeiten
-        </button>
-        <button style={activeTabButton(tab === "SLOTS")} onClick={() => setTab("SLOTS")}>
-          Slot-Logik
-        </button>
-      </div>
+      {menuOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Menü schließen"
+            onClick={() => setMenuOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.35)",
+              border: "none",
+              zIndex: 80,
+              cursor: "pointer",
+            }}
+          />
+
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              width: "min(360px, 88vw)",
+              height: "100vh",
+              background: "#fff",
+              zIndex: 90,
+              borderLeft: "1px solid #ececec",
+              boxShadow: "-8px 0 30px rgba(0,0,0,0.12)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                padding: 16,
+                borderBottom: "1px solid #eee",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 1000, fontSize: 20 }}>Menü</div>
+                <div style={{ marginTop: 4, color: "#666", fontSize: 13 }}>
+                  Bereiche öffnen und Konto verwalten
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Schließen"
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 900,
+                  fontSize: 18,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ padding: 16, display: "grid", gap: 10, overflowY: "auto" }}>
+              <DrawerButton active={tab === "PROFILE"} onClick={() => goTab("PROFILE")} label="Profil" />
+              <DrawerButton active={tab === "SERVICES"} onClick={() => goTab("SERVICES")} label="Services" />
+              <DrawerButton active={tab === "HOURS"} onClick={() => goTab("HOURS")} label="Arbeitszeiten" />
+              <DrawerButton active={tab === "SLOTS"} onClick={() => goTab("SLOTS")} label="Slot-Logik" />
+
+              <div style={{ height: 1, background: "#eee", margin: "6px 0" }} />
+
+              <button
+                type="button"
+                onClick={logout}
+                style={{
+                  height: 48,
+                  borderRadius: 14,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  color: "#111",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  padding: "0 14px",
+                }}
+              >
+                Ausloggen
+              </button>
+
+              <button
+                type="button"
+                onClick={deleteAccount}
+                disabled={deletingAccount}
+                style={{
+                  minHeight: 48,
+                  borderRadius: 14,
+                  border: "1px solid #d92d20",
+                  background: "#fff5f5",
+                  color: "#b42318",
+                  fontWeight: 900,
+                  cursor: deletingAccount ? "not-allowed" : "pointer",
+                  textAlign: "left",
+                  padding: "12px 14px",
+                  opacity: deletingAccount ? 0.7 : 1,
+                }}
+              >
+                {deletingAccount ? "Account wird gelöscht..." : "Account endgültig löschen"}
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       {loading ? (
         <div style={{ color: "#666" }}>Lade Einstellungen...</div>
@@ -645,7 +835,6 @@ export default function AdminSettingsPage() {
                       }}
                     >
                       {showPreview ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={showPreview}
                           alt="Profilbild"
@@ -1123,14 +1312,40 @@ export default function AdminSettingsPage() {
                   padding: 14,
                 }}
               >
-                Tipp: Für „immer nur 1 Stunde vorher öffnen“ setzt du <b>extendStepMin = 60</b>.
-                Die Grenze kannst du z. B. auf <b>10:00</b> setzen.
+                Tipp: Für „immer nur 1 Stunde vorher öffnen“ setzt du <b>extendStepMin = 60</b>. Die Grenze
+                kannst du z. B. auf <b>10:00</b> setzen.
               </div>
             </div>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+function DrawerButton(props: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      style={{
+        height: 48,
+        borderRadius: 14,
+        border: props.active ? "1px solid #111" : "1px solid #ddd",
+        background: props.active ? "#111" : "#fff",
+        color: props.active ? "#fff" : "#111",
+        fontWeight: 900,
+        cursor: "pointer",
+        textAlign: "left",
+        padding: "0 14px",
+      }}
+    >
+      {props.label}
+    </button>
   );
 }
 
