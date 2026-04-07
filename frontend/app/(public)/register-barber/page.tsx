@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Brand from "@/components/Brand";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
-const AUTH_BRAND_HREF = "/barbers";
 
 function safeNextPath(raw: string | null) {
   if (!raw) return "";
@@ -88,10 +86,6 @@ function RegisterBarberInner() {
 
   return (
     <div style={{ padding: 20, maxWidth: 520, margin: "0 auto" }}>
-      <div style={{ marginBottom: 16 }}>
-        <Brand href={AUTH_BRAND_HREF} />
-      </div>
-
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ margin: 0 }}>Friseur-Account erstellen</h1>
         <div style={{ marginTop: 6, color: "#666" }}>

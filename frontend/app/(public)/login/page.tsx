@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Brand from "@/components/Brand";
 
 type Role = "CUSTOMER" | "BARBER";
 
@@ -11,8 +10,6 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   process.env.NEXT_PUBLIC_API_URL ||
   "https://frisuer-app-1.onrender.com";
-
-const AUTH_BRAND_HREF = "/barbers";
 
 function normalizeBase(url: string) {
   return String(url || "").replace(/\/+$/, "");
@@ -98,10 +95,6 @@ function LoginInner() {
 
   return (
     <div style={{ padding: 20, maxWidth: 460, margin: "0 auto" }}>
-      <div style={{ marginBottom: 16 }}>
-        <Brand href={AUTH_BRAND_HREF} />
-      </div>
-
       <h1 style={{ marginTop: 0 }}>Login</h1>
 
       {error ? (
