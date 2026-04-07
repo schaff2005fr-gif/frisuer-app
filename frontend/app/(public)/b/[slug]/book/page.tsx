@@ -46,6 +46,40 @@ function buildNextUrl(slug: string, serviceKey?: string) {
   return base;
 }
 
+function isoToDisplayDate(iso: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "").trim());
+  if (!m) return iso;
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
+function normalizeISODate(value: string) {
+  const raw = String(value || "").trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(raw);
+  if (de) {
+    const day = Number(de[1]);
+    const month = Number(de[2]);
+    const year = Number(de[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${pad2(month)}-${pad2(day)}`;
+    }
+  }
+
+  const compact = /^(\d{2})(\d{2})(\d{4})$/.exec(raw);
+  if (compact) {
+    const day = Number(compact[1]);
+    const month = Number(compact[2]);
+    const year = Number(compact[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${pad2(month)}-${pad2(day)}`;
+    }
+  }
+
+  return value;
+}
+
 export default function BarberBookPage() {
   const params = useParams<{ slug: string }>();
   const slug = String(params?.slug ?? "");
@@ -63,6 +97,7 @@ export default function BarberBookPage() {
 
   const [selectedServiceKey, setSelectedServiceKey] = useState(presetServiceKey);
   const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDateInput, setSelectedDateInput] = useState(isoToDisplayDate(today));
 
   const [availableTimes, setAvailableTimes] = useState<number[]>([]);
   const [selectedTimeMin, setSelectedTimeMin] = useState<number | null>(null);
@@ -162,6 +197,18 @@ export default function BarberBookPage() {
       setAvailableTimes([]);
     } finally {
       setBusyTimes(false);
+    }
+  }
+
+  function applySelectedDate(nextValue: string) {
+    const normalized = normalizeISODate(nextValue);
+    setSelectedDateInput(isoToDisplayDate(normalized));
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      setSelectedDate(normalized);
+      setSelectedTimeMin(null);
+      setMessage("");
+      setError("");
     }
   }
 
@@ -356,7 +403,6 @@ export default function BarberBookPage() {
         @media (max-width: 900px) {
           .layoutGrid,
           .topGrid,
-          .contactGrid,
           .summaryGrid {
             grid-template-columns: 1fr !important;
           }
@@ -404,7 +450,6 @@ export default function BarberBookPage() {
               }}
             >
               {barber.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={barber.imageUrl}
                   alt={barber.name}
@@ -526,14 +571,12 @@ export default function BarberBookPage() {
             <div>
               <div style={labelStyle}>Datum</div>
               <input
-                type="date"
-                min={today}
-                value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setMessage("");
-                  setError("");
-                }}
+                type="text"
+                inputMode="numeric"
+                placeholder="TT.MM.JJJJ"
+                value={selectedDateInput}
+                onChange={(e) => setSelectedDateInput(e.target.value)}
+                onBlur={() => applySelectedDate(selectedDateInput)}
                 style={inputStyle}
               />
             </div>
@@ -652,7 +695,7 @@ export default function BarberBookPage() {
 
             <div>
               <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Datum</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>{selectedDate || "—"}</div>
+              <div style={{ marginTop: 4, fontWeight: 800 }}>{selectedDateInput || "—"}</div>
             </div>
 
             <div>
