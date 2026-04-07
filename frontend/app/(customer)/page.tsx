@@ -8,12 +8,10 @@ type Barber = {
   id: number;
   name: string;
   slug: string;
-
   city?: string | null;
   street?: string | null;
   postalCode?: string | null;
   imageUrl?: string | null;
-
   nextDate?: string | null;
 };
 
@@ -49,7 +47,10 @@ function initials(name: string) {
 function formatDateDE(dateStr: string) {
   const d = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr);
   if (Number.isNaN(d.getTime())) return dateStr;
-  return new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeZone: "Europe/Berlin" }).format(d);
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeZone: "Europe/Berlin",
+  }).format(d);
 }
 
 function firstName(full: string) {
@@ -112,10 +113,12 @@ export default function HomePage() {
   const fn = firstName(me?.customer?.name ?? "");
 
   const titleText = loadingMe ? "Salora" : me && isCustomer ? `Hallo ${fn || "👋"}` : "Friseure";
+
   const subText = loadingMe
-    ? "Lade…"
+    ? "Lade..."
     : me && isCustomer
-    
+    ? "Wähle einen Friseur und buche deinen nächsten Termin."
+    : "Finde einen passenden Friseur und buche direkt online.";
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -134,50 +137,59 @@ export default function HomePage() {
       <style jsx>{`
         .page {
           padding: 20px;
-          max-width: 1040px;
+          max-width: 1120px;
           margin: 0 auto;
         }
 
         .hero {
-          margin-bottom: 14px;
+          margin-bottom: 18px;
         }
 
         .title {
           margin: 0;
-          font-size: 36px;
-          line-height: 1.05;
+          font-size: 38px;
+          line-height: 1.03;
           letter-spacing: -1px;
+          color: #111;
         }
 
         .sub {
           color: #666;
-          margin-top: 8px;
-          font-size: 16px;
-          line-height: 1.4;
-          max-width: 720px;
+          margin-top: 10px;
+          font-size: 17px;
+          line-height: 1.45;
+          max-width: 760px;
         }
 
-        /* ✅ Suchbox jetzt wie Card */
         .searchBox {
-          margin-top: 14px;
-          border: 1px solid #eee;
-          border-radius: 18px;
-          padding: 14px;
+          margin-top: 16px;
+          border: 1px solid #e9e9e9;
+          border-radius: 24px;
+          padding: 16px;
           background: #fff;
           display: grid;
-          gap: 10px;
+          gap: 12px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
         }
 
         .searchTop {
           display: flex;
-          align-items: baseline;
+          align-items: flex-start;
           justify-content: space-between;
-          gap: 10px;
+          gap: 12px;
           flex-wrap: wrap;
         }
 
         .searchTitle {
           font-weight: 1000;
+          font-size: 18px;
+          color: #111;
+        }
+
+        .searchHint {
+          color: #666;
+          font-size: 13px;
+          margin-top: 4px;
         }
 
         .countText {
@@ -185,47 +197,54 @@ export default function HomePage() {
           font-size: 12px;
           font-weight: 900;
           white-space: nowrap;
-        }
-
-        .searchHint {
-          color: #666;
-          font-size: 12px;
-          margin-top: 4px;
+          padding: 7px 10px;
+          border-radius: 999px;
+          border: 1px solid #e4e4e4;
+          background: #fafafa;
         }
 
         .searchInput {
-          padding: 12px;
-          border: 1px solid #ddd;
-          border-radius: 14px;
           width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          height: 52px;
+          border-radius: 14px;
+          border: 1px solid #dedede;
+          background: #fff;
+          padding: 0 16px;
           font-size: 16px;
+          color: #111;
+          outline: none;
+          box-sizing: border-box;
+          display: block;
         }
 
         .cards {
           margin-top: 16px;
           display: grid;
-          gap: 12px;
+          gap: 14px;
         }
 
         .card {
-          border: 1px solid #eee;
-          border-radius: 18px;
-          padding: 14px;
+          border: 1px solid #e9e9e9;
+          border-radius: 24px;
+          padding: 16px;
           background: #fff;
           display: grid;
-          gap: 12px;
+          gap: 14px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
         }
 
-        .row {
+        .topRow {
           display: grid;
-          grid-template-columns: 54px 1fr auto;
-          gap: 12px;
+          grid-template-columns: 64px minmax(0, 1fr) auto;
+          gap: 14px;
           align-items: center;
         }
 
         .avatar {
-          width: 54px;
-          height: 54px;
+          width: 64px;
+          height: 64px;
           border-radius: 18px;
           background: #111;
           color: #fff;
@@ -233,8 +252,10 @@ export default function HomePage() {
           align-items: center;
           justify-content: center;
           font-weight: 900;
+          font-size: 18px;
           letter-spacing: -0.6px;
           overflow: hidden;
+          flex-shrink: 0;
         }
 
         .avatarImg {
@@ -246,31 +267,29 @@ export default function HomePage() {
 
         .name {
           font-weight: 1000;
-          font-size: 18px;
-          line-height: 1.2;
+          font-size: 20px;
+          line-height: 1.15;
+          color: #111;
         }
 
         .meta {
-          margin-top: 4px;
+          margin-top: 6px;
           color: #666;
-          font-size: 13px;
-          line-height: 1.25;
+          font-size: 14px;
+          line-height: 1.35;
+          word-break: break-word;
         }
 
         .chip {
           font-size: 12px;
           font-weight: 900;
-          padding: 8px 10px;
+          padding: 9px 12px;
           border-radius: 999px;
-          border: 1px solid #ddd;
-          background: #fff;
-          white-space: nowrap;
-        }
-
-        .chipStrong {
           border: 1px solid #111;
           background: #111;
           color: #fff;
+          white-space: nowrap;
+          text-align: center;
         }
 
         .actions {
@@ -283,46 +302,59 @@ export default function HomePage() {
           text-align: center;
           text-decoration: none;
           border: 1px solid #ddd;
-          padding: 12px;
+          min-height: 48px;
+          padding: 0 14px;
           border-radius: 14px;
           color: #111;
           font-weight: 900;
           background: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .btnPrimary {
           text-align: center;
           text-decoration: none;
           border: 1px solid #111;
-          padding: 12px;
+          min-height: 48px;
+          padding: 0 14px;
           border-radius: 14px;
           color: #fff;
           font-weight: 900;
           background: #111;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .alertErr {
           margin-top: 12px;
-          padding: 12px;
-          border: 1px solid #f2c6c6;
+          padding: 14px 16px;
+          border: 1px solid #f1c7c7;
           background: #fff5f5;
-          border-radius: 14px;
+          border-radius: 16px;
           color: #8a1c1c;
-          font-weight: 900;
+          font-weight: 800;
         }
 
         .emptyCard {
-          border: 1px solid #eee;
-          border-radius: 18px;
-          padding: 14px;
-          background: #fff;
-          color: #666;
+          border: 1px dashed #e3e3e3;
+          border-radius: 20px;
+          padding: 16px;
+          background: #fcfcfc;
+          color: #777;
         }
 
         .hint {
           margin-top: 16px;
           color: #666;
-          font-size: 12px;
+          font-size: 13px;
+          line-height: 1.45;
+          border: 1px solid #ececec;
+          background: #fafafa;
+          border-radius: 16px;
+          padding: 14px 16px;
         }
 
         @media (max-width: 720px) {
@@ -334,9 +366,20 @@ export default function HomePage() {
             font-size: 34px;
           }
 
-          .row {
-            grid-template-columns: 52px 1fr;
+          .sub {
+            font-size: 16px;
+          }
+
+          .topRow {
+            grid-template-columns: 56px minmax(0, 1fr);
             grid-template-rows: auto auto;
+            align-items: start;
+          }
+
+          .avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
           }
 
           .chip {
@@ -354,12 +397,11 @@ export default function HomePage() {
         <h1 className="title">{titleText}</h1>
         <div className="sub">{subText}</div>
 
-        {/* ✅ Suchbox jetzt wie Card & volle Breite */}
         <div className="searchBox">
           <div className="searchTop">
             <div>
-              <div className="searchTitle">Suche</div>
-              <div className="searchHint">Name, Stadt oder Slug</div>
+              <div className="searchTitle">Friseur suchen</div>
+              <div className="searchHint">Nach Name, Stadt oder Profil suchen</div>
             </div>
 
             <div className="countText">{loading ? "…" : `${filtered.length} Friseur(e)`}</div>
@@ -368,13 +410,13 @@ export default function HomePage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="z.B. Ali, Essen, barber-essen..."
+            placeholder="z. B. Ali, Essen, barber-essen..."
             className="searchInput"
           />
         </div>
       </div>
 
-      {loading ? <div style={{ marginTop: 12, color: "#666" }}>Lade…</div> : null}
+      {loading ? <div style={{ marginTop: 12, color: "#666" }}>Lade...</div> : null}
       {error ? <div className="alertErr">{error}</div> : null}
 
       <div className="cards">
@@ -388,25 +430,25 @@ export default function HomePage() {
 
           return (
             <div key={b.id} className="card">
-              <div className="row">
+              <div className="topRow">
                 <div className="avatar" aria-label={b.name}>
                   {b.imageUrl ? <img src={cleanUrl(b.imageUrl)} alt={b.name} className="avatarImg" /> : initials(b.name)}
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div className="name">{b.name}</div>
                   <div className="meta">{addr ? addr : `/b/${b.slug}`}</div>
                 </div>
 
-                <div className="chip chipStrong">{nextLabel}</div>
+                <div className="chip">{nextLabel}</div>
               </div>
 
               <div className="actions">
                 <a href={`/b/${b.slug}`} className="btnGhost">
-                  Profil
+                  Profil ansehen
                 </a>
                 <a href={`/b/${b.slug}/book`} className="btnPrimary">
-                  Buchen →
+                  Termin buchen
                 </a>
               </div>
             </div>
@@ -414,7 +456,7 @@ export default function HomePage() {
         })}
       </div>
 
-      <div className="hint">Hinweis: Buchung ist nur mit Login möglich.</div>
+      <div className="hint">Hinweis: Für eine Buchung ist ein Kunden-Login erforderlich.</div>
     </div>
   );
 }
