@@ -35,21 +35,6 @@ function todayYYYYMMDD() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function addDaysToISODate(iso: string, days: number) {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatShortDateLabel(iso: string) {
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString("de-DE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-  });
-}
-
 function getTokenSafe() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem("token") || "";
@@ -61,8 +46,79 @@ function buildNextUrl(slug: string, serviceKey?: string) {
   return base;
 }
 
+function isoToDisplayDate(iso: string) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString("de-DE", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
+function isoToMonthLabel(iso: string) {
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString("de-DE", {
+    month: "long",
+    year: "numeric",
+  });
+}
 
+function getMonthStart(iso: string) {
+  const d = new Date(`${iso}T00:00:00`);
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function getMonthEnd(iso: string) {
+  const d = new Date(`${iso}T00:00:00`);
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+
+function dateToISO(d: Date) {
+  const year = d.getFullYear();
+  const month = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  return `${year}-${month}-${day}`;
+}
+
+function addMonthsToISO(iso: string, delta: number) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setMonth(d.getMonth() + delta);
+  d.setDate(1);
+  return dateToISO(d);
+}
+
+function isSameMonth(date: Date, monthRefIso: string) {
+  const ref = new Date(`${monthRefIso}T00:00:00`);
+  return date.getFullYear() === ref.getFullYear() && date.getMonth() === ref.getMonth();
+}
+
+function buildCalendarDays(monthIso: string) {
+  const monthStart = getMonthStart(monthIso);
+  const monthEnd = getMonthEnd(monthIso);
+
+  const startWeekday = monthStart.getDay(); // 0 Sonntag
+  const days: Date[] = [];
+
+  for (let i = startWeekday; i > 0; i--) {
+    const d = new Date(monthStart);
+    d.setDate(monthStart.getDate() - i);
+    days.push(d);
+  }
+
+  for (let day = 1; day <= monthEnd.getDate(); day++) {
+    days.push(new Date(monthStart.getFullYear(), monthStart.getMonth(), day));
+  }
+
+  while (days.length % 7 !== 0) {
+    const d = new Date(monthEnd);
+    d.setDate(monthEnd.getDate() + (days.length % 7));
+    days.push(d);
+  }
+
+  return days;
+}
 
 export default function BarberBookPage() {
   const params = useParams<{ slug: string }>();
@@ -81,7 +137,8 @@ export default function BarberBookPage() {
 
   const [selectedServiceKey, setSelectedServiceKey] = useState(presetServiceKey);
   const [selectedDate, setSelectedDate] = useState(today);
-  
+  const [calendarMonth, setCalendarMonth] = useState(today);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const [availableTimes, setAvailableTimes] = useState<number[]>([]);
   const [selectedTimeMin, setSelectedTimeMin] = useState<number | null>(null);
@@ -115,10 +172,6 @@ export default function BarberBookPage() {
 
   const loginHref = `/login?next=${encodeURIComponent(nextUrl)}`;
   const registerHref = `/register?next=${encodeURIComponent(nextUrl)}`;
-
-  const dateOptions = useMemo(() => {
-  return Array.from({ length: 14 }, (_, i) => addDaysToISODate(today, i));
-}, [today]);
 
   useEffect(() => {
     if (!slug) return;
@@ -188,8 +241,6 @@ export default function BarberBookPage() {
     }
   }
 
-  
-
   useEffect(() => {
     if (canLoadTimes) loadTimes();
     else {
@@ -234,7 +285,7 @@ export default function BarberBookPage() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "Buchung fehlgeschlagen");
 
-      setMessage(`Termin gebucht: ${selectedDate} um ${minToHHMM(selectedTimeMin!)}`);
+      setMessage(`Termin gebucht: ${isoToDisplayDate(selectedDate)} um ${minToHHMM(selectedTimeMin!)}`);
       setNote("");
       await loadTimes();
     } catch (e: any) {
@@ -298,6 +349,9 @@ export default function BarberBookPage() {
     selectedTimeMin == null ||
     (isAuthedCustomer && !customerProfileComplete);
 
+  const calendarDays = buildCalendarDays(calendarMonth);
+  const monthBackDisabled = addMonthsToISO(calendarMonth, -1) < today.slice(0, 8) + "01";
+
   const cardStyle: React.CSSProperties = {
     border: "1px solid #e9e9e9",
     borderRadius: 24,
@@ -311,7 +365,7 @@ export default function BarberBookPage() {
     width: "100%",
     minWidth: 0,
     maxWidth: "100%",
-    height: 52,
+    minHeight: 52,
     borderRadius: 14,
     border: "1px solid #dedede",
     background: "#fff",
@@ -547,50 +601,149 @@ export default function BarberBookPage() {
             </div>
 
             <div>
-  <div style={labelStyle}>Datum</div>
+              <div style={labelStyle}>Datum</div>
 
-  <div
-    style={{
-      display: "flex",
-      gap: 8,
-      overflowX: "auto",
-      paddingBottom: 4,
-      WebkitOverflowScrolling: "touch",
-    }}
-  >
-    {dateOptions.map((dateIso) => {
-      const selected = selectedDate === dateIso;
+              <button
+                type="button"
+                onClick={() => setCalendarOpen((v) => !v)}
+                style={{
+                  ...inputStyle,
+                  textAlign: "left",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {isoToDisplayDate(selectedDate)}
+              </button>
 
-      return (
-        <button
-          key={dateIso}
-          type="button"
-          onClick={() => {
-            setSelectedDate(dateIso);
-            setSelectedTimeMin(null);
-            setMessage("");
-            setError("");
-          }}
-          style={{
-            minWidth: 90,
-            padding: "12px 12px",
-            borderRadius: 14,
-            border: selected ? "1px solid #111" : "1px solid #ddd",
-            background: selected ? "#111" : "#fff",
-            color: selected ? "#fff" : "#111",
-            fontWeight: 900,
-            cursor: "pointer",
-            fontSize: 14,
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
-        >
-          {formatShortDateLabel(dateIso)}
-        </button>
-      );
-    })}
-  </div>
-</div>
+              {calendarOpen ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    border: "1px solid #e9e9e9",
+                    borderRadius: 18,
+                    background: "#fff",
+                    padding: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 10,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => !monthBackDisabled && setCalendarMonth(addMonthsToISO(calendarMonth, -1))}
+                      disabled={monthBackDisabled}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        border: "1px solid #ddd",
+                        background: "#fff",
+                        cursor: monthBackDisabled ? "not-allowed" : "pointer",
+                        opacity: monthBackDisabled ? 0.4 : 1,
+                        fontWeight: 900,
+                      }}
+                    >
+                      ←
+                    </button>
+
+                    <div style={{ fontWeight: 900, fontSize: 16, textTransform: "capitalize" }}>
+                      {isoToMonthLabel(calendarMonth)}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonth(addMonthsToISO(calendarMonth, 1))}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        border: "1px solid #ddd",
+                        background: "#fff",
+                        cursor: "pointer",
+                        fontWeight: 900,
+                      }}
+                    >
+                      →
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                      gap: 6,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"].map((d) => (
+                      <div
+                        key={d}
+                        style={{
+                          textAlign: "center",
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: "#666",
+                          padding: "4px 0",
+                        }}
+                      >
+                        {d}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                      gap: 6,
+                    }}
+                  >
+                    {calendarDays.map((date) => {
+                      const iso = dateToISO(date);
+                      const selected = selectedDate === iso;
+                      const inCurrentMonth = isSameMonth(date, calendarMonth);
+                      const isPast = iso < today;
+                      const disabled = !inCurrentMonth || isPast;
+
+                      return (
+                        <button
+                          key={iso}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => {
+                            setSelectedDate(iso);
+                            setSelectedTimeMin(null);
+                            setMessage("");
+                            setError("");
+                            setCalendarOpen(false);
+                          }}
+                          style={{
+                            height: 42,
+                            borderRadius: 12,
+                            border: selected ? "1px solid #111" : "1px solid #e2e2e2",
+                            background: selected ? "#111" : "#fff",
+                            color: selected ? "#fff" : disabled ? "#bbb" : "#111",
+                            fontWeight: 800,
+                            cursor: disabled ? "not-allowed" : "pointer",
+                            opacity: inCurrentMonth ? 1 : 0.5,
+                          }}
+                        >
+                          {date.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
             <div>
               <div style={{ ...labelStyle, marginBottom: 10 }}>Uhrzeit</div>
 
@@ -705,9 +858,7 @@ export default function BarberBookPage() {
 
             <div>
               <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Datum</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>
-  {selectedDate ? formatShortDateLabel(selectedDate) : "—"}
-</div>
+              <div style={{ marginTop: 4, fontWeight: 800 }}>{isoToDisplayDate(selectedDate) || "—"}</div>
             </div>
 
             <div>
