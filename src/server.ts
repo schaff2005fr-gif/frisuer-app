@@ -141,6 +141,92 @@ function formatDateBerlin(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(d);
 }
 
+function getBerlinNowParts() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+
+  const map: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+
+  const year = Number(map.year);
+  const month = Number(map.month);
+  const day = Number(map.day);
+  const hour = Number(map.hour);
+  const minute = Number(map.minute);
+
+  return {
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    dateStr: `${map.year}-${map.month}-${map.day}`,
+    minuteOfDay: hour * 60 + minute,
+  };
+}
+
+function parseGmtOffsetToMinutes(offsetLabel: string): number {
+  const m = /^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/.exec(offsetLabel.trim());
+  if (!m) return 0;
+
+  const sign = m[1] === "-" ? -1 : 1;
+  const hh = Number(m[2] || "0");
+  const mm = Number(m[3] || "0");
+  return sign * (hh * 60 + mm);
+}
+
+function getBerlinOffsetMinutes(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Berlin",
+    timeZoneName: "shortOffset",
+  }).formatToParts(date);
+
+  const tz = parts.find((p) => p.type === "timeZoneName")?.value || "GMT+0";
+  return parseGmtOffsetToMinutes(tz);
+}
+
+function berlinDateTimeToUtcMs(dateStr: string, minuteOfDay: number): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const hh = Math.floor(minuteOfDay / 60);
+  const mm = minuteOfDay % 60;
+
+  let guess = new Date(Date.UTC(y, m - 1, d, hh, mm, 0, 0));
+
+  for (let i = 0; i < 3; i++) {
+    const offsetMin = getBerlinOffsetMinutes(guess);
+    const correctedMs = Date.UTC(y, m - 1, d, hh, mm, 0, 0) - offsetMin * 60_000;
+    if (correctedMs === guess.getTime()) return correctedMs;
+    guess = new Date(correctedMs);
+  }
+
+  return guess.getTime();
+}
+
+function isStartTimeInFutureBerlin(dateStr: string, startMin: number): boolean {
+  const now = Date.now();
+  const bookingStartMs = berlinDateTimeToUtcMs(dateStr, startMin);
+  return bookingStartMs > now;
+}
+
+function canCancelBooking24hBefore(dateStr: string, startMin: number | null): boolean {
+  if (startMin == null) return false;
+
+  const now = Date.now();
+  const bookingStartMs = berlinDateTimeToUtcMs(dateStr, startMin);
+  const diffMs = bookingStartMs - now;
+
+  return diffMs >= 24 * 60 * 60 * 1000;
+}
+
 function slugify(input: string) {
   return input
     .trim()
@@ -478,6 +564,9 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
   let windowStartMin = baseStartMin;
   const windowEndMin = baseEndMin;
 
+  const berlinNow = getBerlinNowParts();
+  const isTodayBerlin = dateStr === berlinNow.dateStr;
+
   const buildTimesForWindow = (startMin: number) => {
     const times: number[] = [];
     const lastStart = baseEndMin - serviceDurationMin;
@@ -485,6 +574,9 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
     for (let t = startMin; t <= lastStart; t += settings.stepMin) {
       const tEnd = t + serviceDurationMin;
       if (tEnd > baseEndMin) continue;
+
+      // ✅ Heute nur noch echte Zukunft anzeigen
+      if (isTodayBerlin && t <= berlinNow.minuteOfDay) continue;
 
       const conflict = busy.some((b) => overlaps(t, tEnd, b.start, b.end));
       if (!conflict) times.push(t);
@@ -1147,6 +1239,9 @@ if (dateStr < todayStr) {
     if (exactTime == null || exactTime < 0 || exactTime > 1439) {
       return res.status(400).json({ error: "exactTime must be HH:MM or 0..1439" });
     }
+    if (!isStartTimeInFutureBerlin(dateStr, exactTime)) {
+  return res.status(400).json({ error: "Du kannst keinen Termin in der Vergangenheit buchen." });
+}
 
     const barber = await prisma.barber.findUnique({ where: { slug: barberSlug } });
     if (!barber || !barber.isActive) return res.status(404).json({ error: "Barber not found" });
@@ -1296,6 +1391,10 @@ app.post("/admin/manual-bookings", requireAuth, requireRole("BARBER"), async (re
     if (exactTime == null || exactTime < 0 || exactTime > 1439) {
       return res.status(400).json({ error: "startTime must be HH:MM" });
     }
+
+    if (!isStartTimeInFutureBerlin(dateStr, exactTime)) {
+  return res.status(400).json({ error: "Du kannst keinen Termin in der Vergangenheit anlegen." });
+}
 
     const durationMin = service.durationMin;
     const requestedStart = exactTime;
@@ -1903,7 +2002,7 @@ app.get("/my-bookings", requireAuth, requireRole("CUSTOMER"), async (req, res) =
 
     const view = bookings.map((b) => {
       const dateStr = formatDateBerlin(b.date);
-
+      const canCancel = b.status !== "CANCELLED" && canCancelBooking24hBefore(dateStr, b.exactTime);
       const start = b.exactTime ?? null;
       const end = start != null ? start + b.durationMin : null;
 
@@ -1919,6 +2018,7 @@ app.get("/my-bookings", requireAuth, requireRole("CUSTOMER"), async (req, res) =
         isGuest: b.customerId == null,
         guestName: b.guestName ?? null,
         guestPhone: b.guestPhone ?? null,
+        canCancel,
       };
     });
 
@@ -1952,6 +2052,14 @@ app.delete("/bookings/:id", requireAuth, requireRole("CUSTOMER"), async (req, re
 
     if (existing.status === "CANCELLED") {
       return res.json({ ok: true, alreadyCancelled: true });
+    }
+
+    const bookingDateStr = formatDateBerlin(existing.date);
+
+    if (!canCancelBooking24hBefore(bookingDateStr, existing.exactTime)) {
+      return res.status(400).json({
+        error: "Eine Stornierung ist nur bis 24 Stunden vor dem Termin möglich.",
+      });
     }
 
     const updated = await prisma.booking.update({
