@@ -1,4 +1,5 @@
 import "./globals.css";
+import Footer from "@/components/Footer";
 
 export const metadata = {
   title: "Friseur App",
@@ -9,7 +10,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="de">
       <body>
-        <div className="page">{children}</div>
+        <div className="page">
+          {children}
+          <Footer />
+        </div>
       </body>
     </html>
   );
