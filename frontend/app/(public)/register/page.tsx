@@ -41,6 +41,9 @@ function RegisterCustomerInner() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
 
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -52,6 +55,16 @@ function RegisterCustomerInner() {
 
     if (password.length < 8) {
       setError("Passwort muss mindestens 8 Zeichen lang sein.");
+      return;
+    }
+
+    if (!acceptedPrivacy) {
+      setError("Bitte bestätige, dass du die Datenschutzerklärung zur Kenntnis genommen hast.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError("Bitte akzeptiere die Buchungs- und Nutzungsregeln.");
       return;
     }
 
@@ -177,9 +190,52 @@ function RegisterCustomerInner() {
             <div style={{ fontSize: 11, color: "#666" }}>Mindestens 8 Zeichen.</div>
           </div>
 
+          <div
+            style={{
+              display: "grid",
+              gap: 10,
+              padding: 12,
+              border: "1px solid #eee",
+              borderRadius: 12,
+              background: "#fafafa",
+            }}
+          >
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, lineHeight: 1.45 }}>
+              <input
+                type="checkbox"
+                checked={acceptedPrivacy}
+                onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+                style={{ marginTop: 2 }}
+              />
+              <span>
+                Ich habe die{" "}
+                <Link href="/datenschutz" target="_blank" style={{ fontWeight: 900, color: "#111" }}>
+                  Datenschutzerklärung
+                </Link>{" "}
+                zur Kenntnis genommen.
+              </span>
+            </label>
+
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, lineHeight: 1.45 }}>
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                style={{ marginTop: 2 }}
+              />
+              <span>
+                Ich akzeptiere die{" "}
+                <Link href="/buchungsregeln" target="_blank" style={{ fontWeight: 900, color: "#111" }}>
+                  Buchungs- und Nutzungsregeln
+                </Link>
+                .
+              </span>
+            </label>
+          </div>
+
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || !acceptedPrivacy || !acceptedTerms}
             style={{
               marginTop: 4,
               padding: "10px 12px",
@@ -188,8 +244,8 @@ function RegisterCustomerInner() {
               background: "#111",
               color: "#fff",
               fontWeight: 900,
-              cursor: busy ? "not-allowed" : "pointer",
-              opacity: busy ? 0.75 : 1,
+              cursor: busy || !acceptedPrivacy || !acceptedTerms ? "not-allowed" : "pointer",
+              opacity: busy || !acceptedPrivacy || !acceptedTerms ? 0.75 : 1,
             }}
           >
             {busy ? "Registriere..." : "Registrieren"}
