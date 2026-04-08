@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
@@ -87,7 +88,10 @@ export default function CustomerSettingsPage() {
 
     try {
       const token = getToken();
-      if (!token) return router.replace("/login");
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
 
       const res = await fetch(`${API_BASE}/me`, {
         method: "PATCH",
@@ -143,7 +147,10 @@ export default function CustomerSettingsPage() {
 
     try {
       const token = getToken();
-      if (!token) return router.replace("/login");
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
 
       const res = await fetch(`${API_BASE}/me`, {
         method: "DELETE",
@@ -296,7 +303,34 @@ export default function CustomerSettingsPage() {
           opacity: 0.7;
         }
 
-        /* ✅ Mobile */
+        .legal {
+          margin-top: 20px;
+          border-top: 1px solid #eee;
+          padding-top: 16px;
+        }
+
+        .legalTitle {
+          font-weight: 900;
+          color: #111;
+          margin-bottom: 10px;
+        }
+
+        .legalGrid {
+          display: grid;
+          gap: 10px;
+        }
+
+        .legalLink {
+          display: block;
+          padding: 12px;
+          border: 1px solid #ddd;
+          border-radius: 12px;
+          background: #fff;
+          color: #111;
+          text-decoration: none;
+          font-weight: 900;
+        }
+
         @media (max-width: 520px) {
           .page {
             padding: 14px;
@@ -351,10 +385,21 @@ export default function CustomerSettingsPage() {
             Eingeloggt als: <b>{me?.email}</b>
           </div>
 
-          {/* ✅ neu: Logout Button */}
           <button onClick={logout} className="btnGhost">
             Ausloggen
           </button>
+
+          <div className="legal">
+            <div className="legalTitle">Rechtliches</div>
+            <div className="legalGrid">
+              <Link href="/impressum" className="legalLink">
+                Impressum
+              </Link>
+              <Link href="/datenschutz" className="legalLink">
+                Datenschutz
+              </Link>
+            </div>
+          </div>
 
           <div className="danger">
             <div className="dangerTitle">Gefährliche Aktion</div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 const PUBLIC_APP_URL = process.env.NEXT_PUBLIC_PUBLIC_APP_URL || "";
@@ -215,16 +216,16 @@ export default function AdminSettingsPage() {
     if (!token) throw new Error("Kein Token. Bitte als BARBER einloggen.");
 
     const headers: Record<string, string> = {
-  Authorization: `Bearer ${token}`,
-  ...(init?.headers as Record<string, string> | undefined),
-};
+      Authorization: `Bearer ${token}`,
+      ...(init?.headers as Record<string, string> | undefined),
+    };
 
-const method = String(init?.method || "GET").toUpperCase();
-const hasBody = init?.body != null;
+    const method = String(init?.method || "GET").toUpperCase();
+    const hasBody = init?.body != null;
 
-if (hasBody && method !== "GET") {
-  headers["Content-Type"] = "application/json";
-}
+    if (hasBody && method !== "GET") {
+      headers["Content-Type"] = "application/json";
+    }
 
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
@@ -585,7 +586,9 @@ if (hasBody && method !== "GET") {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>Einstellungen</h1>
+          <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>
+            Einstellungen
+          </h1>
           <div style={{ marginTop: 8, color: "#666", fontSize: 17, lineHeight: 1.45 }}>
             Profil, Services, Arbeitszeiten und Slot-Logik verwalten.
           </div>
@@ -705,6 +708,44 @@ if (hasBody && method !== "GET") {
               <DrawerButton active={tab === "SLOTS"} onClick={() => goTab("SLOTS")} label="Slot-Logik" />
 
               <div style={{ height: 1, background: "#eee", margin: "6px 0" }} />
+
+              <Link
+                href="/impressum"
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  height: 48,
+                  borderRadius: 14,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  color: "#111",
+                  fontWeight: 900,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 14px",
+                }}
+              >
+                Impressum
+              </Link>
+
+              <Link
+                href="/datenschutz"
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  height: 48,
+                  borderRadius: 14,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  color: "#111",
+                  fontWeight: 900,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 14px",
+                }}
+              >
+                Datenschutz
+              </Link>
 
               <button
                 type="button"
@@ -1366,7 +1407,9 @@ function LinkBox(props: {
       }}
     >
       <div style={{ fontSize: 13, color: "#666", fontWeight: 800 }}>{props.title}</div>
-      <div style={{ marginTop: 8, fontWeight: 900, wordBreak: "break-word", lineHeight: 1.4 }}>{props.url}</div>
+      <div style={{ marginTop: 8, fontWeight: 900, wordBreak: "break-word", lineHeight: 1.4 }}>
+        {props.url}
+      </div>
 
       <div
         className="twoColGrid"
