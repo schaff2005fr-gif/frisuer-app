@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
@@ -121,6 +121,7 @@ function buildCalendarDays(monthIso: string) {
 }
 
 export default function BarberBookPage() {
+  const router = useRouter();
   const params = useParams<{ slug: string }>();
   const slug = String(params?.slug ?? "");
 
@@ -285,9 +286,16 @@ export default function BarberBookPage() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "Buchung fehlgeschlagen");
 
-      setMessage(`Termin gebucht: ${isoToDisplayDate(selectedDate)} um ${minToHHMM(selectedTimeMin!)}`);
+      setMessage(`✅ Termin erfolgreich gebucht: ${isoToDisplayDate(selectedDate)} um ${minToHHMM(selectedTimeMin!)}`);
+      setError("");
       setNote("");
+      setSelectedTimeMin(null);
+
       await loadTimes();
+
+      setTimeout(() => {
+        router.push("/my-bookings");
+      }, 900);
     } catch (e: any) {
       setError(e?.message ?? "Fehler beim Buchen");
     } finally {
