@@ -75,6 +75,18 @@ type ManualBookingPayload = {
   note: string | null;
 };
 
+type AvailableTimesResponse = {
+  barber: { name: string; slug: string };
+  date: string;
+  isOpen: boolean;
+  stepMin: number;
+  activeWindow: { startMin: number; endMin: number };
+  activeWindowHHMM: { start: string; end: string };
+  service: { key: string; name: string; durationMin: number };
+  times: number[];
+  timesHHMM: string[];
+};
+
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -137,7 +149,7 @@ function parseStartEndFromTimeHHMM(timeHHMM: string | null) {
 function statusLabel(s: BookingStatus) {
   if (s === "CONFIRMED") return "Bestätigt";
   if (s === "COMPLETED") return "Erledigt";
-  if (s === "NO_SHOW") return "No-Show";
+  if (s === "NO_SHOW") return "Nicht erschienen";
   return "Storniert";
 }
 
@@ -211,6 +223,64 @@ function formatShortDay(iso: string) {
 function formatWeekRange(anchorIso: string) {
   const dates = getWeekDates(anchorIso);
   return `${formatShortDay(dates[0])} – ${formatShortDay(dates[6])}`;
+}
+
+function monthStart(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function monthEnd(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function addMonths(date: Date, amount: number) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function getCalendarDays(monthDate: Date) {
+  const start = monthStart(monthDate);
+  const end = monthEnd(monthDate);
+
+  const startWeekday = start.getDay();
+  const lead = startWeekday === 0 ? 6 : startWeekday - 1;
+  const daysInMonth = end.getDate();
+
+  const cells: Array<{ iso: string; day: number; inMonth: boolean }> = [];
+
+  for (let i = lead; i > 0; i--) {
+    const d = new Date(start);
+    d.setDate(start.getDate() - i);
+    cells.push({ iso: toIsoLocal(d), day: d.getDate(), inMonth: false });
+  }
+
+  for (let i = 1; i <= daysInMonth; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), i);
+    cells.push({ iso: toIsoLocal(d), day: i, inMonth: true });
+  }
+
+  while (cells.length % 7 !== 0) {
+    const last = parseIsoDateLocal(cells[cells.length - 1].iso);
+    last.setDate(last.getDate() + 1);
+    cells.push({ iso: toIsoLocal(last), day: last.getDate(), inMonth: false });
+  }
+
+  return cells;
+}
+
+function formatMonthYear(date: Date) {
+  return new Intl.DateTimeFormat("de-DE", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatPickerDate(iso: string) {
+  return new Intl.DateTimeFormat("de-DE", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parseIsoDateLocal(iso));
 }
 
 function layoutOverlappingBookings(bookings: ApiBooking[]): PositionedBooking[] {
@@ -427,6 +497,7 @@ export default function AdminPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creatingBooking, setCreatingBooking] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
+  const [barberSlug, setBarberSlug] = useState("");
 
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
@@ -434,6 +505,13 @@ export default function AdminPage() {
   const [newBookingDate, setNewBookingDate] = useState(anchorDate);
   const [newBookingTime, setNewBookingTime] = useState("");
   const [newBookingNote, setNewBookingNote] = useState("");
+
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerMonth, setPickerMonth] = useState<Date>(parseIsoDateLocal(anchorDate));
+
+  const [manualAvailableTimes, setManualAvailableTimes] = useState<string[]>([]);
+  const [manualTimesLoading, setManualTimesLoading] = useState(false);
+  const [manualTimesError, setManualTimesError] = useState("");
 
   const swipeStartX = useRef<number | null>(null);
 
@@ -527,6 +605,27 @@ export default function AdminPage() {
       name: String(s.name),
       durationMin: Number(s.durationMin ?? 0),
     })) as ServiceOption[];
+  }
+
+  async function fetchBarberSlug() {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/admin/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const raw = await res.text();
+    let data: any = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = { raw };
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.error || `Fehler (Status ${res.status})`);
+    }
+
+    return String(data?.barber?.slug ?? "");
   }
 
   async function loadCurrentView() {
@@ -685,18 +784,68 @@ export default function AdminPage() {
   function openCreateModal() {
     setError("");
     setMessage("");
+    setManualTimesError("");
+    setManualAvailableTimes([]);
     setNewCustomerName("");
     setNewCustomerPhone("");
     setNewServiceKey(services[0]?.key ?? "");
     setNewBookingDate(anchorDate);
     setNewBookingTime("");
     setNewBookingNote("");
+    setPickerMonth(parseIsoDateLocal(anchorDate));
+    setShowDatePicker(false);
     setShowCreateModal(true);
   }
 
   function closeCreateModal() {
     if (creatingBooking) return;
     setShowCreateModal(false);
+    setShowDatePicker(false);
+  }
+
+  async function loadManualAvailableTimes(date: string, serviceKey: string) {
+    if (!barberSlug || !date || !serviceKey) {
+      setManualAvailableTimes([]);
+      return;
+    }
+
+    setManualTimesLoading(true);
+    setManualTimesError("");
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/public/available-times?barberSlug=${encodeURIComponent(barberSlug)}&date=${encodeURIComponent(
+          date
+        )}&serviceKey=${encodeURIComponent(serviceKey)}`
+      );
+
+      const raw = await res.text();
+      let data: AvailableTimesResponse | any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      if (!res.ok) {
+        setManualAvailableTimes([]);
+        setManualTimesError(data?.error || "Freie Zeiten konnten nicht geladen werden.");
+        return;
+      }
+
+      const times = Array.isArray(data?.timesHHMM) ? data.timesHHMM : [];
+      setManualAvailableTimes(times);
+
+      if (!times.includes(newBookingTime)) {
+        setNewBookingTime(times[0] ?? "");
+      }
+    } catch (e) {
+      console.error(e);
+      setManualAvailableTimes([]);
+      setManualTimesError("Freie Zeiten konnten nicht geladen werden.");
+    } finally {
+      setManualTimesLoading(false);
+    }
   }
 
   async function createManualBooking() {
@@ -724,8 +873,8 @@ export default function AdminPage() {
       return;
     }
 
-    if (!/^\d{2}:\d{2}$/.test(startTime)) {
-      setError("Bitte eine Uhrzeit im Format HH:MM eingeben.");
+    if (!startTime) {
+      setError("Bitte einen freien Termin auswählen.");
       return;
     }
 
@@ -824,11 +973,14 @@ export default function AdminPage() {
   useEffect(() => {
     let active = true;
 
-    async function loadServicesOnce() {
+    async function loadInitialData() {
       try {
-        const list = await fetchServices();
+        const [list, slug] = await Promise.all([fetchServices(), fetchBarberSlug()]);
         if (!active) return;
+
         setServices(list);
+        setBarberSlug(slug);
+
         if (list.length > 0) {
           setNewServiceKey(list[0].key);
         }
@@ -837,7 +989,7 @@ export default function AdminPage() {
       }
     }
 
-    loadServicesOnce();
+    loadInitialData();
 
     return () => {
       active = false;
@@ -848,14 +1000,30 @@ export default function AdminPage() {
   useEffect(() => {
     if (!showCreateModal) {
       setNewBookingDate(anchorDate);
+      return;
     }
-  }, [anchorDate, showCreateModal]);
+
+    setPickerMonth(parseIsoDateLocal(newBookingDate));
+  }, [anchorDate, newBookingDate, showCreateModal]);
+
+  useEffect(() => {
+    if (!showCreateModal) return;
+    if (!newBookingDate || !newServiceKey) {
+      setManualAvailableTimes([]);
+      setNewBookingTime("");
+      return;
+    }
+
+    loadManualAvailableTimes(newBookingDate, newServiceKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreateModal, newBookingDate, newServiceKey, barberSlug]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setSelectedBookingId(null);
         setShowCreateModal(false);
+        setShowDatePicker(false);
       }
     }
 
@@ -940,6 +1108,9 @@ export default function AdminPage() {
     return arr;
   }, [commonWindow]);
 
+  const calendarCells = useMemo(() => getCalendarDays(pickerMonth), [pickerMonth]);
+  const todayIso = todayIsoLocal();
+
   return (
     <div style={{ padding: 16, maxWidth: 1180, margin: "0 auto" }}>
       <div style={{ display: "grid", gap: 12 }}>
@@ -1001,7 +1172,7 @@ export default function AdminPage() {
 
         <div className="statsGrid">
           <StatCard title="Termine" value={String(stats.total)} sub={`${stats.confirmed} bestätigt`} />
-          <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} No-Show`} />
+          <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} nicht erschienen`} />
           <StatCard title="Storniert" value={String(stats.cancelled)} sub={view === "day" ? "Heute" : "Woche"} />
         </div>
 
@@ -1233,7 +1404,7 @@ export default function AdminPage() {
                 onClick={() => updateStatus(selectedBooking.id, "COMPLETED")}
               />
               <StatusButton
-                label="No-Show"
+                label="Nicht erschienen"
                 active={selectedBooking.status === "NO_SHOW"}
                 disabled={updatingId === selectedBooking.id}
                 onClick={() => updateStatus(selectedBooking.id, "NO_SHOW")}
@@ -1341,28 +1512,197 @@ export default function AdminPage() {
 
               <div className="createGrid2" style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
                 <Field label="Datum">
-                  <input
-                    type="date"
-                    value={newBookingDate}
-                    onChange={(e) => setNewBookingDate(e.target.value)}
-                    style={fieldInputStyle}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDatePicker((v) => !v)}
+                    style={{
+                      ...fieldInputStyle,
+                      textAlign: "left",
+                      background: "#fff",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {formatPickerDate(newBookingDate)}
+                  </button>
+
+                  {showDatePicker ? (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        border: "1px solid #e5e5e5",
+                        borderRadius: 16,
+                        background: "#fff",
+                        padding: 12,
+                        boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          marginBottom: 10,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setPickerMonth((m) => addMonths(m, -1))}
+                          style={miniCalendarNavButton}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+
+                        <div style={{ fontWeight: 900, fontSize: 15, textTransform: "capitalize" }}>
+                          {formatMonthYear(pickerMonth)}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setPickerMonth((m) => addMonths(m, 1))}
+                          style={miniCalendarNavButton}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(7, 1fr)",
+                          gap: 6,
+                          marginBottom: 8,
+                        }}
+                      >
+                        {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((d) => (
+                          <div
+                            key={d}
+                            style={{
+                              textAlign: "center",
+                              fontSize: 12,
+                              color: "#666",
+                              fontWeight: 800,
+                              padding: "4px 0",
+                            }}
+                          >
+                            {d}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(7, 1fr)",
+                          gap: 6,
+                        }}
+                      >
+                        {calendarCells.map((cell) => {
+                          const isPast = cell.iso < todayIso;
+                          const isSelected = cell.iso === newBookingDate;
+                          const isToday = cell.iso === todayIso;
+
+                          return (
+                            <button
+                              key={cell.iso}
+                              type="button"
+                              disabled={isPast}
+                              onClick={() => {
+                                setNewBookingDate(cell.iso);
+                                setShowDatePicker(false);
+                              }}
+                              style={{
+                                height: 40,
+                                borderRadius: 10,
+                                border: isSelected
+                                  ? "1px solid #111"
+                                  : isToday
+                                  ? "1px solid #999"
+                                  : "1px solid #e5e5e5",
+                                background: isSelected ? "#111" : "#fff",
+                                color: isSelected
+                                  ? "#fff"
+                                  : isPast
+                                  ? "#bbb"
+                                  : cell.inMonth
+                                  ? "#111"
+                                  : "#888",
+                                fontWeight: isSelected || cell.inMonth ? 800 : 700,
+                                cursor: isPast ? "not-allowed" : "pointer",
+                                opacity: isPast ? 0.5 : 1,
+                              }}
+                            >
+                              {cell.day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                 </Field>
 
-                <Field label="Startzeit">
-                  <input
-                    type="time"
-                    value={newBookingTime}
-                    onChange={(e) => setNewBookingTime(e.target.value)}
-                    style={fieldInputStyle}
-                  />
+                <Field label="Freier Slot">
+                  <div
+                    style={{
+                      ...fieldInputStyle,
+                      minHeight: 48,
+                      height: "auto",
+                      padding: 10,
+                      background: "#fff",
+                    }}
+                  >
+                    {manualTimesLoading ? (
+                      <div style={{ fontSize: 13, color: "#666", fontWeight: 700 }}>
+                        Lade freie Zeiten...
+                      </div>
+                    ) : manualAvailableTimes.length === 0 ? (
+                      <div style={{ fontSize: 13, color: "#888", fontWeight: 700 }}>
+                        Keine freien Zeiten verfügbar
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {manualAvailableTimes.map((time) => {
+                          const active = newBookingTime === time;
+                          return (
+                            <button
+                              key={time}
+                              type="button"
+                              onClick={() => setNewBookingTime(time)}
+                              style={{
+                                padding: "8px 10px",
+                                borderRadius: 10,
+                                border: active ? "1px solid #111" : "1px solid #ddd",
+                                background: active ? "#111" : "#fff",
+                                color: active ? "#fff" : "#111",
+                                fontWeight: 900,
+                                fontSize: 13,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {time}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {manualTimesError ? (
+                    <div style={{ marginTop: 6, fontSize: 12, color: "#b00020" }}>
+                      {manualTimesError}
+                    </div>
+                  ) : null}
                 </Field>
               </div>
 
               <Field label="Service">
                 <select
                   value={newServiceKey}
-                  onChange={(e) => setNewServiceKey(e.target.value)}
+                  onChange={(e) => {
+                    setNewServiceKey(e.target.value);
+                    setNewBookingTime("");
+                  }}
                   style={{ ...fieldInputStyle, background: "#fff" }}
                 >
                   <option value="">Bitte wählen</option>
@@ -1394,7 +1734,11 @@ export default function AdminPage() {
               <TopButton onClick={closeCreateModal} disabled={creatingBooking}>
                 Abbrechen
               </TopButton>
-              <TopButton onClick={createManualBooking} disabled={creatingBooking} active>
+              <TopButton
+                onClick={createManualBooking}
+                disabled={creatingBooking || !newBookingTime}
+                active
+              >
                 {creatingBooking ? "Speichere..." : "Termin speichern"}
               </TopButton>
             </div>
@@ -1497,6 +1841,19 @@ const fieldInputStyle: React.CSSProperties = {
   border: "1px solid #ddd",
   fontSize: 14,
   boxSizing: "border-box",
+};
+
+const miniCalendarNavButton: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: 10,
+  border: "1px solid #ddd",
+  background: "#fff",
+  color: "#111",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
 };
 
 function DayCalendar(props: {
@@ -1946,7 +2303,7 @@ function WeekCalendar(props: {
 
               <div style={{ position: "relative", height: gridHeight }}>
                 {props.hours.slice(0, -1).map((h) => {
-                  const top = (h - props.windowStart) * pxPerMin;
+                  const top = (h - props.windowStart) * 1.05;
                   return (
                     <div
                       key={h}
@@ -1962,8 +2319,8 @@ function WeekCalendar(props: {
                 })}
 
                 {pauses.map((p) => {
-                  const top = (p.startMin - props.windowStart) * pxPerMin + 2;
-                  const height = Math.max(12, (p.endMin - p.startMin) * pxPerMin - 4);
+                  const top = (p.startMin - props.windowStart) * 1.05 + 2;
+                  const height = Math.max(12, (p.endMin - p.startMin) * 1.05 - 4);
 
                   return (
                     <div
@@ -1989,8 +2346,8 @@ function WeekCalendar(props: {
 
                 {laidOut.map((b) => {
                   const colors = statusColors(b.status);
-                  const top = (b.startMin - props.windowStart) * pxPerMin + 4;
-                  const rawHeight = (b.endMin - b.startMin) * pxPerMin - 4;
+                  const top = (b.startMin - props.windowStart) * 1.05 + 4;
+                  const rawHeight = (b.endMin - b.startMin) * 1.05 - 4;
                   const height = Math.max(22, rawHeight);
                   const compact = height < 40;
                   const veryCompact = height < 28;
