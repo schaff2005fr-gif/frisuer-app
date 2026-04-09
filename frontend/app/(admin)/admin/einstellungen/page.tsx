@@ -49,22 +49,15 @@ type BarberProfile = {
   imageUrl: string | null;
 };
 
-type TabKey = "PROFILE" | "SERVICES" | "HOURS" | "SLOTS";
-
 const WEEKDAYS = [
+  { k: 0, name: "Sonntag" },
   { k: 1, name: "Montag" },
   { k: 2, name: "Dienstag" },
   { k: 3, name: "Mittwoch" },
   { k: 4, name: "Donnerstag" },
   { k: 5, name: "Freitag" },
   { k: 6, name: "Samstag" },
-  { k: 0, name: "Sonntag" },
 ];
-
-const STEP_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
-const EXTEND_OPTIONS = [15, 30, 45, 60, 90, 120];
-const SERVICE_DURATION_OPTIONS = [15, 20, 25, 30, 35, 40, 45, 50, 60, 75, 90, 120];
-const MIN_DAYS_OPTIONS = [0, 1, 2, 3, 5, 7, 10, 14, 21, 30];
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -74,6 +67,12 @@ function minToHHMM(min: number) {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return `${pad2(h)}:${pad2(m)}`;
+}
+
+function hhmmToMin(v: string) {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(v).trim());
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
 }
 
 function clamp(n: number, a: number, b: number) {
@@ -91,21 +90,9 @@ function trimTrailingSlash(url: string) {
   return url.replace(/\/+$/, "");
 }
 
-function makeTimeOptions(step = 15, from = 0, to = 24 * 60) {
-  const arr: { value: number; label: string }[] = [];
-  for (let min = from; min <= to; min += step) {
-    if (min >= 24 * 60) break;
-    arr.push({ value: min, label: minToHHMM(min) });
-  }
-  return arr;
-}
-
-const TIME_OPTIONS = makeTimeOptions(15, 0, 24 * 60);
-const BUSINESS_TIME_OPTIONS = makeTimeOptions(15, 6 * 60, 23 * 60 + 45);
-
 async function uploadToCloudinary(file: File): Promise<string> {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error("Cloudinary ENV fehlt (CLOUD_NAME / UPLOAD_PRESET).");
+    throw new Error("Cloudinary ENV fehlt.");
   }
 
   const form = new FormData();
@@ -126,15 +113,15 @@ async function uploadToCloudinary(file: File): Promise<string> {
 export default function AdminSettingsPage() {
   const router = useRouter();
 
-  const [tab, setTab] = useState<TabKey>("PROFILE");
+  const [tab, setTab] = useState<"PROFILE" | "SERVICES" | "HOURS" | "SLOTS">("PROFILE");
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deletingAccount, setDeletingAccount] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   const [copied, setCopied] = useState<"" | "profile" | "book">("");
+
   const [uploadingImg, setUploadingImg] = useState(false);
   const [imgMsg, setImgMsg] = useState("");
   const [localPreview, setLocalPreview] = useState<string>("");
@@ -150,57 +137,6 @@ export default function AdminSettingsPage() {
     setMessage("");
   }
 
-  function getToken() {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("token") || "";
-  }
-
-  function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    router.replace("/login");
-    router.refresh();
-  }
-
-  async function deleteAccount() {
-    const ok = window.confirm(
-      "Willst du deinen Friseur-Account wirklich endgültig löschen?\n\nAlle Daten, Services und Einstellungen gehen dabei verloren."
-    );
-    if (!ok) return;
-
-    setDeletingAccount(true);
-    clearAlerts();
-
-    try {
-      const token = getToken();
-      if (!token) {
-        logout();
-        return;
-      }
-
-      const res = await fetch(`${API_BASE}/me`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data?.error || "Account konnte nicht gelöscht werden.");
-      }
-
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.assign("/login");
-    } catch (e: any) {
-      setError(e?.message || "Fehler beim Löschen.");
-    } finally {
-      setDeletingAccount(false);
-    }
-  }
-
   function publicBaseUrl() {
     const envUrl = trimTrailingSlash(cleanUrl(PUBLIC_APP_URL));
     if (envUrl) return envUrl;
@@ -209,7 +145,7 @@ export default function AdminSettingsPage() {
       return trimTrailingSlash(window.location.origin);
     }
 
-    return "https://frisuer-app-1.onrender.com";
+    return "https://salora-booking.de";
   }
 
   async function copyToClipboard(text: string, kind: "profile" | "book") {
@@ -222,25 +158,22 @@ export default function AdminSettingsPage() {
     }
   }
 
+  function getToken() {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("token") || "";
+  }
+
   async function apiFetch(path: string, init?: RequestInit) {
     const token = getToken();
-    if (!token) throw new Error("Kein Token. Bitte als BARBER einloggen.");
-
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      ...(init?.headers as Record<string, string> | undefined),
-    };
-
-    const method = String(init?.method || "GET").toUpperCase();
-    const hasBody = init?.body != null;
-
-    if (hasBody && method !== "GET") {
-      headers["Content-Type"] = "application/json";
-    }
+    if (!token) throw new Error("Kein Token. Bitte neu einloggen.");
 
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers,
+      headers: {
+        ...(init?.headers ?? {}),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
     });
 
     const data = await res.json().catch(() => null);
@@ -257,8 +190,7 @@ export default function AdminSettingsPage() {
       setProfile(p?.barber ?? null);
 
       const s1 = await apiFetch("/admin/services", { method: "GET" });
-      const list: Service[] = Array.isArray(s1?.services) ? s1.services : [];
-      setServices(list);
+      setServices(Array.isArray(s1?.services) ? s1.services : []);
 
       const s2 = await apiFetch("/admin/settings", { method: "GET" });
       const raw = (s2?.settings ?? null) as AppSettings | null;
@@ -342,6 +274,7 @@ export default function AdminSettingsPage() {
     setUploadingImg(true);
     try {
       const url = await uploadToCloudinary(file);
+
       if (profile) setProfile({ ...profile, imageUrl: url });
       await saveImageOnly(url);
       setImgMsg("✅ Profilbild gespeichert.");
@@ -416,41 +349,39 @@ export default function AdminSettingsPage() {
     setSaving(true);
 
     try {
-      const normalizedWorkingHours = (next.workingHours || []).map((row) => {
-        let startMin = clamp(row.startMin, 0, 1439);
-        let endMin = clamp(row.endMin, 1, 1440);
-
-        if (endMin <= startMin) {
-          endMin = Math.min(startMin + 15, 1440);
-        }
-
-        return {
-          ...row,
-          startMin,
-          endMin,
-        };
-      });
-
-      const payload: AppSettings = {
-        ...next,
-        stepMin: clamp(next.stepMin, 1, 120),
-        extendStepMin: clamp(next.extendStepMin, 10, 240),
-        earliestLimitMin: clamp(next.earliestLimitMin, 0, 1439),
-        minDaysBetweenBookings: clamp(next.minDaysBetweenBookings ?? 0, 0, 365),
-        workingHours: normalizedWorkingHours,
-      };
-
       const data = await apiFetch("/admin/settings", {
         method: "PUT",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(next),
       });
 
-      setSettings(data?.settings ?? payload);
+      setSettings(data?.settings ?? next);
       setMessage("Einstellungen gespeichert.");
     } catch (e: any) {
       setError(e?.message ?? "Fehler");
     } finally {
       setSaving(false);
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    router.replace("/login");
+    router.refresh();
+  }
+
+  async function deleteAccount() {
+    const ok = window.confirm("Willst du deinen Account wirklich löschen?");
+    if (!ok) return;
+
+    try {
+      await apiFetch("/auth/me", { method: "DELETE" });
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      router.replace("/");
+      router.refresh();
+    } catch {
+      setError("Account-Löschen ist aktuell nicht verfügbar.");
     }
   }
 
@@ -546,9 +477,9 @@ export default function AdminSettingsPage() {
 
   const sectionCardStyle: React.CSSProperties = {
     border: "1px solid #ededed",
-    borderRadius: 20,
+    borderRadius: 18,
     background: "#fcfcfc",
-    padding: 16,
+    padding: 14,
   };
 
   const primaryButton: React.CSSProperties = {
@@ -577,74 +508,47 @@ export default function AdminSettingsPage() {
     width: "100%",
   };
 
-  function patchWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
-    if (!settings) return;
+  const dangerButton: React.CSSProperties = {
+    height: 44,
+    borderRadius: 12,
+    border: "1px solid #e3c7c7",
+    background: "#fff",
+    color: "#8a1c1c",
+    fontWeight: 900,
+    fontSize: 14,
+    cursor: "pointer",
+    padding: "0 14px",
+    width: "100%",
+  };
 
-    const nextRows = workingHoursUi.map((r) => {
-      if (r.day !== day) return r;
-      const nextRow = { ...r, ...patch };
-
-      if (nextRow.endMin <= nextRow.startMin) {
-        nextRow.endMin = Math.min(nextRow.startMin + 15, 1440);
-      }
-
-      return nextRow;
-    });
-
-    setSettings({ ...settings, workingHours: nextRows });
-  }
+  const activeTabButton = (active: boolean): React.CSSProperties => ({
+    height: 48,
+    borderRadius: 14,
+    border: active ? "1px solid #111" : "1px solid #ddd",
+    background: active ? "#111" : "#fff",
+    color: active ? "#fff" : "#111",
+    fontWeight: 900,
+    cursor: "pointer",
+    width: "100%",
+    fontSize: 14,
+  });
 
   return (
     <div style={{ padding: 16, maxWidth: 1120, margin: "0 auto", overflowX: "hidden" }}>
       <style jsx>{`
-        @media (max-width: 760px) {
+        @media (max-width: 720px) {
           .twoColGrid,
           .threeColGrid,
-          .profileTopGrid,
-          .serviceRowGrid,
-          .hoursRowGrid {
+          .tabGrid {
             grid-template-columns: 1fr !important;
-          }
-
-          .topBar {
-            flex-direction: column !important;
-            align-items: stretch !important;
-          }
-
-          .tabRow {
-            overflow-x: auto;
-            padding-bottom: 4px;
           }
         }
       `}</style>
 
-      <div className="topBar" style={{ display: "flex", justifyContent: "space-between", gap: 14, marginBottom: 16 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>Einstellungen</h1>
-          <div style={{ marginTop: 8, color: "#666", fontSize: 17, lineHeight: 1.45 }}>
-            Profil, Services, Arbeitszeiten und Buchungsregeln verwalten.
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button type="button" onClick={logout} style={{ ...secondaryButton, width: "auto" }}>
-            Ausloggen
-          </button>
-          <button
-            type="button"
-            onClick={deleteAccount}
-            disabled={deletingAccount}
-            style={{
-              ...secondaryButton,
-              width: "auto",
-              border: "1px solid #d92d20",
-              background: "#fff5f5",
-              color: "#b42318",
-              opacity: deletingAccount ? 0.7 : 1,
-            }}
-          >
-            {deletingAccount ? "Löscht..." : "Account löschen"}
-          </button>
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>Einstellungen</h1>
+        <div style={{ marginTop: 8, color: "#666", fontSize: 17, lineHeight: 1.45 }}>
+          Alles für dein Profil, deine Services und deine Buchungsregeln.
         </div>
       </div>
 
@@ -665,17 +569,26 @@ export default function AdminSettingsPage() {
       )}
 
       <div
-        className="tabRow"
+        className="tabGrid"
         style={{
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
           gap: 10,
-          marginBottom: 18,
+          marginBottom: 16,
         }}
       >
-        <TabButton active={tab === "PROFILE"} onClick={() => setTab("PROFILE")} label="Profil" />
-        <TabButton active={tab === "SERVICES"} onClick={() => setTab("SERVICES")} label="Services" />
-        <TabButton active={tab === "HOURS"} onClick={() => setTab("HOURS")} label="Arbeitszeiten" />
-        <TabButton active={tab === "SLOTS"} onClick={() => setTab("SLOTS")} label="Slot-Logik" />
+        <button style={activeTabButton(tab === "PROFILE")} onClick={() => setTab("PROFILE")}>
+          Profil
+        </button>
+        <button style={activeTabButton(tab === "SERVICES")} onClick={() => setTab("SERVICES")}>
+          Services
+        </button>
+        <button style={activeTabButton(tab === "HOURS")} onClick={() => setTab("HOURS")}>
+          Arbeitszeiten
+        </button>
+        <button style={activeTabButton(tab === "SLOTS")} onClick={() => setTab("SLOTS")}>
+          Slot-Logik
+        </button>
       </div>
 
       {loading ? (
@@ -685,7 +598,7 @@ export default function AdminSettingsPage() {
           <div>
             <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.1 }}>Profil</h2>
             <div style={{ marginTop: 6, color: "#666", fontSize: 15 }}>
-              Öffentliche Infos, Links und Profilbild verwalten.
+              Öffentliche Infos, Links und Profilbild.
             </div>
           </div>
 
@@ -694,19 +607,16 @@ export default function AdminSettingsPage() {
           ) : (
             <div style={{ marginTop: 18, display: "grid", gap: 16 }}>
               <div
-                className="profileTopGrid"
+                className="twoColGrid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 0.85fr)",
+                  gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
                   gap: 16,
                   alignItems: "start",
                 }}
               >
                 <div style={sectionCardStyle}>
-                  <div style={{ fontWeight: 900, fontSize: 18 }}>Öffentliche Links</div>
-                  <div style={{ marginTop: 6, color: "#666", fontSize: 14 }}>
-                    Diese Links teilst du mit deinen Kunden.
-                  </div>
+                  <div style={{ fontWeight: 900, fontSize: 17 }}>Deine Kundenlinks</div>
 
                   <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
                     <LinkBox
@@ -724,35 +634,17 @@ export default function AdminSettingsPage() {
                       onCopy={() => copyToClipboard(bookUrl, "book")}
                       openLabel="Buchung öffnen"
                     />
-
-                    {!PUBLIC_APP_URL ? (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#8a6200",
-                          background: "#fff8e8",
-                          border: "1px solid #f1dfb3",
-                          borderRadius: 12,
-                          padding: 12,
-                        }}
-                      >
-                        Hinweis: Setze in Vercel <b>NEXT_PUBLIC_PUBLIC_APP_URL</b> auf deine echte Domain.
-                      </div>
-                    ) : null}
                   </div>
                 </div>
 
                 <div style={sectionCardStyle}>
-                  <div style={{ fontWeight: 900, fontSize: 18 }}>Profilbild</div>
-                  <div style={{ marginTop: 6, color: "#666", fontSize: 14 }}>
-                    Bild auswählen, hochladen und direkt speichern.
-                  </div>
+                  <div style={{ fontWeight: 900, fontSize: 17 }}>Profilbild</div>
 
                   <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
                     <div
                       style={{
-                        width: 108,
-                        height: 108,
+                        width: 96,
+                        height: 96,
                         borderRadius: 999,
                         border: "1px solid #e7e7e7",
                         background: "#fafafa",
@@ -764,6 +656,7 @@ export default function AdminSettingsPage() {
                       }}
                     >
                       {showPreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={showPreview}
                           alt="Profilbild"
@@ -794,7 +687,7 @@ export default function AdminSettingsPage() {
                     </div>
 
                     <Field
-                      label="Profilbild-Link"
+                      label="Profilbild (Link)"
                       value={profile.imageUrl ?? ""}
                       onChange={(v) => setProfile({ ...profile, imageUrl: v || null })}
                       placeholder="https://..."
@@ -812,17 +705,13 @@ export default function AdminSettingsPage() {
                       >
                         {imgMsg}
                       </div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: "#666" }}>
-                        Status: {showPreview ? (uploadingImg ? "lädt..." : "bereit") : "kein Bild"}
-                      </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
 
               <div style={sectionCardStyle}>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>Grunddaten</div>
+                <div style={{ fontWeight: 900, fontSize: 17 }}>Grunddaten</div>
 
                 <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
                   <div>
@@ -874,16 +763,16 @@ export default function AdminSettingsPage() {
                   </div>
 
                   <Field
-                    label="Instagram (optional)"
+                    label="Instagram"
                     value={profile.instagram ?? ""}
                     onChange={(v) => setProfile({ ...profile, instagram: v || null })}
-                    placeholder="@meinbarber"
+                    placeholder="@deinprofil"
                     inputStyle={inputStyle}
                     labelStyle={labelStyle}
                   />
 
                   <Field
-                    label="Website (optional)"
+                    label="Website"
                     value={profile.website ?? ""}
                     onChange={(v) => setProfile({ ...profile, website: v || null })}
                     placeholder="https://..."
@@ -896,7 +785,7 @@ export default function AdminSettingsPage() {
                     <textarea
                       value={profile.bio ?? ""}
                       onChange={(e) => setProfile({ ...profile, bio: e.target.value || null })}
-                      placeholder="Kurzer Text über dich, Spezialisierung, Erfahrung..."
+                      placeholder="Kurz über dich"
                       rows={5}
                       style={textareaStyle}
                     />
@@ -907,6 +796,36 @@ export default function AdminSettingsPage() {
               <button disabled={saving} onClick={saveProfile} style={primaryButton}>
                 {saving ? "Speichert..." : "Profil speichern"}
               </button>
+
+              <div
+                style={{
+                  border: "1px solid #f0e0e0",
+                  borderRadius: 18,
+                  background: "#fffafa",
+                  padding: 14,
+                  marginTop: 6,
+                }}
+              >
+                <div style={{ fontWeight: 900, fontSize: 17, color: "#8a1c1c" }}>Konto & Sicherheit</div>
+
+                <div
+                  className="twoColGrid"
+                  style={{
+                    marginTop: 12,
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 10,
+                  }}
+                >
+                  <button type="button" onClick={logout} style={secondaryButton}>
+                    Ausloggen
+                  </button>
+
+                  <button type="button" onClick={deleteAccount} style={dangerButton}>
+                    Account löschen
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -915,19 +834,19 @@ export default function AdminSettingsPage() {
           <div>
             <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.1 }}>Services</h2>
             <div style={{ marginTop: 6, color: "#666", fontSize: 15 }}>
-              Leistungen, Dauer und Aktiv-Status verwalten.
+              Leistungen, Dauer und Aktiv-Status.
             </div>
           </div>
 
           <div style={{ ...sectionCardStyle, marginTop: 18 }}>
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Neuen Service anlegen</div>
+            <div style={{ fontWeight: 900, fontSize: 17 }}>Neuen Service anlegen</div>
 
             <div
               className="threeColGrid"
               style={{
                 marginTop: 14,
                 display: "grid",
-                gridTemplateColumns: "1.2fr 0.9fr 0.9fr",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                 gap: 12,
                 alignItems: "end",
               }}
@@ -941,17 +860,15 @@ export default function AdminSettingsPage() {
                 labelStyle={labelStyle}
               />
 
-              <SelectField
-                label="Dauer"
-                value={newDuration}
-                onChange={(v) => setNewDuration(Number(v))}
-                options={SERVICE_DURATION_OPTIONS.map((v) => ({
-                  value: v,
-                  label: `${v} Min.`,
-                }))}
-                inputStyle={inputStyle}
-                labelStyle={labelStyle}
-              />
+              <div>
+                <div style={labelStyle}>Dauer (Minuten)</div>
+                <input
+                  type="number"
+                  value={newDuration}
+                  onChange={(e) => setNewDuration(Number(e.target.value))}
+                  style={inputStyle}
+                />
+              </div>
 
               <button disabled={saving} onClick={createService} style={primaryButton}>
                 {saving ? "Speichert..." : "Service hinzufügen"}
@@ -969,10 +886,10 @@ export default function AdminSettingsPage() {
                 .map((s) => (
                   <div key={s.id} style={sectionCardStyle}>
                     <div
-                      className="serviceRowGrid"
+                      className="twoColGrid"
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "1.2fr 0.8fr",
+                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                         gap: 12,
                         alignItems: "end",
                       }}
@@ -989,24 +906,24 @@ export default function AdminSettingsPage() {
                         />
                       </div>
 
-                      <SelectField
-                        label="Dauer"
-                        value={s.durationMin}
-                        onChange={(v) => {
-                          const next = Number(v);
-                          if (next !== s.durationMin) updateService(s.id, { durationMin: next });
-                        }}
-                        options={SERVICE_DURATION_OPTIONS.map((v) => ({
-                          value: v,
-                          label: `${v} Min.`,
-                        }))}
-                        inputStyle={inputStyle}
-                        labelStyle={labelStyle}
-                      />
+                      <div>
+                        <div style={labelStyle}>Dauer (Minuten)</div>
+                        <input
+                          type="number"
+                          defaultValue={s.durationMin}
+                          onBlur={(e) => {
+                            const v = Number(e.target.value);
+                            if (Number.isFinite(v) && v > 0 && v !== s.durationMin) {
+                              updateService(s.id, { durationMin: v });
+                            }
+                          }}
+                          style={inputStyle}
+                        />
+                      </div>
                     </div>
 
-                    <div style={{ marginTop: 10, color: "#666", fontSize: 12, wordBreak: "break-word" }}>
-                      key: <b>{s.key}</b> · ID: {s.id}
+                    <div style={{ marginTop: 10, color: "#666", fontSize: 12 }}>
+                      {s.key}
                     </div>
 
                     <div
@@ -1044,7 +961,7 @@ export default function AdminSettingsPage() {
           <div>
             <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.1 }}>Arbeitszeiten</h2>
             <div style={{ marginTop: 6, color: "#666", fontSize: 15 }}>
-              Öffnungszeiten pro Wochentag festlegen. Keine manuelle Uhrzeit-Eingabe nötig.
+              Öffnungszeiten pro Wochentag.
             </div>
           </div>
 
@@ -1054,7 +971,6 @@ export default function AdminSettingsPage() {
             <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
               {workingHoursUi.map((row) => {
                 const dayName = WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
-                const endOptions = BUSINESS_TIME_OPTIONS.filter((t) => t.value > row.startMin);
 
                 return (
                   <div key={row.day} style={sectionCardStyle}>
@@ -1067,20 +983,26 @@ export default function AdminSettingsPage() {
                         alignItems: "center",
                       }}
                     >
-                      <div style={{ fontWeight: 900, fontSize: 18 }}>{dayName}</div>
+                      <div style={{ fontWeight: 900, fontSize: 17 }}>{dayName}</div>
 
                       <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 800 }}>
                         <input
                           type="checkbox"
                           checked={row.isOpen}
-                          onChange={(e) => patchWorkingDay(row.day, { isOpen: e.target.checked })}
+                          onChange={(e) => {
+                            const next = { ...(settings as AppSettings) };
+                            next.workingHours = workingHoursUi.map((r) =>
+                              r.day === row.day ? { ...r, isOpen: e.target.checked } : r
+                            );
+                            setSettings(next);
+                          }}
                         />
                         Geöffnet
                       </label>
                     </div>
 
                     <div
-                      className="hoursRowGrid"
+                      className="twoColGrid"
                       style={{
                         marginTop: 12,
                         display: "grid",
@@ -1089,33 +1011,41 @@ export default function AdminSettingsPage() {
                         alignItems: "end",
                       }}
                     >
-                      <SelectField
-                        label="Start"
-                        value={row.startMin}
-                        onChange={(v) => {
-                          const nextStart = Number(v);
-                          const nextEnd = row.endMin <= nextStart ? nextStart + 15 : row.endMin;
-                          patchWorkingDay(row.day, { startMin: nextStart, endMin: Math.min(nextEnd, 1440) });
-                        }}
-                        options={BUSINESS_TIME_OPTIONS}
-                        inputStyle={inputStyle}
-                        labelStyle={labelStyle}
-                      />
+                      <div>
+                        <div style={labelStyle}>Start</div>
+                        <input
+                          defaultValue={minToHHMM(row.startMin)}
+                          onBlur={(e) => {
+                            const v = hhmmToMin(e.target.value);
+                            if (v == null) return;
 
-                      <SelectField
-                        label="Ende"
-                        value={row.endMin}
-                        onChange={(v) => patchWorkingDay(row.day, { endMin: Number(v) })}
-                        options={endOptions}
-                        inputStyle={inputStyle}
-                        labelStyle={labelStyle}
-                      />
-                    </div>
+                            const next = { ...(settings as AppSettings) };
+                            next.workingHours = workingHoursUi.map((r) =>
+                              r.day === row.day ? { ...r, startMin: clamp(v, 0, 1439) } : r
+                            );
+                            setSettings(next);
+                          }}
+                          style={inputStyle}
+                        />
+                      </div>
 
-                    <div style={{ marginTop: 10, fontSize: 13, color: "#666" }}>
-                      {row.isOpen
-                        ? `Öffnet von ${minToHHMM(row.startMin)} bis ${minToHHMM(row.endMin)}`
-                        : "Geschlossen"}
+                      <div>
+                        <div style={labelStyle}>Ende</div>
+                        <input
+                          defaultValue={minToHHMM(row.endMin)}
+                          onBlur={(e) => {
+                            const v = hhmmToMin(e.target.value);
+                            if (v == null) return;
+
+                            const next = { ...(settings as AppSettings) };
+                            next.workingHours = workingHoursUi.map((r) =>
+                              r.day === row.day ? { ...r, endMin: clamp(v, 1, 1440) } : r
+                            );
+                            setSettings(next);
+                          }}
+                          style={inputStyle}
+                        />
+                      </div>
                     </div>
                   </div>
                 );
@@ -1132,7 +1062,7 @@ export default function AdminSettingsPage() {
           <div>
             <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.1 }}>Slot-Logik</h2>
             <div style={{ marginTop: 6, color: "#666", fontSize: 15 }}>
-              Regeln für verfügbare Termine und Buchungsabstände festlegen.
+              Regeln für verfügbare Termine.
             </div>
           </div>
 
@@ -1140,14 +1070,10 @@ export default function AdminSettingsPage() {
             <div style={{ marginTop: 16, color: "#666" }}>Keine Einstellungen geladen.</div>
           ) : (
             <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-              <SelectCardField
-                label="Schrittweite zwischen freien Terminen"
+              <FieldNumber
+                label="Schrittweite (stepMin) in Minuten"
                 value={settings.stepMin}
-                onChange={(v) => setSettings({ ...settings, stepMin: Number(v) })}
-                options={STEP_OPTIONS.map((v) => ({
-                  value: v,
-                  label: `${v} Minuten`,
-                }))}
+                onChange={(v) => setSettings({ ...settings, stepMin: clamp(v, 1, 120) })}
                 inputStyle={inputStyle}
               />
 
@@ -1170,94 +1096,56 @@ export default function AdminSettingsPage() {
                   style={{ marginTop: 3 }}
                 />
                 <div>
-                  <div style={{ fontWeight: 900 }}>Wenn erste Stunde voll ist → nach vorne öffnen</div>
-                  <div style={{ color: "#666", fontSize: 13, marginTop: 4 }}>
-                    Wenn in der ersten Stunde keine freien Slots sind, wird das Fenster nach vorne erweitert.
-                  </div>
+                  <div style={{ fontWeight: 900 }}>Wenn erste Stunde voll ist, nach vorne öffnen</div>
                 </div>
               </label>
 
-              <SelectCardField
-                label="Erweiterungsschritt"
+              <FieldNumber
+                label="Erweiterungsschritt (extendStepMin) in Minuten"
                 value={settings.extendStepMin}
-                onChange={(v) => setSettings({ ...settings, extendStepMin: Number(v) })}
-                options={EXTEND_OPTIONS.map((v) => ({
-                  value: v,
-                  label: `${v} Minuten`,
-                }))}
+                onChange={(v) => setSettings({ ...settings, extendStepMin: clamp(v, 10, 240) })}
                 inputStyle={inputStyle}
               />
 
-              <SelectCardField
+              <FieldTime
                 label="Früheste Grenze"
-                value={settings.earliestLimitMin}
-                onChange={(v) => setSettings({ ...settings, earliestLimitMin: Number(v) })}
-                options={TIME_OPTIONS.map((t) => ({
-                  value: t.value,
-                  label: t.label,
-                }))}
+                valueMin={settings.earliestLimitMin}
+                onChangeMin={(min) => setSettings({ ...settings, earliestLimitMin: clamp(min, 0, 1439) })}
                 inputStyle={inputStyle}
               />
 
-              <SelectCardField
-                label="Mindestabstand pro Kunde"
-                value={settings.minDaysBetweenBookings ?? 0}
-                onChange={(v) => setSettings({ ...settings, minDaysBetweenBookings: Number(v) })}
-                options={MIN_DAYS_OPTIONS.map((v) => ({
-                  value: v,
-                  label: v === 0 ? "Keine Begrenzung" : `${v} Tage`,
-                }))}
-                inputStyle={inputStyle}
-              />
+              <div
+                style={{
+                  border: "1px solid #eee",
+                  borderRadius: 16,
+                  padding: 14,
+                  background: "#fcfcfc",
+                }}
+              >
+                <div style={{ fontWeight: 900 }}>Mindestabstand pro Kunde</div>
+
+                <input
+                  type="number"
+                  value={settings.minDaysBetweenBookings ?? 0}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setSettings({
+                      ...settings,
+                      minDaysBetweenBookings: clamp(Number.isFinite(v) ? v : 0, 0, 365),
+                    });
+                  }}
+                  style={{ ...inputStyle, marginTop: 12, maxWidth: 260 }}
+                />
+              </div>
 
               <button disabled={saving} onClick={() => saveSettings(settings)} style={primaryButton}>
                 {saving ? "Speichert..." : "Slot-Einstellungen speichern"}
               </button>
-
-              <div
-                style={{
-                  color: "#666",
-                  fontSize: 13,
-                  lineHeight: 1.45,
-                  border: "1px solid #ececec",
-                  background: "#fafafa",
-                  borderRadius: 16,
-                  padding: 14,
-                }}
-              >
-                Tipp: Für „immer nur 1 Stunde vorher öffnen“ setzt du <b>Erweiterungsschritt = 60 Minuten</b>.
-              </div>
             </div>
           )}
         </div>
       )}
     </div>
-  );
-}
-
-function TabButton(props: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={props.onClick}
-      style={{
-        height: 46,
-        borderRadius: 14,
-        border: props.active ? "1px solid #111" : "1px solid #ddd",
-        background: props.active ? "#111" : "#fff",
-        color: props.active ? "#fff" : "#111",
-        fontWeight: 900,
-        cursor: "pointer",
-        padding: "0 16px",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {props.label}
-    </button>
   );
 }
 
@@ -1278,9 +1166,7 @@ function LinkBox(props: {
       }}
     >
       <div style={{ fontSize: 13, color: "#666", fontWeight: 800 }}>{props.title}</div>
-      <div style={{ marginTop: 8, fontWeight: 900, wordBreak: "break-word", lineHeight: 1.4 }}>
-        {props.url}
-      </div>
+      <div style={{ marginTop: 8, fontWeight: 900, wordBreak: "break-word", lineHeight: 1.4 }}>{props.url}</div>
 
       <div
         className="twoColGrid"
@@ -1352,37 +1238,10 @@ function Field(props: {
   );
 }
 
-function SelectField(props: {
+function FieldNumber(props: {
   label: string;
-  value: string | number;
-  onChange: (v: string) => void;
-  options: { value: string | number; label: string }[];
-  inputStyle: React.CSSProperties;
-  labelStyle: React.CSSProperties;
-}) {
-  return (
-    <div style={{ display: "grid", gap: 6 }}>
-      <div style={props.labelStyle}>{props.label}</div>
-      <select
-        value={String(props.value)}
-        onChange={(e) => props.onChange(e.target.value)}
-        style={props.inputStyle}
-      >
-        {props.options.map((opt) => (
-          <option key={String(opt.value)} value={String(opt.value)}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function SelectCardField(props: {
-  label: string;
-  value: string | number;
-  onChange: (v: string) => void;
-  options: { value: string | number; label: string }[];
+  value: number;
+  onChange: (v: number) => void;
   inputStyle: React.CSSProperties;
 }) {
   return (
@@ -1395,17 +1254,52 @@ function SelectCardField(props: {
       }}
     >
       <div style={{ fontWeight: 900 }}>{props.label}</div>
-      <select
-        value={String(props.value)}
-        onChange={(e) => props.onChange(e.target.value)}
-        style={{ ...props.inputStyle, marginTop: 10, maxWidth: 280 }}
-      >
-        {props.options.map((opt) => (
-          <option key={String(opt.value)} value={String(opt.value)}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      <input
+        type="number"
+        value={props.value}
+        onChange={(e) => props.onChange(Number(e.target.value))}
+        style={{ ...props.inputStyle, marginTop: 10, maxWidth: 260 }}
+      />
+    </div>
+  );
+}
+
+function FieldTime(props: {
+  label: string;
+  valueMin: number;
+  onChangeMin: (min: number) => void;
+  inputStyle: React.CSSProperties;
+}) {
+  function localMinToHHMM(min: number) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+
+  function localHhmmToMin(v: string) {
+    const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(v).trim());
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px solid #eee",
+        borderRadius: 16,
+        padding: 14,
+        background: "#fcfcfc",
+      }}
+    >
+      <div style={{ fontWeight: 900 }}>{props.label}</div>
+      <input
+        value={localMinToHHMM(props.valueMin)}
+        onChange={(e) => {
+          const v = localHhmmToMin(e.target.value);
+          if (v != null) props.onChangeMin(v);
+        }}
+        style={{ ...props.inputStyle, marginTop: 10, maxWidth: 260 }}
+      />
     </div>
   );
 }
