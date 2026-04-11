@@ -31,10 +31,20 @@ type ApiBooking = {
   windowEnd?: number | null;
 };
 
+type ApiBlock = {
+  id: number;
+  startMin: number;
+  endMin: number;
+  reason?: string | null;
+  source: "recurring" | "time";
+};
+
 type DayData = {
   date: string;
   bookings: ApiBooking[];
+  blocks: ApiBlock[];
 };
+
 
 type PositionedBooking = ApiBooking & {
   startMin: number;
@@ -354,15 +364,56 @@ export default function BarberDashboardScreen() {
   }, [showCreateModal, newBookingDate, newServiceKey, barberSlug]);
 
   async function fetchDay(date: string): Promise<DayData> {
-    const res = await api.get(`/admin/bookings?date=${encodeURIComponent(date)}`, {
+  const [bookingsRes, recurringBlocks, timeBlocks] = await Promise.all([
+    api.get(`/admin/bookings?date=${encodeURIComponent(date)}`, {
       headers: { Authorization: `Bearer ${token}` },
-    });
+    }),
+    fetchRecurringBlocks(),
+    fetchTimeBlocks(date),
+  ]);
 
-    return {
-      date,
-      bookings: Array.isArray(res.data?.bookings) ? res.data.bookings : [],
-    };
-  }
+  const weekday = parseIsoDateLocal(date).getDay();
+
+  const recurringForDay: ApiBlock[] = recurringBlocks
+    .filter((b: any) => Number(b.weekday) === weekday && b.enabled !== false)
+    .map((b: any) => ({
+      id: Number(b.id),
+      startMin: Number(b.startMin),
+      endMin: Number(b.endMin),
+      reason: b.reason ?? null,
+      source: "recurring" as const,
+    }));
+
+  const timeForDay: ApiBlock[] = timeBlocks.map((b: any) => ({
+    id: Number(b.id),
+    startMin: Number(b.startMin),
+    endMin: Number(b.endMin),
+    reason: b.reason ?? null,
+    source: "time" as const,
+  }));
+
+  return {
+    date,
+    bookings: Array.isArray(bookingsRes.data?.bookings) ? bookingsRes.data.bookings : [],
+    blocks: [...recurringForDay, ...timeForDay].sort((a, b) => a.startMin - b.startMin),
+  };
+}
+
+  async function fetchRecurringBlocks() {
+  const res = await api.get("/admin/recurring-blocks", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  return Array.isArray(res.data?.blocks) ? res.data.blocks : [];
+}
+
+async function fetchTimeBlocks(date: string) {
+  const res = await api.get(`/admin/time-blocks?date=${encodeURIComponent(date)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  return Array.isArray(res.data?.blocks) ? res.data.blocks : [];
+}
 
   async function fetchServices() {
     const res = await api.get("/admin/services", {
@@ -632,10 +683,38 @@ export default function BarberDashboardScreen() {
   const dayBookings = useMemo(() => dayData?.bookings ?? [], [dayData]);
 
   const commonWindow = useMemo(() => {
-    const bookingList = view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
-    return getDayWindow(bookingList);
-  }, [view, dayData, weekData]);
+  const bookingList =
+    view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
 
+  const blockList =
+    view === "day" ? dayData?.blocks ?? [] : weekData.flatMap((d) => d.blocks ?? []);
+
+  const bookingRanges = bookingList
+    .map((b) => parseStartEndFromTimeHHMM(b.timeHHMM))
+    .filter((x): x is { startMin: number; endMin: number } => !!x);
+
+  const blockRanges = blockList.map((b) => ({
+    startMin: b.startMin,
+    endMin: b.endMin,
+  }));
+
+  const allRanges = [...bookingRanges, ...blockRanges];
+
+  if (allRanges.length === 0) {
+    return { start: 9 * 60, end: 18 * 60 };
+  }
+
+  const minStart = Math.min(...allRanges.map((x) => x.startMin));
+  const maxEnd = Math.max(...allRanges.map((x) => x.endMin));
+
+  const start = Math.max(6 * 60, Math.floor(minStart / 60) * 60);
+  const end = Math.min(22 * 60, Math.ceil(maxEnd / 60) * 60);
+
+  return {
+    start,
+    end: Math.max(end, start + 60),
+  };
+}, [view, dayData, weekData]);
   const hours = useMemo(() => {
     const arr: number[] = [];
     for (let m = commonWindow.start; m <= commonWindow.end; m += 60) arr.push(m);
@@ -747,6 +826,7 @@ export default function BarberDashboardScreen() {
             scrollRef={scrollRef}
             date={anchorDate}
             bookings={dayBookings}
+             blocks={dayData?.blocks ?? []}
             hours={hours}
             windowStart={commonWindow.start}
             windowEnd={commonWindow.end}
@@ -1050,6 +1130,7 @@ function DayCalendar(props: {
   scrollRef: React.RefObject<ScrollView | null>;
   date: string;
   bookings: ApiBooking[];
+  blocks: ApiBlock[];
   hours: number[];
   windowStart: number;
   windowEnd: number;
@@ -1120,6 +1201,43 @@ function DayCalendar(props: {
                 const top = (h - props.windowStart) * pxPerMin;
                 return <View key={h} style={[calendarGridLine, { top }]} />;
               })}
+
+              {props.blocks.map((block) => {
+  const top = (block.startMin - props.windowStart) * pxPerMin;
+  const height = Math.max(28, (block.endMin - block.startMin) * pxPerMin);
+
+  return (
+    <View
+      key={`${block.source}-${block.id}`}
+      style={{
+        position: "absolute",
+        left: 6,
+        right: 6,
+        top,
+        height,
+        borderRadius: 16,
+        backgroundColor: "#f2f2f4",
+        borderWidth: 1,
+        borderColor: "#d8d8dd",
+        borderStyle: "dashed",
+        paddingHorizontal: 10,
+        justifyContent: "center",
+        zIndex: 2,
+      }}
+    >
+      <Text
+        numberOfLines={1}
+        style={{
+          fontSize: 12,
+          fontWeight: "800",
+          color: "#666",
+        }}
+      >
+        Pause / blockiert {block.reason ? `• ${block.reason}` : ""}
+      </Text>
+    </View>
+  );
+})}
 
               {shouldShowNowLine ? (
                 <>
