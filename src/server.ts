@@ -132,25 +132,6 @@ function stripInternalFields(msg: string) {
     .trim();
 }
 
-function hasActiveSubscription(barber: {
-  subscriptionStatus?: string | null;
-  subscriptionExpiresAt?: Date | string | null;
-  trialEndsAt?: Date | string | null;
-}) {
-  const now = Date.now();
-
-  if (barber.subscriptionStatus === "active") {
-    if (!barber.subscriptionExpiresAt) return true;
-    return new Date(barber.subscriptionExpiresAt).getTime() > now;
-  }
-
-  if (barber.subscriptionStatus === "trialing") {
-    if (!barber.trialEndsAt) return true;
-    return new Date(barber.trialEndsAt).getTime() > now;
-  }
-
-  return false;
-}
 
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = getBearerToken(req);
@@ -1756,6 +1737,8 @@ app.put("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
   }
 });
 
+
+
 /* ---------- ADMIN profile ---------- */
 
 app.get("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) => {
@@ -1790,6 +1773,50 @@ subscriptionUpdatedAt: true,
     res.json({ ok: true, barber });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.get("/admin/subscription-status", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const barber = await prisma.barber.findUnique({
+      where: { id: barberId },
+      select: {
+        id: true,
+        subscriptionStatus: true,
+        subscriptionPlan: true,
+        subscriptionSource: true,
+        subscriptionExpiresAt: true,
+        trialEndsAt: true,
+        revenueCatAppUserId: true,
+        subscriptionUpdatedAt: true,
+      },
+    });
+
+    if (!barber) {
+      return res.status(404).json({ error: "Barber not found" });
+    }
+
+    const isPro = hasActiveSubscription(barber);
+
+    return res.json({
+      ok: true,
+      subscription: {
+        barberId: barber.id,
+        status: barber.subscriptionStatus,
+        plan: barber.subscriptionPlan,
+        source: barber.subscriptionSource,
+        expiresAt: barber.subscriptionExpiresAt,
+        trialEndsAt: barber.trialEndsAt,
+        revenueCatAppUserId: barber.revenueCatAppUserId,
+        updatedAt: barber.subscriptionUpdatedAt,
+        isPro,
+      },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Server error" });
   }
 });
 
