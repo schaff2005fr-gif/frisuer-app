@@ -132,6 +132,26 @@ function stripInternalFields(msg: string) {
     .trim();
 }
 
+function hasActiveSubscription(barber: {
+  subscriptionStatus?: string | null;
+  subscriptionExpiresAt?: Date | string | null;
+  trialEndsAt?: Date | string | null;
+}) {
+  const now = Date.now();
+
+  if (barber.subscriptionStatus === "active") {
+    if (!barber.subscriptionExpiresAt) return true;
+    return new Date(barber.subscriptionExpiresAt).getTime() > now;
+  }
+
+  if (barber.subscriptionStatus === "trialing") {
+    if (!barber.trialEndsAt) return true;
+    return new Date(barber.trialEndsAt).getTime() > now;
+  }
+
+  return false;
+}
+
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = getBearerToken(req);
   if (!token) return res.status(401).json({ error: "Unauthorized" });
