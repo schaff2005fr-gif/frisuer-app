@@ -1801,6 +1801,18 @@ app.get("/admin/subscription-status", requireAuth, requireRole("BARBER"), async 
 
     const isPro = hasActiveSubscription(barber);
 
+    console.log("SUBSCRIPTION STATUS DEBUG:", {
+      barberId: barber.id,
+      subscriptionStatus: barber.subscriptionStatus,
+      subscriptionPlan: barber.subscriptionPlan,
+      subscriptionSource: barber.subscriptionSource,
+      subscriptionExpiresAt: barber.subscriptionExpiresAt,
+      trialEndsAt: barber.trialEndsAt,
+      revenueCatAppUserId: barber.revenueCatAppUserId,
+      subscriptionUpdatedAt: barber.subscriptionUpdatedAt,
+      isPro,
+    });
+
     return res.json({
       ok: true,
       subscription: {

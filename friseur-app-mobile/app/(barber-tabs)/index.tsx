@@ -299,6 +299,7 @@ export default function BarberDashboardScreen() {
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   const [selectedBooking, setSelectedBooking] = useState<ApiBooking | null>(null);
 
@@ -320,6 +321,7 @@ export default function BarberDashboardScreen() {
   const scrollRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
+  async function init() {
     if (!token || !user) {
       router.replace("/login");
       return;
@@ -330,13 +332,20 @@ export default function BarberDashboardScreen() {
       return;
     }
 
-    loadInitialData();
-  }, [token, user]);
+    const allowed = await checkSubscriptionAccess();
+    if (!allowed) return;
+
+    await loadInitialData();
+  }
+
+  init();
+}, [token, user]);
 
   useEffect(() => {
-    if (!token || !user || user.role !== "BARBER") return;
-    loadCurrentView();
-  }, [anchorDate, view]);
+  if (!token || !user || user.role !== "BARBER") return;
+  if (checkingSubscription) return;
+  loadCurrentView();
+}, [anchorDate, view, checkingSubscription]);
 
   useEffect(() => {
     if (!showCreateModal) return;
@@ -375,6 +384,32 @@ export default function BarberDashboardScreen() {
 
     return String(res.data?.barber?.slug ?? "");
   }
+
+  async function checkSubscriptionAccess() {
+  try {
+    setCheckingSubscription(true);
+
+    const res = await api.get("/admin/subscription-status", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const isPro = !!res.data?.subscription?.isPro;
+
+    if (!isPro) {
+      router.replace("/barber/subscription");
+      return false;
+    }
+
+    return true;
+  } catch (e: any) {
+    console.log("SUBSCRIPTION CHECK ERROR:", e?.message);
+    console.log("SUBSCRIPTION CHECK RESPONSE:", e?.response?.data);
+    setError(e?.response?.data?.error || "Fehler beim Prüfen des Abos.");
+    return false;
+  } finally {
+    setCheckingSubscription(false);
+  }
+}
 
   async function loadInitialData() {
     try {
@@ -628,13 +663,13 @@ export default function BarberDashboardScreen() {
     }, 150);
   }, [view, anchorDate, commonWindow.start]);
 
-  if (loading && !dayData && weekData.length === 0) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f6f6f7" }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if ((loading || checkingSubscription) && !dayData && weekData.length === 0) {
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f6f6f7" }}>
+      <ActivityIndicator />
+    </View>
+  );
+}
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f6f6f7" }}>
