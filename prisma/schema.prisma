@@ -51,13 +51,13 @@ model Customer {
 }
 
 model Barber {
-  id        Int      @id @default(autoincrement())
-  name      String
-  slug      String   @unique
-  phone     String?
-  isActive  Boolean  @default(true)
+  id       Int     @id @default(autoincrement())
+  name     String
+  slug     String  @unique
+  phone    String?
+  isActive Boolean @default(true)
 
-  imageUrl  String?
+  imageUrl String?
 
   bio        String?
   street     String?
@@ -65,6 +65,14 @@ model Barber {
   city       String?
   instagram  String?
   website    String?
+
+  subscriptionStatus    String    @default("inactive")
+  subscriptionPlan      String?
+  subscriptionSource    String?
+  subscriptionExpiresAt DateTime?
+  trialEndsAt           DateTime?
+  revenueCatAppUserId   String?   @unique
+  subscriptionUpdatedAt DateTime?
 
   createdAt DateTime @default(now())
 
@@ -77,14 +85,14 @@ model Barber {
 }
 
 model Service {
-  id          Int    @id @default(autoincrement())
-  barberId    Int
-  barber      Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  id       Int    @id @default(autoincrement())
+  barberId Int
+  barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
 
   key         String
   name        String
   durationMin Int
-  isActive    Boolean @default(true)
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
   bookings Booking[]
@@ -126,7 +134,7 @@ model Booking {
 }
 
 model RecurringBlock {
-  id       Int @id @default(autoincrement())
+  id       Int    @id @default(autoincrement())
   barberId Int
   barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
 
@@ -142,7 +150,7 @@ model RecurringBlock {
 }
 
 model TimeBlock {
-  id       Int @id @default(autoincrement())
+  id       Int    @id @default(autoincrement())
   barberId Int
   barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
 
@@ -157,7 +165,7 @@ model TimeBlock {
 }
 
 model AppSetting {
-  id       Int @id @default(autoincrement())
+  id       Int    @id @default(autoincrement())
   barberId Int
   barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
 
@@ -170,20 +178,20 @@ model AppSetting {
 }
 
 model Notification {
-  id         Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   customerId Int
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  type       NotificationType
-  title      String
-  message    String
+  type    NotificationType
+  title   String
+  message String
 
-  bookingId  Int?
-  booking    Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  bookingId Int?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
-  readAt     DateTime?
-  createdAt  DateTime @default(now())
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([customerId, createdAt])
   @@index([customerId, readAt])

@@ -105,6 +105,26 @@ function getBearerToken(req: express.Request): string | null {
   return token;
 }
 
+function hasActiveSubscription(barber: {
+  subscriptionStatus?: string | null;
+  subscriptionExpiresAt?: Date | string | null;
+  trialEndsAt?: Date | string | null;
+}) {
+  const now = Date.now();
+
+  if (barber.subscriptionStatus === "active") {
+    if (!barber.subscriptionExpiresAt) return true;
+    return new Date(barber.subscriptionExpiresAt).getTime() > now;
+  }
+
+  if (barber.subscriptionStatus === "trialing") {
+    if (!barber.trialEndsAt) return true;
+    return new Date(barber.trialEndsAt).getTime() > now;
+  }
+
+  return false;
+}
+
 function stripInternalFields(msg: string) {
   return String(msg ?? "")
     .replace(/\n?BarberSlug:\s*[a-z0-9-]+\s*\n?/gi, "\n")
@@ -852,7 +872,27 @@ app.post("/auth/register-barber", async (req, res) => {
 
     res.status(201).json({
       token,
-      user: { id: user.id, email: user.email, role: user.role, barber: user.barber, barberId: barber.id },
+      user: {
+  id: user.id,
+  email: user.email,
+  role: user.role,
+  barberId: barber.id,
+  barber: user.barber
+    ? {
+        id: user.barber.id,
+        name: user.barber.name,
+        slug: user.barber.slug,
+        phone: user.barber.phone,
+        subscriptionStatus: user.barber.subscriptionStatus,
+        subscriptionPlan: user.barber.subscriptionPlan,
+        subscriptionSource: user.barber.subscriptionSource,
+        subscriptionExpiresAt: user.barber.subscriptionExpiresAt,
+        trialEndsAt: user.barber.trialEndsAt,
+        revenueCatAppUserId: user.barber.revenueCatAppUserId,
+        subscriptionUpdatedAt: user.barber.subscriptionUpdatedAt,
+      }
+    : null,
+},
       publicLink: `/b/${barber.slug}`,
     });
   } catch (e: any) {
@@ -882,7 +922,21 @@ app.post("/auth/login", async (req, res) => {
         role: user.role,
         barberId: user.barberId ?? null,
         customer: user.customer ? { id: user.customer.id, name: user.customer.name, phone: user.customer.phone } : null,
-        barber: user.barber ? { id: user.barber.id, name: user.barber.name, slug: user.barber.slug, phone: user.barber.phone } : null,
+        barber: user.barber
+  ? {
+      id: user.barber.id,
+      name: user.barber.name,
+      slug: user.barber.slug,
+      phone: user.barber.phone,
+      subscriptionStatus: user.barber.subscriptionStatus,
+      subscriptionPlan: user.barber.subscriptionPlan,
+      subscriptionSource: user.barber.subscriptionSource,
+      subscriptionExpiresAt: user.barber.subscriptionExpiresAt,
+      trialEndsAt: user.barber.trialEndsAt,
+      revenueCatAppUserId: user.barber.revenueCatAppUserId,
+      subscriptionUpdatedAt: user.barber.subscriptionUpdatedAt,
+    }
+  : null,
       },
     });
   } catch (e: any) {
@@ -904,7 +958,21 @@ app.get("/me", requireAuth, async (req, res) => {
       role: user.role,
       barberId: user.barberId ?? null,
       customer: user.customer ? { id: user.customer.id, name: user.customer.name, phone: user.customer.phone } : null,
-      barber: user.barber ? { id: user.barber.id, name: user.barber.name, slug: user.barber.slug, phone: user.barber.phone } : null,
+      barber: user.barber
+  ? {
+      id: user.barber.id,
+      name: user.barber.name,
+      slug: user.barber.slug,
+      phone: user.barber.phone,
+      subscriptionStatus: user.barber.subscriptionStatus,
+      subscriptionPlan: user.barber.subscriptionPlan,
+      subscriptionSource: user.barber.subscriptionSource,
+      subscriptionExpiresAt: user.barber.subscriptionExpiresAt,
+      trialEndsAt: user.barber.trialEndsAt,
+      revenueCatAppUserId: user.barber.revenueCatAppUserId,
+      subscriptionUpdatedAt: user.barber.subscriptionUpdatedAt,
+    }
+  : null,
     });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
@@ -1689,6 +1757,13 @@ app.get("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) =
         instagram: true,
         website: true,
         imageUrl: true,
+        subscriptionStatus: true,
+subscriptionPlan: true,
+subscriptionSource: true,
+subscriptionExpiresAt: true,
+trialEndsAt: true,
+revenueCatAppUserId: true,
+subscriptionUpdatedAt: true,
       },
     });
 
@@ -1736,6 +1811,13 @@ app.put("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) =
         instagram: true,
         website: true,
         imageUrl: true,
+        subscriptionStatus: true,
+subscriptionPlan: true,
+subscriptionSource: true,
+subscriptionExpiresAt: true,
+trialEndsAt: true,
+revenueCatAppUserId: true,
+subscriptionUpdatedAt: true,
       },
     });
 
