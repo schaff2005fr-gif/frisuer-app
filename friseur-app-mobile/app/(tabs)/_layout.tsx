@@ -5,13 +5,11 @@ import { Home, CalendarDays, Bell, User } from "lucide-react-native";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
+export let refreshCustomerUnreadBadge: null | (() => Promise<void>) = null;
+
 export default function CustomerTabsLayout() {
   const { token } = useAuth();
   const [unread, setUnread] = useState(0);
-
-  useEffect(() => {
-    loadUnread();
-  }, [token]);
 
   async function loadUnread() {
     try {
@@ -30,6 +28,17 @@ export default function CustomerTabsLayout() {
     }
   }
 
+  useEffect(() => {
+    loadUnread();
+  }, [token]);
+
+  useEffect(() => {
+    refreshCustomerUnreadBadge = loadUnread;
+    return () => {
+      refreshCustomerUnreadBadge = null;
+    };
+  }, [token]);
+
   return (
     <Tabs
       screenOptions={{
@@ -46,7 +55,7 @@ export default function CustomerTabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <Home color={color} size={focused ? 30 : 28} />
           ),
         }}
@@ -56,7 +65,7 @@ export default function CustomerTabsLayout() {
         name="my-bookings"
         options={{
           title: "Meine Termine",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <CalendarDays color={color} size={focused ? 30 : 28} />
           ),
         }}
@@ -67,7 +76,7 @@ export default function CustomerTabsLayout() {
         options={{
           title: "Notifications",
           tabBarBadge: unread > 0 ? (unread > 99 ? "99+" : unread) : undefined,
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <Bell color={color} size={focused ? 30 : 28} />
           ),
         }}
@@ -77,7 +86,7 @@ export default function CustomerTabsLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <User color={color} size={focused ? 30 : 28} />
           ),
         }}

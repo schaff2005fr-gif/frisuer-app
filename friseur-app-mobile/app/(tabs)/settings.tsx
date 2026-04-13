@@ -44,7 +44,7 @@ export default function SettingsScreen() {
     }
 
     if (user.role !== "CUSTOMER") {
-      router.replace("/barber");
+      router.replace("/(barber-tabs)");
       return;
     }
 
@@ -328,32 +328,32 @@ export default function SettingsScreen() {
             <Text style={{ fontWeight: "900", color: "#111", marginBottom: 10 }}>Rechtliches</Text>
 
             <View style={{ gap: 10 }}>
-              <Pressable
-                onPress={() => Alert.alert("Info", "Impressum-Seite bauen wir als Nächstes ein.")}
-                style={{
-                  padding: 12,
-                  borderWidth: 1,
-                  borderColor: "#ddd",
-                  borderRadius: 12,
-                  backgroundColor: "#fff",
-                }}
-              >
-                <Text style={{ color: "#111", fontWeight: "900" }}>Impressum</Text>
-              </Pressable>
+  <Pressable
+    onPress={() => router.push("/impressum")}
+    style={{
+      padding: 12,
+      borderWidth: 1,
+      borderColor: "#ddd",
+      borderRadius: 12,
+      backgroundColor: "#fff",
+    }}
+  >
+    <Text style={{ color: "#111", fontWeight: "900" }}>Impressum</Text>
+  </Pressable>
 
-              <Pressable
-                onPress={() => Alert.alert("Info", "Datenschutz-Seite bauen wir als Nächstes ein.")}
-                style={{
-                  padding: 12,
-                  borderWidth: 1,
-                  borderColor: "#ddd",
-                  borderRadius: 12,
-                  backgroundColor: "#fff",
-                }}
-              >
-                <Text style={{ color: "#111", fontWeight: "900" }}>Datenschutz</Text>
-              </Pressable>
-            </View>
+  <Pressable
+    onPress={() => router.push("/datenschutz")}
+    style={{
+      padding: 12,
+      borderWidth: 1,
+      borderColor: "#ddd",
+      borderRadius: 12,
+      backgroundColor: "#fff",
+    }}
+  >
+    <Text style={{ color: "#111", fontWeight: "900" }}>Datenschutz</Text>
+  </Pressable>
+</View>
           </View>
 
           <View

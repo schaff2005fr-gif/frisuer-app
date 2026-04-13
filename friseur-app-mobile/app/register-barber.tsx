@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-
+import MobileBrand from "../components/MobileBrand";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -101,13 +101,11 @@ export default function RegisterBarberScreen() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
-        >
+        ><MobileBrand />
           <View style={styles.hero}>
-            <Text style={styles.badge}>Friseurkonto</Text>
+            
             <Text style={styles.title}>Als Friseur registrieren</Text>
-            <Text style={styles.subtitle}>
-              Erstelle dein Barber-Konto und verwalte Termine, Pausen und dein Profil direkt in der App.
-            </Text>
+            
           </View>
 
           <View style={styles.card}>
@@ -270,7 +268,7 @@ const styles = {
     padding: 16,
     paddingBottom: 32,
     flexGrow: 1,
-    justifyContent: "center" as const,
+    
   } as const,
 
   hero: {

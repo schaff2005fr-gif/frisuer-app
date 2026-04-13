@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-
+import { refreshCustomerUnreadBadge } from "./_layout";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
@@ -80,7 +80,6 @@ export default function NotificationsScreen() {
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
   const unread = useMemo(() => items.filter((n) => !n.isRead), [items]);
 
   useEffect(() => {
@@ -90,7 +89,7 @@ export default function NotificationsScreen() {
     }
 
     if (user.role !== "CUSTOMER") {
-      router.replace("/barber");
+      router.replace("/(barber-tabs)");
       return;
     }
 
@@ -137,8 +136,8 @@ export default function NotificationsScreen() {
       });
 
       const list = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
-      setItems(list);
-      await loadUnreadCount();
+setItems(list);
+await loadUnreadCount();
     } catch (e: any) {
       console.log("LOAD NOTIFICATIONS ERROR:", e?.message);
       console.log("LOAD NOTIFICATIONS RESPONSE:", e?.response?.data);
@@ -176,6 +175,7 @@ export default function NotificationsScreen() {
       setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setMessage("✅ Alle Benachrichtigungen als gelesen markiert.");
       await loadUnreadCount();
+      await refreshCustomerUnreadBadge?.();
     } catch (e: any) {
       console.log("MARK ALL READ ERROR:", e?.message);
       console.log("MARK ALL READ RESPONSE:", e?.response?.data);
@@ -184,6 +184,7 @@ export default function NotificationsScreen() {
       setBusyAll(false);
     }
   }
+
 
   async function openNotification(n: NotificationItem) {
     try {
@@ -203,6 +204,7 @@ export default function NotificationsScreen() {
 
         setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
         setCount((c) => Math.max(0, c - 1));
+        await refreshCustomerUnreadBadge?.();
       }
     } catch {
       // ignore

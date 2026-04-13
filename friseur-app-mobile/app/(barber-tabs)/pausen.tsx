@@ -1224,12 +1224,13 @@ const calendarGrid = {
   marginTop: 10,
   flexDirection: "row" as const,
   flexWrap: "wrap" as const,
-  gap: 6,
+  justifyContent: "space-between" as const,
 } as const;
 
 const calendarDayBtn = {
-  width: "13.2%",
+  width: "14%",
   aspectRatio: 1,
+  marginBottom: 6,
   borderRadius: 12,
   borderWidth: 1,
   borderColor: "#e1e1e4",

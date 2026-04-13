@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-
+import MobileBrand from "../components/MobileBrand";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -78,13 +78,11 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
-        >
+        ><MobileBrand />
           <View style={styles.hero}>
-            <Text style={styles.badge}>Salora</Text>
+            
             <Text style={styles.title}>Willkommen zurück</Text>
-            <Text style={styles.subtitle}>
-              Melde dich an, um Termine zu buchen oder deinen Barber-Bereich zu verwalten.
-            </Text>
+            
           </View>
 
           <View style={styles.card}>
@@ -187,7 +185,7 @@ const styles = {
     padding: 16,
     paddingBottom: 32,
     flexGrow: 1,
-    justifyContent: "center" as const,
+   
   } as const,
 
   hero: {

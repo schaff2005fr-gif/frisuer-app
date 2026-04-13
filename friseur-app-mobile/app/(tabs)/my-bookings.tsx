@@ -87,7 +87,7 @@ export default function MyBookingsScreen() {
     }
 
     if (user.role !== "CUSTOMER") {
-      router.replace("/barber");
+      router.replace("/(barber-tabs)");
       return;
     }
 

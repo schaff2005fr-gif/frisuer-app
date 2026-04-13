@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-
+import MobileBrand from "../components/MobileBrand";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -96,13 +96,11 @@ export default function RegisterScreen() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
-        >
+        ><MobileBrand />
           <View style={styles.hero}>
-            <Text style={styles.badge}>Kundenkonto</Text>
+            
             <Text style={styles.title}>Konto erstellen</Text>
-            <Text style={styles.subtitle}>
-              Erstelle dein Kundenkonto, um Termine schnell zu buchen und deine Buchungen im Blick zu behalten.
-            </Text>
+            
           </View>
 
           <View style={styles.card}>
@@ -265,7 +263,7 @@ const styles = {
     padding: 16,
     paddingBottom: 32,
     flexGrow: 1,
-    justifyContent: "center" as const,
+    
   } as const,
 
   hero: {

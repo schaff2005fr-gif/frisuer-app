@@ -240,7 +240,7 @@ export default function BarberBookScreen() {
 
       setTimeout(() => {
         router.push("/my-bookings");
-      }, 900);
+      }, 100);
     } catch (e: any) {
       console.log("BOOK ERROR:", e?.message);
       console.log("BOOK ERROR RESPONSE:", e?.response?.data);
