@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import Purchases, { PurchasesPackage } from "react-native-purchases";
-
+import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import {
   configurePurchases,
@@ -20,7 +20,7 @@ import {
 } from "../../lib/purchases";
 
 export default function BarberSubscriptionScreen() {
-  const { signOut, user } = useAuth();
+  const { signOut, user, token } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
@@ -79,6 +79,20 @@ export default function BarberSubscriptionScreen() {
     }
   }
 
+  async function syncSubscriptionToBackend() {
+  if (!token) return;
+
+  await api.post(
+    "/admin/subscription/sync",
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
   async function handleSubscribe() {
     try {
       if (!monthlyPackage) {
@@ -95,6 +109,8 @@ export default function BarberSubscriptionScreen() {
         Alert.alert("Fehler", "Abo wurde nicht aktiviert.");
         return;
       }
+
+      await syncSubscriptionToBackend();
 
       Alert.alert("Erfolg", "Dein Pro-Abo ist jetzt aktiv.");
       router.replace("/(barber-tabs)");

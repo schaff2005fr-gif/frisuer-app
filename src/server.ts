@@ -1832,6 +1832,70 @@ app.get("/admin/subscription-status", requireAuth, requireRole("BARBER"), async 
   }
 });
 
+app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const barber = await prisma.barber.findUnique({
+      where: { id: barberId },
+      select: {
+        id: true,
+        subscriptionStatus: true,
+        subscriptionPlan: true,
+        subscriptionSource: true,
+        subscriptionExpiresAt: true,
+        trialEndsAt: true,
+        revenueCatAppUserId: true,
+      },
+    });
+
+    if (!barber) {
+      return res.status(404).json({ error: "Barber not found" });
+    }
+
+    const revenueCatAppUserId = barber.revenueCatAppUserId || `barber-${userId}`;
+
+    const now = new Date();
+    const nextMonth = new Date(now);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+    const updated = await prisma.barber.update({
+      where: { id: barberId },
+      data: {
+        revenueCatAppUserId,
+        subscriptionStatus: "active",
+        subscriptionPlan: "pro_monthly",
+        subscriptionSource: "revenuecat",
+        subscriptionExpiresAt: nextMonth,
+        trialEndsAt: null,
+        subscriptionUpdatedAt: now,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        phone: true,
+        subscriptionStatus: true,
+        subscriptionPlan: true,
+        subscriptionSource: true,
+        subscriptionExpiresAt: true,
+        trialEndsAt: true,
+        revenueCatAppUserId: true,
+        subscriptionUpdatedAt: true,
+      },
+    });
+
+    return res.json({
+      ok: true,
+      barber: updated,
+      isPro: hasActiveSubscription(updated),
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
 app.put("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
