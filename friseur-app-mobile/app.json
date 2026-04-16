@@ -48,12 +48,7 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "165cf900-bfbb-4099-a577-9e2715d7c485"
-      }
-    },
+    
     "owner": "schafikfrt"
   }
 }

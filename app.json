@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "2fcd1f38-f86e-451e-b5a7-80604e04f378"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.schafikfrt.friseurapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}
