@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.schafik.salora",
+      "buildNumber": "2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -47,8 +48,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
-    
-    
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0014730c-5be8-4504-b79a-944143bf9ffe"
+      }
+    },
+    "owner": "schafik.frt"
   }
 }
