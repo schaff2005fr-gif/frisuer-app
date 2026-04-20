@@ -16,7 +16,7 @@ import { router } from "expo-router";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
-type TabKey = "PROFILE" | "SERVICES" | "RULES";
+type TabKey = "PROFILE" | "SERVICES" | "HOURS" | "RULES";
 
 type BarberProfile = {
   id: number;
@@ -60,10 +60,22 @@ const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
 const PUBLIC_APP_URL = process.env.EXPO_PUBLIC_PUBLIC_APP_URL || "";
 
+const WEEKDAYS = [
+  { k: 0, name: "Sonntag" },
+  { k: 1, name: "Montag" },
+  { k: 2, name: "Dienstag" },
+  { k: 3, name: "Mittwoch" },
+  { k: 4, name: "Donnerstag" },
+  { k: 5, name: "Freitag" },
+  { k: 6, name: "Samstag" },
+];
+
 const SERVICE_DURATION_OPTIONS = [10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
 const STEP_MIN_OPTIONS = [5, 10, 15, 20, 30];
 const EXTEND_STEP_OPTIONS = [15, 30, 45, 60];
-const EARLIEST_TIME_OPTIONS = [
+const EARLIEST_TIME_OPTIONS = [6 * 60, 7 * 60, 8 * 60, 9 * 60, 10 * 60, 11 * 60, 12 * 60];
+const MIN_DAYS_OPTIONS = [0, 1, 2, 3, 5, 7, 10, 14, 21, 30];
+const WORK_TIME_OPTIONS = [
   6 * 60,
   7 * 60,
   8 * 60,
@@ -71,8 +83,17 @@ const EARLIEST_TIME_OPTIONS = [
   10 * 60,
   11 * 60,
   12 * 60,
+  13 * 60,
+  14 * 60,
+  15 * 60,
+  16 * 60,
+  17 * 60,
+  18 * 60,
+  19 * 60,
+  20 * 60,
+  21 * 60,
+  22 * 60,
 ];
-const MIN_DAYS_OPTIONS = [0, 1, 2, 3, 5, 7, 10, 14, 21, 30];
 
 function cleanUrl(u?: string | null) {
   const s = String(u ?? "").trim();
@@ -95,6 +116,10 @@ function minToHHMM(min: number) {
   return `${pad2(h)}:${pad2(m)}`;
 }
 
+function clamp(n: number, a: number, b: number) {
+  return Math.max(a, Math.min(b, n));
+}
+
 async function uploadToCloudinary(uri: string): Promise<string> {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new Error("Cloudinary ENV fehlt.");
@@ -106,11 +131,14 @@ async function uploadToCloudinary(uri: string): Promise<string> {
   const mimeType = ext === "png" ? "image/png" : "image/jpeg";
 
   const form = new FormData();
-  form.append("file", {
-    uri,
-    name: filename,
-    type: mimeType,
-  } as any);
+  form.append(
+    "file",
+    {
+      uri,
+      name: filename,
+      type: mimeType,
+    } as any
+  );
   form.append("upload_preset", UPLOAD_PRESET);
   form.append("folder", "salora/barbers");
 
@@ -135,6 +163,7 @@ export default function BarberSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
+  const [savingHours, setSavingHours] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [creatingService, setCreatingService] = useState(false);
   const [busyServiceId, setBusyServiceId] = useState<number | null>(null);
@@ -183,7 +212,19 @@ export default function BarberSettingsScreen() {
 
       setProfile((profileRes.data?.barber ?? null) as BarberProfile | null);
       setServices(Array.isArray(servicesRes.data?.services) ? servicesRes.data.services : []);
-      setSettings((settingsRes.data?.settings ?? null) as AppSettings | null);
+
+      const rawSettings = (settingsRes.data?.settings ?? null) as AppSettings | null;
+
+      if (rawSettings) {
+        setSettings({
+          ...rawSettings,
+          minDaysBetweenBookings: Number.isFinite((rawSettings as any).minDaysBetweenBookings)
+            ? Number((rawSettings as any).minDaysBetweenBookings)
+            : 0,
+        });
+      } else {
+        setSettings(null);
+      }
     } catch (e: any) {
       setError(e?.response?.data?.error || "Einstellungen konnten nicht geladen werden.");
     } finally {
@@ -249,6 +290,30 @@ export default function BarberSettingsScreen() {
       setError(e?.response?.data?.error || "Buchungsregeln konnten nicht gespeichert werden.");
     } finally {
       setSavingRules(false);
+    }
+  }
+
+  async function saveHours() {
+    if (!settings) return;
+
+    try {
+      setSavingHours(true);
+      setError("");
+      setMessage("");
+
+      const res = await api.put("/admin/settings", settings, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      setSettings((res.data?.settings ?? settings) as AppSettings);
+      setMessage("Arbeitszeiten gespeichert.");
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Arbeitszeiten konnten nicht gespeichert werden.");
+    } finally {
+      setSavingHours(false);
     }
   }
 
@@ -479,6 +544,16 @@ export default function BarberSettingsScreen() {
     return `${base}/b/${profile.slug}/book`;
   }, [profile?.slug]);
 
+  const workingHoursUi = useMemo(() => {
+    const wh = settings?.workingHours ?? [];
+    const map = new Map<number, WorkingHoursRow>();
+    for (const row of wh) map.set(row.day, row);
+
+    return WEEKDAYS.map(
+      (d) => map.get(d.k) ?? { day: d.k, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 }
+    );
+  }, [settings]);
+
   if (loading) {
     return (
       <View style={loadingWrap}>
@@ -506,7 +581,7 @@ export default function BarberSettingsScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 36 }}>
         <View style={{ marginBottom: 16 }}>
           <Text style={pageTitle}>Einstellungen</Text>
-          <Text style={pageSub}>Profil, Services und Buchungsregeln verwalten.</Text>
+          <Text style={pageSub}>Profil, Services, Arbeitszeiten und Buchungsregeln verwalten.</Text>
         </View>
 
         {message ? (
@@ -530,6 +605,10 @@ export default function BarberSettingsScreen() {
             <Text style={[tabBtnText, tab === "SERVICES" ? tabBtnTextActive : null]}>Services</Text>
           </Pressable>
 
+          <Pressable onPress={() => setTab("HOURS")} style={[tabBtn, tab === "HOURS" ? tabBtnActive : null]}>
+            <Text style={[tabBtnText, tab === "HOURS" ? tabBtnTextActive : null]}>Zeiten</Text>
+          </Pressable>
+
           <Pressable onPress={() => setTab("RULES")} style={[tabBtn, tab === "RULES" ? tabBtnActive : null]}>
             <Text style={[tabBtnText, tab === "RULES" ? tabBtnTextActive : null]}>Regeln</Text>
           </Pressable>
@@ -546,9 +625,7 @@ export default function BarberSettingsScreen() {
                   {previewUrl ? (
                     <Image source={{ uri: previewUrl }} style={avatarImg} />
                   ) : (
-                    <Text style={avatarFallback}>
-                      {profile.name?.trim()?.[0]?.toUpperCase() || "B"}
-                    </Text>
+                    <Text style={avatarFallback}>{profile.name?.trim()?.[0]?.toUpperCase() || "B"}</Text>
                   )}
                 </View>
 
@@ -558,9 +635,7 @@ export default function BarberSettingsScreen() {
                     disabled={uploadingImg}
                     style={[primaryBtn, uploadingImg ? disabledBtn : null]}
                   >
-                    <Text style={primaryBtnText}>
-                      {uploadingImg ? "Lädt..." : "Profilbild auswählen"}
-                    </Text>
+                    <Text style={primaryBtnText}>{uploadingImg ? "Lädt..." : "Profilbild auswählen"}</Text>
                   </Pressable>
 
                   {previewUrl ? (
@@ -745,9 +820,7 @@ export default function BarberSettingsScreen() {
                 disabled={creatingService}
                 style={[primaryBtn, { marginTop: 16 }, creatingService ? disabledBtn : null]}
               >
-                <Text style={primaryBtnText}>
-                  {creatingService ? "Speichert..." : "Service hinzufügen"}
-                </Text>
+                <Text style={primaryBtnText}>{creatingService ? "Speichert..." : "Service hinzufügen"}</Text>
               </Pressable>
             </View>
 
@@ -824,6 +897,109 @@ export default function BarberSettingsScreen() {
               </View>
             </View>
           </>
+        ) : tab === "HOURS" ? (
+          <View style={card}>
+            <Text style={sectionTitle}>Arbeitszeiten</Text>
+            <Text style={sectionSub}>Lege fest, an welchen Tagen und Uhrzeiten du buchbar bist.</Text>
+
+            <View style={{ marginTop: 16, gap: 12 }}>
+              {workingHoursUi.map((row) => {
+                const dayName = WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
+
+                return (
+                  <View key={row.day} style={serviceCard}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <Text style={dayTitle}>{dayName}</Text>
+
+                      <Pressable
+                        onPress={() => {
+                          setSettings({
+                            ...settings,
+                            workingHours: workingHoursUi.map((r) =>
+                              r.day === row.day ? { ...r, isOpen: !r.isOpen } : r
+                            ),
+                          });
+                        }}
+                        style={[row.isOpen ? primaryBtnSmall : secondaryBtnSmall, { minWidth: 110 }]}
+                      >
+                        <Text style={row.isOpen ? primaryBtnSmallText : secondaryBtnSmallText}>
+                          {row.isOpen ? "Geöffnet" : "Geschlossen"}
+                        </Text>
+                      </Pressable>
+                    </View>
+
+                    {row.isOpen ? (
+                      <View style={{ marginTop: 14, gap: 12 }}>
+                        <SelectField
+                          label="Start"
+                          value={row.startMin}
+                          options={WORK_TIME_OPTIONS.map((value) => ({
+                            label: minToHHMM(value),
+                            value,
+                          }))}
+                          onChange={(value) => {
+                            const safeStart = clamp(value, 0, 1439);
+                            const safeEnd = row.endMin <= safeStart ? safeStart + 60 : row.endMin;
+
+                            setSettings({
+                              ...settings,
+                              workingHours: workingHoursUi.map((r) =>
+                                r.day === row.day
+                                  ? {
+                                      ...r,
+                                      startMin: safeStart,
+                                      endMin: clamp(safeEnd, safeStart + 1, 1440),
+                                    }
+                                  : r
+                              ),
+                            });
+                          }}
+                        />
+
+                        <SelectField
+                          label="Ende"
+                          value={row.endMin}
+                          options={WORK_TIME_OPTIONS.filter((value) => value > row.startMin).map((value) => ({
+                            label: minToHHMM(value),
+                            value,
+                          }))}
+                          onChange={(value) => {
+                            setSettings({
+                              ...settings,
+                              workingHours: workingHoursUi.map((r) =>
+                                r.day === row.day
+                                  ? { ...r, endMin: clamp(value, r.startMin + 1, 1440) }
+                                  : r
+                              ),
+                            });
+                          }}
+                        />
+                      </View>
+                    ) : (
+                      <Text style={helperText}>
+                        An diesem Tag können keine Termine gebucht werden.
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+
+            <Pressable
+              onPress={saveHours}
+              disabled={savingHours}
+              style={[primaryBtn, { marginTop: 16 }, savingHours ? disabledBtn : null]}
+            >
+              <Text style={primaryBtnText}>{savingHours ? "Speichert..." : "Arbeitszeiten speichern"}</Text>
+            </Pressable>
+          </View>
         ) : (
           <View style={card}>
             <Text style={sectionTitle}>Buchungsregeln</Text>
@@ -832,6 +1008,7 @@ export default function BarberSettingsScreen() {
             <View style={fieldGap}>
               <SelectField
                 label="Schrittweite"
+                helperText="Legt fest, in welchen Minutenabständen freie Termine angezeigt werden."
                 value={settings.stepMin}
                 options={STEP_MIN_OPTIONS.map((value) => ({
                   label: `${value} min`,
@@ -840,18 +1017,32 @@ export default function BarberSettingsScreen() {
                 onChange={(value) => setSettings({ ...settings, stepMin: value })}
               />
 
-              <SelectField
-                label="Früheste Grenze"
-                value={settings.earliestLimitMin}
-                options={EARLIEST_TIME_OPTIONS.map((value) => ({
-                  label: minToHHMM(value),
-                  value,
-                }))}
-                onChange={(value) => setSettings({ ...settings, earliestLimitMin: value })}
-              />
+              <Field
+                label="Automatische Vorverlagerung"
+                helperText="Wenn die erste reguläre Stunde bereits voll ist, können automatisch frühere Slots freigegeben werden."
+              >
+                <Pressable
+                  onPress={() =>
+                    setSettings({
+                      ...settings,
+                      extendIfFirstHourFull: !settings.extendIfFirstHourFull,
+                    })
+                  }
+                  style={[settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall]}
+                >
+                  <Text
+                    style={
+                      settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText
+                    }
+                  >
+                    {settings.extendIfFirstHourFull ? "AN" : "AUS"}
+                  </Text>
+                </Pressable>
+              </Field>
 
               <SelectField
                 label="Erweiterungsschritt"
+                helperText="Bestimmt, in welchen Schritten früher geöffnet wird, z. B. 15 oder 30 Minuten."
                 value={settings.extendStepMin}
                 options={EXTEND_STEP_OPTIONS.map((value) => ({
                   label: `${value} min`,
@@ -861,40 +1052,26 @@ export default function BarberSettingsScreen() {
               />
 
               <SelectField
+                label="Früheste Grenze"
+                helperText="Bestimmt, bis zu welcher Uhrzeit frühestens zusätzliche Slots freigegeben werden dürfen."
+                value={settings.earliestLimitMin}
+                options={EARLIEST_TIME_OPTIONS.map((value) => ({
+                  label: minToHHMM(value),
+                  value,
+                }))}
+                onChange={(value) => setSettings({ ...settings, earliestLimitMin: value })}
+              />
+
+              <SelectField
                 label="Mindestabstand pro Kunde"
+                helperText="Legt fest, wie viele Tage ein Kunde nach einer Buchung mindestens warten muss, bis erneut gebucht werden kann."
                 value={settings.minDaysBetweenBookings ?? 0}
                 options={MIN_DAYS_OPTIONS.map((value) => ({
                   label: `${value} Tag${value === 1 ? "" : "e"}`,
                   value,
                 }))}
-                onChange={(value) =>
-                  setSettings({ ...settings, minDaysBetweenBookings: value })
-                }
+                onChange={(value) => setSettings({ ...settings, minDaysBetweenBookings: value })}
               />
-
-              <Field label="Erste volle Stunde automatisch erweitern">
-                <Pressable
-                  onPress={() =>
-                    setSettings({
-                      ...settings,
-                      extendIfFirstHourFull: !settings.extendIfFirstHourFull,
-                    })
-                  }
-                  style={[
-                    settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall,
-                  ]}
-                >
-                  <Text
-                    style={
-                      settings.extendIfFirstHourFull
-                        ? primaryBtnSmallText
-                        : secondaryBtnSmallText
-                    }
-                  >
-                    {settings.extendIfFirstHourFull ? "AN" : "AUS"}
-                  </Text>
-                </Pressable>
-              </Field>
             </View>
 
             <Pressable
@@ -913,11 +1090,16 @@ export default function BarberSettingsScreen() {
   );
 }
 
-function Field(props: { label: string; children: React.ReactNode }) {
+function Field(props: {
+  label: string;
+  children: React.ReactNode;
+  helperText?: string;
+}) {
   return (
     <View>
       <Text style={fieldLabel}>{props.label}</Text>
       {props.children}
+      {props.helperText ? <Text style={helperText}>{props.helperText}</Text> : null}
     </View>
   );
 }
@@ -927,6 +1109,7 @@ function SelectField<T extends string | number>(props: {
   value: T;
   options: { label: string; value: T }[];
   onChange: (value: T) => void;
+  helperText?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -942,20 +1125,26 @@ function SelectField<T extends string | number>(props: {
         <Text style={selectChevron}>{open ? "▲" : "▼"}</Text>
       </Pressable>
 
+      {props.helperText ? <Text style={helperText}>{props.helperText}</Text> : null}
+
       {open ? (
         <View style={selectMenu}>
           <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }}>
-            {props.options.map((option) => {
+            {props.options.map((option, index) => {
               const active = option.value === props.value;
 
               return (
                 <Pressable
-                  key={String(option.value)}
+                  key={`${String(option.value)}-${index}`}
                   onPress={() => {
                     props.onChange(option.value);
                     setOpen(false);
                   }}
-                  style={[selectOption, active ? selectOptionActive : null]}
+                  style={[
+                    selectOption,
+                    index === 0 ? { borderTopWidth: 0 } : null,
+                    active ? selectOptionActive : null,
+                  ]}
                 >
                   <Text style={[selectOptionText, active ? selectOptionTextActive : null]}>
                     {option.label}
@@ -1094,6 +1283,13 @@ const fieldLabel = {
   fontWeight: "800" as const,
   color: "#555",
   marginBottom: 8,
+} as const;
+
+const helperText = {
+  marginTop: 8,
+  color: "#777",
+  fontSize: 13,
+  lineHeight: 18,
 } as const;
 
 const input = {
@@ -1239,6 +1435,13 @@ const serviceCard = {
   borderRadius: 16,
   backgroundColor: "#fbfbfc",
   padding: 14,
+} as const;
+
+const dayTitle = {
+  fontSize: 17,
+  lineHeight: 22,
+  color: "#111",
+  fontWeight: "900" as const,
 } as const;
 
 const linkCard = {

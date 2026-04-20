@@ -48,6 +48,7 @@ model Customer {
   user          User?
   bookings      Booking[]
   notifications Notification[]
+  favorites     FavoriteBarber[]
 }
 
 model Barber {
@@ -82,6 +83,7 @@ model Barber {
   recurringBlocks RecurringBlock[]
   timeBlocks      TimeBlock[]
   settings        AppSetting[]
+  favoredBy       FavoriteBarber[]
 }
 
 model Service {
@@ -195,4 +197,18 @@ model Notification {
 
   @@index([customerId, createdAt])
   @@index([customerId, readAt])
+}
+
+model FavoriteBarber {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  barberId   Int
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  barber   Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, barberId])
+  @@index([customerId])
+  @@index([barberId])
 }

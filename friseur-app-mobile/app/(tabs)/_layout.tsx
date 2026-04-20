@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Tabs } from "expo-router";
-import { Home, CalendarDays, Bell, User } from "lucide-react-native";
+import { Home, Search, CalendarDays, Bell, User } from "lucide-react-native";
 
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
@@ -57,6 +57,16 @@ export default function CustomerTabsLayout() {
           title: "Home",
           tabBarIcon: ({ color, focused }) => (
             <Home color={color} size={focused ? 30 : 28} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: "Suche",
+          tabBarIcon: ({ color, focused }) => (
+            <Search color={color} size={focused ? 30 : 28} />
           ),
         }}
       />

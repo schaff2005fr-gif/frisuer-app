@@ -394,6 +394,19 @@ async function getBarberIdFromUser(userId: number) {
   return barber.id;
 }
 
+async function getCustomerIdFromUser(userId: number) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, customerId: true },
+  });
+
+  if (!user) throw new Error("user not found");
+  if (user.role !== "CUSTOMER") throw new Error("not a customer account");
+  if (!user.customerId) throw new Error("customer profile missing");
+
+  return user.customerId;
+}
+
 /* ------------------------- settings (DB, pro Barber) ------------------------- */
 let settingsCache: Map<number, { value: AppSettings; ts: number }> = new Map();
 
@@ -667,8 +680,27 @@ async function findNextAvailableDate(barberId: number, lookaheadDays = 7) {
 
 /* ---------- PUBLIC ---------- */
 
-app.get("/barbers", async (_req, res) => {
+app.get("/barbers", async (req, res) => {
   try {
+    const token = getBearerToken(req);
+
+    let customerId: number | null = null;
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET!) as JwtPayload;
+        if (decoded.role === "CUSTOMER") {
+          const user = await prisma.user.findUnique({
+            where: { id: decoded.userId },
+            select: { customerId: true },
+          });
+          customerId = user?.customerId ?? null;
+        }
+      } catch {
+        customerId = null;
+      }
+    }
+
     const barbers = await prisma.barber.findMany({
       where: { isActive: true },
       orderBy: [{ createdAt: "asc" }],
@@ -678,15 +710,28 @@ app.get("/barbers", async (_req, res) => {
         slug: true,
         street: true,
         city: true,
+        postalCode: true,
         imageUrl: true,
+        favoredBy: customerId
+          ? {
+              where: { customerId },
+              select: { id: true },
+            }
+          : false,
       },
     });
 
-    // ✅ nächster freier Tag pro Barber
     const out = await Promise.all(
-      barbers.map(async (b) => ({
-        ...b,
-        nextDate: await findNextAvailableDate(b.id, 7), // z.B. die nächsten 30 Tage prüfen
+      barbers.map(async (b: any) => ({
+        id: b.id,
+        name: b.name,
+        slug: b.slug,
+        street: b.street,
+        city: b.city,
+        postalCode: b.postalCode,
+        imageUrl: b.imageUrl,
+        nextDate: await findNextAvailableDate(b.id, 7),
+        isFavorite: customerId ? Array.isArray(b.favoredBy) && b.favoredBy.length > 0 : false,
       }))
     );
 
@@ -699,6 +744,24 @@ app.get("/barbers", async (_req, res) => {
 app.get("/barbers/:slug", async (req, res) => {
   try {
     const slug = String(req.params.slug ?? "").trim().toLowerCase();
+
+    const token = getBearerToken(req);
+    let customerId: number | null = null;
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET!) as JwtPayload;
+        if (decoded.role === "CUSTOMER") {
+          const user = await prisma.user.findUnique({
+            where: { id: decoded.userId },
+            select: { customerId: true },
+          });
+          customerId = user?.customerId ?? null;
+        }
+      } catch {
+        customerId = null;
+      }
+    }
 
     const barber = await prisma.barber.findUnique({
       where: { slug },
@@ -715,6 +778,12 @@ app.get("/barbers/:slug", async (req, res) => {
         instagram: true,
         website: true,
         imageUrl: true,
+        favoredBy: customerId
+          ? {
+              where: { customerId },
+              select: { id: true },
+            }
+          : false,
       },
     });
 
@@ -729,7 +798,21 @@ app.get("/barbers/:slug", async (req, res) => {
     const settings = await getSettings(barber.id);
 
     res.json({
-      barber,
+      barber: {
+        id: barber.id,
+        name: barber.name,
+        slug: barber.slug,
+        phone: barber.phone,
+        isActive: barber.isActive,
+        bio: barber.bio,
+        street: barber.street,
+        postalCode: barber.postalCode,
+        city: barber.city,
+        instagram: barber.instagram,
+        website: barber.website,
+        imageUrl: barber.imageUrl,
+        isFavorite: customerId ? Array.isArray((barber as any).favoredBy) && (barber as any).favoredBy.length > 0 : false,
+      },
       services,
       settings: {
         workingHours: settings.workingHours,
@@ -2172,6 +2255,105 @@ app.delete("/admin/time-blocks/:id", requireAuth, requireRole("BARBER"), async (
 
     await prisma.timeBlock.delete({ where: { id } });
     res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.get("/favorites/barbers", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const customerId = await getCustomerIdFromUser(userId);
+
+    const favorites = await prisma.favoriteBarber.findMany({
+      where: { customerId },
+      orderBy: [{ createdAt: "desc" }],
+      select: {
+        barber: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            street: true,
+            city: true,
+            postalCode: true,
+            imageUrl: true,
+          },
+        },
+      },
+    });
+
+    const out = await Promise.all(
+      favorites.map(async (f) => ({
+        ...f.barber,
+        nextDate: await findNextAvailableDate(f.barber.id, 7),
+        isFavorite: true,
+      }))
+    );
+
+    res.json({ ok: true, count: out.length, barbers: out });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.post("/favorites/barbers/:barberId", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const customerId = await getCustomerIdFromUser(userId);
+
+    const barberId = Number(req.params.barberId);
+    if (!Number.isFinite(barberId)) {
+      return res.status(400).json({ error: "invalid barberId" });
+    }
+
+    const barber = await prisma.barber.findUnique({
+      where: { id: barberId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!barber || !barber.isActive) {
+      return res.status(404).json({ error: "Barber not found" });
+    }
+
+    await prisma.favoriteBarber.upsert({
+      where: {
+        customerId_barberId: {
+          customerId,
+          barberId,
+        },
+      },
+      update: {},
+      create: {
+        customerId,
+        barberId,
+      },
+    });
+
+    res.json({ ok: true, isFavorite: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.delete("/favorites/barbers/:barberId", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const customerId = await getCustomerIdFromUser(userId);
+
+    const barberId = Number(req.params.barberId);
+    if (!Number.isFinite(barberId)) {
+      return res.status(400).json({ error: "invalid barberId" });
+    }
+
+    await prisma.favoriteBarber.deleteMany({
+      where: {
+        customerId,
+        barberId,
+      },
+    });
+
+    res.json({ ok: true, isFavorite: false });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
   }

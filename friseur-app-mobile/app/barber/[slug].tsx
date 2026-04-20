@@ -10,7 +10,8 @@ import {
   Image,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-
+import { useAuth } from "../../context/AuthContext";
+import { Heart } from "lucide-react-native";
 import { api } from "../../lib/api";
 
 type Service = {
@@ -31,6 +32,7 @@ type Barber = {
   instagram?: string | null;
   website?: string | null;
   imageUrl?: string | null;
+  isFavorite?: boolean;
 };
 
 function cleanUrl(u?: string | null) {
@@ -43,7 +45,8 @@ function cleanUrl(u?: string | null) {
 export default function BarberProfileScreen() {
   const params = useLocalSearchParams<{ slug: string }>();
   const slug = String(params?.slug ?? "");
-
+  const { token, user } = useAuth();
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [barber, setBarber] = useState<Barber | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +106,36 @@ export default function BarberProfileScreen() {
       }
     } catch (e) {
       console.log("OPEN LINK ERROR:", e);
+    }
+  }
+
+  async function toggleFavorite() {
+    if (!barber || !token || user?.role !== "CUSTOMER" || favoriteBusy) return;
+
+    try {
+      setFavoriteBusy(true);
+
+      if (barber.isFavorite) {
+        await api.delete(`/favorites/barbers/${barber.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setBarber((prev) => (prev ? { ...prev, isFavorite: false } : prev));
+      } else {
+        await api.post(
+          `/favorites/barbers/${barber.id}`,
+          {},
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        setBarber((prev) => (prev ? { ...prev, isFavorite: true } : prev));
+      }
+    } catch (e) {
+      console.log("TOGGLE FAVORITE ERROR:", e);
+    } finally {
+      setFavoriteBusy(false);
     }
   }
 
@@ -259,6 +292,41 @@ export default function BarberProfileScreen() {
             </Text>
           </Pressable>
         </View>
+
+                  {user?.role === "CUSTOMER" ? (
+            <Pressable
+              onPress={toggleFavorite}
+              disabled={favoriteBusy}
+              style={{
+                marginTop: 12,
+                minHeight: 48,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: barber.isFavorite ? "#f0d3d3" : "#ddd",
+                backgroundColor: barber.isFavorite ? "#fff5f5" : "#fff",
+                alignItems: "center",
+                justifyContent: "center",
+                paddingHorizontal: 18,
+                flexDirection: "row",
+                gap: 8,
+              }}
+            >
+              <Heart
+                size={18}
+                color={barber.isFavorite ? "#b42318" : "#111"}
+                fill={barber.isFavorite ? "#b42318" : "transparent"}
+              />
+              <Text
+                style={{
+                  color: barber.isFavorite ? "#b42318" : "#111",
+                  fontWeight: "900",
+                  fontSize: 15,
+                }}
+              >
+                {barber.isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten"}
+              </Text>
+            </Pressable>
+          ) : null}
 
         <View
           style={{

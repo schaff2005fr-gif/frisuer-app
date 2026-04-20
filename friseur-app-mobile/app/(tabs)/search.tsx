@@ -7,6 +7,7 @@ import {
   RefreshControl,
   SafeAreaView,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { router } from "expo-router";
@@ -53,19 +54,14 @@ function formatDateDE(dateStr: string) {
   }).format(d);
 }
 
-function firstName(full: string) {
-  const s = String(full || "").trim();
-  if (!s) return "";
-  return s.split(/\s+/).filter(Boolean)[0] ?? "";
-}
-
-export default function CustomerHomeScreen() {
+export default function CustomerSearchScreen() {
   const { user, token, loading } = useAuth();
 
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loadingBarbers, setLoadingBarbers] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     if (loading) return;
@@ -80,10 +76,10 @@ export default function CustomerHomeScreen() {
       return;
     }
 
-    loadFavorites();
+    loadBarbers();
   }, [user, token, loading]);
 
-  async function loadFavorites(isRefresh = false) {
+  async function loadBarbers(isRefresh = false) {
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -93,36 +89,58 @@ export default function CustomerHomeScreen() {
 
       setError("");
 
-      const res = await api.get("/favorites/barbers", {
+      const res = await api.get("/barbers", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       setBarbers(Array.isArray(res.data?.barbers) ? res.data.barbers : []);
     } catch (err: any) {
-      console.log("LOAD FAVORITES ERROR:", err?.message);
-      console.log("LOAD FAVORITES RESPONSE:", err?.response?.data);
-      setError("Fehler beim Laden deiner Favoriten");
+      console.log("LOAD BARBERS ERROR:", err?.message);
+      console.log("LOAD BARBERS RESPONSE:", err?.response?.data);
+      setError("Fehler beim Laden der Friseure");
     } finally {
       setLoadingBarbers(false);
       setRefreshing(false);
     }
   }
 
-  async function removeFavorite(barberId: number) {
+  async function toggleFavorite(barber: Barber) {
     try {
-      await api.delete(`/favorites/barbers/${barberId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (barber.isFavorite) {
+        await api.delete(`/favorites/barbers/${barber.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        await api.post(
+          `/favorites/barbers/${barber.id}`,
+          {},
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+      }
 
-      setBarbers((prev) => prev.filter((b) => b.id !== barberId));
+      setBarbers((prev) =>
+        prev.map((b) =>
+          b.id === barber.id ? { ...b, isFavorite: !b.isFavorite } : b
+        )
+      );
     } catch (err: any) {
-      console.log("REMOVE FAVORITE ERROR:", err?.message);
+      console.log("TOGGLE FAVORITE ERROR:", err?.message);
     }
   }
 
-  const fn = firstName((user as any)?.customer?.name ?? "");
-  const titleText = `Hallo ${fn || "👋"}`;
-  const subText = "Hier siehst du deine favorisierten Friseure für den schnellen Zugriff.";
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return barbers;
+
+    return barbers.filter((b) => {
+      const name = (b.name ?? "").toLowerCase();
+      const slug = (b.slug ?? "").toLowerCase();
+      const city = (b.city ?? "").toLowerCase();
+      return name.includes(s) || slug.includes(s) || city.includes(s);
+    });
+  }, [barbers, q]);
 
   function renderBarberCard(b: Barber) {
     const addr =
@@ -221,19 +239,23 @@ export default function CustomerHomeScreen() {
           </View>
 
           <Pressable
-            onPress={() => removeFavorite(b.id)}
+            onPress={() => toggleFavorite(b)}
             style={{
               width: 42,
               height: 42,
               borderRadius: 999,
               borderWidth: 1,
-              borderColor: "#f0d3d3",
-              backgroundColor: "#fff5f5",
+              borderColor: b.isFavorite ? "#f0d3d3" : "#dddddd",
+              backgroundColor: b.isFavorite ? "#fff5f5" : "#fff",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Heart size={18} color="#b42318" fill="#b42318" />
+            <Heart
+              size={18}
+              color={b.isFavorite ? "#b42318" : "#666"}
+              fill={b.isFavorite ? "#b42318" : "transparent"}
+            />
           </Pressable>
         </View>
 
@@ -293,7 +315,7 @@ export default function CustomerHomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <FlatList
-        data={barbers}
+        data={filtered}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => renderBarberCard(item)}
         contentContainerStyle={{
@@ -301,41 +323,112 @@ export default function CustomerHomeScreen() {
           paddingBottom: 32,
         }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => loadFavorites(true)} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadBarbers(true)} />
         }
         ListHeaderComponent={
           <View>
             <View style={{ marginBottom: 18 }}>
-              <View
+              <Text
                 style={{
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  gap: 12,
+                  fontSize: 34,
+                  lineHeight: 36,
+                  fontWeight: "900",
+                  color: "#111",
                 }}
               >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 34,
-                      lineHeight: 36,
-                      fontWeight: "900",
-                      color: "#111",
-                    }}
-                  >
-                    {titleText}
-                  </Text>
+                Friseure suchen
+              </Text>
 
-                  <Text
+              <Text
+                style={{
+                  color: "#666",
+                  marginTop: 10,
+                  fontSize: 16,
+                  lineHeight: 23,
+                }}
+              >
+                Suche nach Namen, Stadt oder Profil und markiere deine Favoriten.
+              </Text>
+
+              <View
+                style={{
+                  marginTop: 16,
+                  borderWidth: 1,
+                  borderColor: "#e9e9e9",
+                  borderRadius: 24,
+                  padding: 16,
+                  backgroundColor: "#fff",
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    marginBottom: 12,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontWeight: "900",
+                        fontSize: 18,
+                        color: "#111",
+                      }}
+                    >
+                      Suche
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: "#666",
+                        fontSize: 13,
+                        marginTop: 4,
+                      }}
+                    >
+                      Nach Name, Stadt oder Profil suchen
+                    </Text>
+                  </View>
+
+                  <View
                     style={{
-                      color: "#666",
-                      marginTop: 10,
-                      fontSize: 16,
-                      lineHeight: 23,
+                      borderWidth: 1,
+                      borderColor: "#e4e4e4",
+                      borderRadius: 999,
+                      backgroundColor: "#fafafa",
+                      paddingVertical: 7,
+                      paddingHorizontal: 10,
                     }}
                   >
-                    {subText}
-                  </Text>
+                    <Text
+                      style={{
+                        color: "#666",
+                        fontSize: 12,
+                        fontWeight: "900",
+                      }}
+                    >
+                      {loadingBarbers ? "…" : `${filtered.length} Friseur(e)`}
+                    </Text>
+                  </View>
                 </View>
+
+                <TextInput
+                  value={q}
+                  onChangeText={setQ}
+                  placeholder="z. B. Ali, Essen, barber-essen..."
+                  style={{
+                    width: "100%",
+                    height: 52,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: "#dedede",
+                    backgroundColor: "#fff",
+                    paddingHorizontal: 16,
+                    fontSize: 16,
+                    color: "#111",
+                  }}
+                />
               </View>
             </View>
 
@@ -361,7 +454,7 @@ export default function CustomerHomeScreen() {
               </View>
             ) : null}
 
-            {!loadingBarbers && barbers.length === 0 ? (
+            {!loadingBarbers && filtered.length === 0 ? (
               <View
                 style={{
                   borderWidth: 1,
@@ -373,10 +466,7 @@ export default function CustomerHomeScreen() {
                   marginBottom: 14,
                 }}
               >
-                <Text style={{ color: "#777", fontWeight: "700" }}>Noch keine Favoriten vorhanden.</Text>
-                <Text style={{ color: "#777", marginTop: 6, lineHeight: 20 }}>
-                  Öffne den neuen Suche-Tab und markiere Friseure mit dem Herz.
-                </Text>
+                <Text style={{ color: "#777" }}>Keine Friseure gefunden.</Text>
               </View>
             ) : null}
           </View>
