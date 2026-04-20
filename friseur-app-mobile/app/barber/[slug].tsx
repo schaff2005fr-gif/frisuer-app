@@ -10,9 +10,10 @@ import {
   Image,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useAuth } from "../../context/AuthContext";
 import { Heart } from "lucide-react-native";
+
 import { api } from "../../lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 type Service = {
   key: string;
@@ -45,16 +46,17 @@ function cleanUrl(u?: string | null) {
 export default function BarberProfileScreen() {
   const params = useLocalSearchParams<{ slug: string }>();
   const slug = String(params?.slug ?? "");
+
   const { token, user } = useAuth();
-  const [favoriteBusy, setFavoriteBusy] = useState(false);
+
   const [barber, setBarber] = useState<Barber | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
-
     loadProfile();
   }, [slug]);
 
@@ -63,7 +65,14 @@ export default function BarberProfileScreen() {
       setLoading(true);
       setError("");
 
-      const res = await api.get(`/barbers/${encodeURIComponent(slug)}`);
+      const headers =
+        token && user?.role === "CUSTOMER"
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
+
+      const res = await api.get(`/barbers/${encodeURIComponent(slug)}`, {
+        headers,
+      });
 
       setBarber(res.data?.barber ?? null);
       setServices(Array.isArray(res.data?.services) ? res.data.services : []);
@@ -273,60 +282,57 @@ export default function BarberProfileScreen() {
             </View>
           </View>
 
-          <Pressable
-            onPress={() => router.push(`/barber/${barber.slug}/book` as any)}
+          <View
             style={{
+              flexDirection: "row",
+              gap: 10,
               marginTop: 18,
-              minHeight: 50,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: "#111",
-              backgroundColor: "#111",
-              alignItems: "center",
-              justifyContent: "center",
-              paddingHorizontal: 18,
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "900", fontSize: 15 }}>
-              Termin buchen
-            </Text>
-          </Pressable>
-        </View>
-
-                  {user?.role === "CUSTOMER" ? (
             <Pressable
-              onPress={toggleFavorite}
-              disabled={favoriteBusy}
+              onPress={() => router.push(`/barber/${barber.slug}/book` as any)}
               style={{
-                marginTop: 12,
-                minHeight: 48,
+                flex: 1,
+                minHeight: 50,
                 borderRadius: 14,
                 borderWidth: 1,
-                borderColor: barber.isFavorite ? "#f0d3d3" : "#ddd",
-                backgroundColor: barber.isFavorite ? "#fff5f5" : "#fff",
+                borderColor: "#111",
+                backgroundColor: "#111",
                 alignItems: "center",
                 justifyContent: "center",
                 paddingHorizontal: 18,
-                flexDirection: "row",
-                gap: 8,
               }}
             >
-              <Heart
-                size={18}
-                color={barber.isFavorite ? "#b42318" : "#111"}
-                fill={barber.isFavorite ? "#b42318" : "transparent"}
-              />
-              <Text
-                style={{
-                  color: barber.isFavorite ? "#b42318" : "#111",
-                  fontWeight: "900",
-                  fontSize: 15,
-                }}
-              >
-                {barber.isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten"}
+              <Text style={{ color: "#fff", fontWeight: "900", fontSize: 15 }}>
+                Termin buchen
               </Text>
             </Pressable>
-          ) : null}
+
+            {user?.role === "CUSTOMER" ? (
+              <Pressable
+                onPress={toggleFavorite}
+                disabled={favoriteBusy}
+                style={{
+                  width: 54,
+                  minHeight: 50,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: barber.isFavorite ? "#f0d3d3" : "#ddd",
+                  backgroundColor: barber.isFavorite ? "#fff5f5" : "#fff",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: favoriteBusy ? 0.7 : 1,
+                }}
+              >
+                <Heart
+                  size={20}
+                  color={barber.isFavorite ? "#b42318" : "#444"}
+                  fill={barber.isFavorite ? "#b42318" : "transparent"}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
 
         <View
           style={{

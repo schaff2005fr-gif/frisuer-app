@@ -50,9 +50,10 @@ type WorkingHoursRow = {
 type AppSettings = {
   stepMin: number;
   workingHours: WorkingHoursRow[];
+  displayStartMin: number;
+  displayEndMin: number;
   extendIfFirstHourFull: boolean;
   extendStepMin: number;
-  earliestLimitMin: number;
   minDaysBetweenBookings: number;
 };
 
@@ -73,7 +74,25 @@ const WEEKDAYS = [
 const SERVICE_DURATION_OPTIONS = [10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
 const STEP_MIN_OPTIONS = [5, 10, 15, 20, 30];
 const EXTEND_STEP_OPTIONS = [15, 30, 45, 60];
-const EARLIEST_TIME_OPTIONS = [6 * 60, 7 * 60, 8 * 60, 9 * 60, 10 * 60, 11 * 60, 12 * 60];
+const DISPLAY_TIME_OPTIONS = [
+  6 * 60,
+  7 * 60,
+  8 * 60,
+  9 * 60,
+  10 * 60,
+  11 * 60,
+  12 * 60,
+  13 * 60,
+  14 * 60,
+  15 * 60,
+  16 * 60,
+  17 * 60,
+  18 * 60,
+  19 * 60,
+  20 * 60,
+  21 * 60,
+  22 * 60,
+];
 const MIN_DAYS_OPTIONS = [0, 1, 2, 3, 5, 7, 10, 14, 21, 30];
 const WORK_TIME_OPTIONS = [
   6 * 60,
@@ -216,15 +235,23 @@ export default function BarberSettingsScreen() {
       const rawSettings = (settingsRes.data?.settings ?? null) as AppSettings | null;
 
       if (rawSettings) {
-        setSettings({
-          ...rawSettings,
-          minDaysBetweenBookings: Number.isFinite((rawSettings as any).minDaysBetweenBookings)
-            ? Number((rawSettings as any).minDaysBetweenBookings)
-            : 0,
-        });
-      } else {
-        setSettings(null);
-      }
+  setSettings({
+    ...rawSettings,
+    displayStartMin: Number.isFinite((rawSettings as any).displayStartMin)
+      ? Number((rawSettings as any).displayStartMin)
+      : Number.isFinite((rawSettings as any).earliestLimitMin)
+      ? Number((rawSettings as any).earliestLimitMin)
+      : 12 * 60,
+    displayEndMin: Number.isFinite((rawSettings as any).displayEndMin)
+      ? Number((rawSettings as any).displayEndMin)
+      : 17 * 60,
+    minDaysBetweenBookings: Number.isFinite((rawSettings as any).minDaysBetweenBookings)
+      ? Number((rawSettings as any).minDaysBetweenBookings)
+      : 0,
+  });
+} else {
+  setSettings(null);
+}
     } catch (e: any) {
       setError(e?.response?.data?.error || "Einstellungen konnten nicht geladen werden.");
     } finally {
@@ -1002,88 +1029,114 @@ export default function BarberSettingsScreen() {
           </View>
         ) : (
           <View style={card}>
-            <Text style={sectionTitle}>Buchungsregeln</Text>
-            <Text style={sectionSub}>Alles per Auswahl, ohne manuelle Eingabe.</Text>
+  <Text style={sectionTitle}>Buchungsregeln</Text>
+  <Text style={sectionSub}>Hier legst du fest, was Kunden zuerst sehen.</Text>
 
-            <View style={fieldGap}>
-              <SelectField
-                label="Schrittweite"
-                helperText="Legt fest, in welchen Minutenabständen freie Termine angezeigt werden."
-                value={settings.stepMin}
-                options={STEP_MIN_OPTIONS.map((value) => ({
-                  label: `${value} min`,
-                  value,
-                }))}
-                onChange={(value) => setSettings({ ...settings, stepMin: value })}
-              />
+  <View style={fieldGap}>
+    <SelectField
+      label="Schrittweite"
+      helperText="Legt fest, in welchen Minutenabständen freie Termine angezeigt werden."
+      value={settings.stepMin}
+      options={STEP_MIN_OPTIONS.map((value) => ({
+        label: `${value} min`,
+        value,
+      }))}
+      onChange={(value) => setSettings({ ...settings, stepMin: value })}
+    />
 
-              <Field
-                label="Automatische Vorverlagerung"
-                helperText="Wenn die erste reguläre Stunde bereits voll ist, können automatisch frühere Slots freigegeben werden."
-              >
-                <Pressable
-                  onPress={() =>
-                    setSettings({
-                      ...settings,
-                      extendIfFirstHourFull: !settings.extendIfFirstHourFull,
-                    })
-                  }
-                  style={[settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall]}
-                >
-                  <Text
-                    style={
-                      settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText
-                    }
-                  >
-                    {settings.extendIfFirstHourFull ? "AN" : "AUS"}
-                  </Text>
-                </Pressable>
-              </Field>
+    <SelectField
+      label="Zuerst sichtbarer Start"
+      helperText="Ab dieser Uhrzeit werden freie Slots Kunden anfangs angezeigt."
+      value={settings.displayStartMin}
+      options={DISPLAY_TIME_OPTIONS.map((value) => ({
+        label: minToHHMM(value),
+        value,
+      }))}
+      onChange={(value) => {
+        const nextStart = value;
+        const nextEnd =
+          settings.displayEndMin <= nextStart ? Math.min(1440, nextStart + 60) : settings.displayEndMin;
 
-              <SelectField
-                label="Erweiterungsschritt"
-                helperText="Bestimmt, in welchen Schritten früher geöffnet wird, z. B. 15 oder 30 Minuten."
-                value={settings.extendStepMin}
-                options={EXTEND_STEP_OPTIONS.map((value) => ({
-                  label: `${value} min`,
-                  value,
-                }))}
-                onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
-              />
+        setSettings({
+          ...settings,
+          displayStartMin: nextStart,
+          displayEndMin: nextEnd,
+        });
+      }}
+    />
 
-              <SelectField
-                label="Früheste Grenze"
-                helperText="Bestimmt, bis zu welcher Uhrzeit frühestens zusätzliche Slots freigegeben werden dürfen."
-                value={settings.earliestLimitMin}
-                options={EARLIEST_TIME_OPTIONS.map((value) => ({
-                  label: minToHHMM(value),
-                  value,
-                }))}
-                onChange={(value) => setSettings({ ...settings, earliestLimitMin: value })}
-              />
+    <SelectField
+      label="Zuerst sichtbares Ende"
+      helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
+      value={settings.displayEndMin}
+      options={DISPLAY_TIME_OPTIONS.filter((value) => value > settings.displayStartMin).map((value) => ({
+        label: minToHHMM(value),
+        value,
+      }))}
+      onChange={(value) =>
+        setSettings({
+          ...settings,
+          displayEndMin: value,
+        })
+      }
+    />
 
-              <SelectField
-                label="Mindestabstand pro Kunde"
-                helperText="Legt fest, wie viele Tage ein Kunde nach einer Buchung mindestens warten muss, bis erneut gebucht werden kann."
-                value={settings.minDaysBetweenBookings ?? 0}
-                options={MIN_DAYS_OPTIONS.map((value) => ({
-                  label: `${value} Tag${value === 1 ? "" : "e"}`,
-                  value,
-                }))}
-                onChange={(value) => setSettings({ ...settings, minDaysBetweenBookings: value })}
-              />
-            </View>
+    <Field
+      label="Automatische Vorverlagerung"
+      helperText="Wenn die erste sichtbare Stunde voll ist, können automatisch frühere Slots geöffnet werden – aber nur innerhalb deiner echten Arbeitszeit."
+    >
+      <Pressable
+        onPress={() =>
+          setSettings({
+            ...settings,
+            extendIfFirstHourFull: !settings.extendIfFirstHourFull,
+          })
+        }
+        style={[settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall]}
+      >
+        <Text
+          style={
+            settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText
+          }
+        >
+          {settings.extendIfFirstHourFull ? "AN" : "AUS"}
+        </Text>
+      </Pressable>
+    </Field>
 
-            <Pressable
-              onPress={saveRules}
-              disabled={savingRules}
-              style={[primaryBtn, { marginTop: 16 }, savingRules ? disabledBtn : null]}
-            >
-              <Text style={primaryBtnText}>
-                {savingRules ? "Speichert..." : "Buchungsregeln speichern"}
-              </Text>
-            </Pressable>
-          </View>
+    <SelectField
+      label="Erweiterungsschritt"
+      helperText="Bestimmt, in welchen Schritten früher geöffnet wird, z. B. 15 oder 30 Minuten."
+      value={settings.extendStepMin}
+      options={EXTEND_STEP_OPTIONS.map((value) => ({
+        label: `${value} min`,
+        value,
+      }))}
+      onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
+    />
+
+    <SelectField
+      label="Mindestabstand pro Kunde"
+      helperText="Legt fest, wie viele Tage ein Kunde nach einer Buchung mindestens warten muss, bis erneut gebucht werden kann."
+      value={settings.minDaysBetweenBookings ?? 0}
+      options={MIN_DAYS_OPTIONS.map((value) => ({
+        label: `${value} Tag${value === 1 ? "" : "e"}`,
+        value,
+      }))}
+      onChange={(value) => setSettings({ ...settings, minDaysBetweenBookings: value })}
+    />
+  </View>
+
+  <Pressable
+    onPress={saveRules}
+    disabled={savingRules}
+    style={[primaryBtn, { marginTop: 16 }, savingRules ? disabledBtn : null]}
+  >
+    <Text style={primaryBtnText}>
+      {savingRules ? "Speichert..." : "Buchungsregeln speichern"}
+    </Text>
+  </Pressable>
+</View>
         )}
       </ScrollView>
     </SafeAreaView>

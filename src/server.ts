@@ -20,9 +20,11 @@ const DEFAULT_SETTINGS = {
     { day: 6, isOpen: true, startMin: 12 * 60, endMin: 17 * 60 }, // Sa
   ],
 
+  displayStartMin: 12 * 60,
+  displayEndMin: 17 * 60,
+
   extendIfFirstHourFull: true,
   extendStepMin: 60,
-  earliestLimitMin: 10 * 60,
 };
 
 const SETTINGS_KEY = "APP_SETTINGS_V1";
@@ -36,12 +38,14 @@ type Role = "CUSTOMER" | "BARBER";
 type JwtPayload = { userId: number; role: Role };
 
 type WorkingHoursRow = { day: number; isOpen: boolean; startMin: number; endMin: number };
+
 type AppSettings = {
   stepMin: number;
   workingHours: WorkingHoursRow[];
+  displayStartMin: number;
+  displayEndMin: number;
   extendIfFirstHourFull: boolean;
   extendStepMin: number;
-  earliestLimitMin: number;
   minDaysBetweenBookings: number;
 };
 
@@ -417,7 +421,11 @@ function normalizeSettings(raw: any): AppSettings {
   const stepMin = Number(raw?.stepMin ?? fb.stepMin);
   const extendIfFirstHourFull = Boolean(raw?.extendIfFirstHourFull ?? fb.extendIfFirstHourFull);
   const extendStepMin = Number(raw?.extendStepMin ?? fb.extendStepMin);
-  const earliestLimitMin = Number(raw?.earliestLimitMin ?? fb.earliestLimitMin);
+
+  const displayStartMin = Number(
+    raw?.displayStartMin ?? raw?.earliestLimitMin ?? fb.displayStartMin
+  );
+  const displayEndMin = Number(raw?.displayEndMin ?? fb.displayEndMin);
 
   const whRaw = Array.isArray(raw?.workingHours) ? raw.workingHours : fb.workingHours;
 
@@ -432,7 +440,7 @@ function normalizeSettings(raw: any): AppSettings {
     .map((r: WorkingHoursRow) => ({
       ...r,
       startMin: Math.max(0, Math.min(1439, r.startMin)),
-      endMin: Math.max(0, Math.min(1440, r.endMin)),
+      endMin: Math.max(1, Math.min(1440, r.endMin)),
     }))
     .sort((a, b) => a.day - b.day);
 
@@ -444,16 +452,29 @@ function normalizeSettings(raw: any): AppSettings {
     full.push(byDay.get(d) ?? { day: d, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 });
   }
 
+  const safeDisplayStartMin = Number.isFinite(displayStartMin)
+    ? Math.max(0, Math.min(1439, Math.floor(displayStartMin)))
+    : fb.displayStartMin;
+
+  let safeDisplayEndMin = Number.isFinite(displayEndMin)
+    ? Math.max(1, Math.min(1440, Math.floor(displayEndMin)))
+    : fb.displayEndMin;
+
+  if (safeDisplayEndMin <= safeDisplayStartMin) {
+    safeDisplayEndMin = Math.min(1440, safeDisplayStartMin + 60);
+  }
+
   return {
     stepMin: Number.isFinite(stepMin) && stepMin > 0 ? stepMin : fb.stepMin,
+    workingHours: full,
+    displayStartMin: safeDisplayStartMin,
+    displayEndMin: safeDisplayEndMin,
     extendIfFirstHourFull,
     extendStepMin: Number.isFinite(extendStepMin) && extendStepMin > 0 ? extendStepMin : fb.extendStepMin,
-    earliestLimitMin: Number.isFinite(earliestLimitMin) ? earliestLimitMin : fb.earliestLimitMin,
-    workingHours: full,
     minDaysBetweenBookings:
       Number.isFinite(minDaysBetweenBookings) && minDaysBetweenBookings >= 0
         ? Math.floor(minDaysBetweenBookings)
-        : (fb as any).minDaysBetweenBookings ?? 0,
+        : fb.minDaysBetweenBookings,
   };
 }
 
@@ -574,11 +595,23 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
   const dayCfg = settings.workingHours.find((x) => x.day === wd) ?? DEFAULT_SETTINGS.workingHours[wd];
 
   if (!dayCfg.isOpen) {
-    return { isOpen: false, windowStartMin: dayCfg.startMin, windowEndMin: dayCfg.endMin, times: [] as number[] };
+    return {
+      isOpen: false,
+      windowStartMin: dayCfg.startMin,
+      windowEndMin: dayCfg.endMin,
+      times: [] as number[],
+    };
   }
 
-  const baseStartMin = dayCfg.startMin;
-  const baseEndMin = dayCfg.endMin;
+  const realStartMin = dayCfg.startMin;
+  const realEndMin = dayCfg.endMin;
+
+  let windowStartMin = Math.max(settings.displayStartMin, realStartMin);
+  let windowEndMin = Math.min(settings.displayEndMin, realEndMin);
+
+  if (windowEndMin <= windowStartMin) {
+    windowEndMin = realEndMin;
+  }
 
   const bookings = await getDayBookings(barberId, dateStr);
 
@@ -592,37 +625,31 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
 
   const blocks = await getBlocksForDay(barberId, dateStr);
   const busyBlocks = [...blocks.recurring, ...blocks.once];
-
   const busy = [...busyBookings, ...busyBlocks];
-
-  let windowStartMin = baseStartMin;
-  const windowEndMin = baseEndMin;
 
   const berlinNow = getBerlinNowParts();
   const isTodayBerlin = dateStr === berlinNow.dateStr;
 
   const buildTimesForWindow = (startMin: number) => {
     const times: number[] = [];
-    const lastStart = baseEndMin - serviceDurationMin;
+    const lastStart = windowEndMin - serviceDurationMin;
 
     for (let t = startMin; t <= lastStart; t += settings.stepMin) {
       const tEnd = t + serviceDurationMin;
-      if (tEnd > baseEndMin) continue;
+      if (tEnd > windowEndMin) continue;
 
-      // ✅ Heute nur noch echte Zukunft anzeigen
       if (isTodayBerlin && t <= berlinNow.minuteOfDay) continue;
 
       const conflict = busy.some((b) => overlaps(t, tEnd, b.start, b.end));
       if (!conflict) times.push(t);
     }
+
     return times;
   };
 
   let times = buildTimesForWindow(windowStartMin);
 
   if (settings.extendIfFirstHourFull) {
-    const limit = Math.max(settings.earliestLimitMin, 0);
-
     while (true) {
       const firstHourStart = windowStartMin;
       const firstHourEnd = windowStartMin + 60;
@@ -631,14 +658,19 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
       if (hasAnyInFirstHour) break;
 
       const nextStart = windowStartMin - settings.extendStepMin;
-      if (nextStart < limit) break;
+      if (nextStart < realStartMin) break;
 
       windowStartMin = nextStart;
       times = buildTimesForWindow(windowStartMin);
     }
   }
 
-  return { isOpen: true, windowStartMin, windowEndMin, times };
+  return {
+    isOpen: true,
+    windowStartMin,
+    windowEndMin,
+    times,
+  };
 }
 
 function berlinTodayStr() {
@@ -815,10 +847,11 @@ app.get("/barbers/:slug", async (req, res) => {
       },
       services,
       settings: {
-        workingHours: settings.workingHours,
-        stepMin: settings.stepMin,
-        earliestLimitMin: settings.earliestLimitMin,
-      },
+  workingHours: settings.workingHours,
+  stepMin: settings.stepMin,
+  displayStartMin: settings.displayStartMin,
+  displayEndMin: settings.displayEndMin,
+},
     });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
@@ -1432,12 +1465,12 @@ if (dateStr < todayStr) {
       serviceDurationMin: durationMin,
     });
 
-    const earliestAllowed = Math.max(settings.earliestLimitMin, windowStartMin);
-    if (requestedStart < earliestAllowed)
-      return res.status(400).json({ error: `Too early. Earliest is ${toHHMM(earliestAllowed)}` });
-    if (requestedEnd > windowEndMin)
-      return res.status(400).json({ error: `Too late. Must end by ${toHHMM(windowEndMin)}` });
-
+    if (requestedStart < windowStartMin) {
+  return res.status(400).json({ error: `Too early. Earliest is ${toHHMM(windowStartMin)}` });
+}
+if (requestedEnd > windowEndMin) {
+  return res.status(400).json({ error: `Too late. Must end by ${toHHMM(windowEndMin)}` });
+}
     if (!times.includes(requestedStart)) return res.status(409).json({ error: "Time is not available" });
 
     const existing = await getDayBookings(barber.id, dateStr);
@@ -1567,13 +1600,11 @@ app.post("/admin/manual-bookings", requireAuth, requireRole("BARBER"), async (re
       serviceDurationMin: durationMin,
     });
 
-    const earliestAllowed = Math.max(settings.earliestLimitMin, windowStartMin);
-
-    if (requestedStart < earliestAllowed) {
-      return res
-        .status(400)
-        .json({ error: `Too early. Earliest is ${toHHMM(earliestAllowed)}` });
-    }
+    if (requestedStart < windowStartMin) {
+  return res
+    .status(400)
+    .json({ error: `Too early. Earliest is ${toHHMM(windowStartMin)}` });
+}
 
     if (requestedEnd > windowEndMin) {
       return res

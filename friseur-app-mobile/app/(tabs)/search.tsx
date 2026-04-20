@@ -143,8 +143,7 @@ export default function CustomerSearchScreen() {
   }, [barbers, q]);
 
   function renderBarberCard(b: Barber) {
-    const addr =
-      [b.street, [b.postalCode, b.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null;
+    
 
     const nextLabel = b.nextDate ? `Nächster Termin: ${formatDateDE(b.nextDate)}` : "Nächster Termin: —";
 
@@ -203,16 +202,7 @@ export default function CustomerSearchScreen() {
               {b.name}
             </Text>
 
-            <Text
-              style={{
-                marginTop: 4,
-                color: "#666",
-                fontSize: 14,
-                lineHeight: 20,
-              }}
-            >
-              {addr ? addr : `/b/${b.slug}`}
-            </Text>
+            
 
             <View
               style={{
