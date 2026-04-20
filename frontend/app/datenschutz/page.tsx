@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "Datenschutz | Friseur App",
-  description: "Datenschutzerklärung der Friseur App",
+  title: "Datenschutz | Salora",
+  description: "Datenschutzerklärung von Salora",
 };
 
 export default function DatenschutzPage() {
@@ -10,9 +10,7 @@ export default function DatenschutzPage() {
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>1. Verantwortlicher</h2>
-        <p>
-          Verantwortlich für die Datenverarbeitung im Zusammenhang mit dieser Website und App ist:
-        </p>
+        <p>Verantwortlich für die Datenverarbeitung im Zusammenhang mit dieser Website und App ist:</p>
         <p>
           Schafik Fraitat
           <br />
@@ -31,9 +29,9 @@ export default function DatenschutzPage() {
           2. Allgemeine Hinweise zur Datenverarbeitung
         </h2>
         <p>
-          Ich verarbeite personenbezogene Daten der Nutzerinnen und Nutzer nur, soweit dies zur
-          Bereitstellung einer funktionsfähigen Website und App sowie meiner Inhalte und Leistungen
-          erforderlich ist.
+          Ich verarbeite personenbezogene Daten nur, soweit dies zur Bereitstellung einer
+          funktionsfähigen Website und App sowie zur Erbringung der angebotenen Funktionen und
+          Leistungen erforderlich ist.
         </p>
         <p>
           Personenbezogene Daten sind alle Informationen, die sich auf eine identifizierte oder
@@ -43,25 +41,25 @@ export default function DatenschutzPage() {
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          3. Aufruf der Website / App
+          3. Aufruf der Website und der App
         </h2>
         <p>
-          Beim Aufruf dieser Website bzw. App werden technisch erforderliche Daten verarbeitet, um
-          die Inhalte bereitzustellen und die Stabilität und Sicherheit des Angebots zu
+          Beim Aufruf der Website oder der App werden technisch erforderliche Daten verarbeitet, um
+          die Inhalte bereitzustellen sowie die Stabilität und Sicherheit des Angebots zu
           gewährleisten.
         </p>
         <p>Dabei können insbesondere folgende Daten verarbeitet werden:</p>
         <ul style={{ paddingLeft: 22 }}>
           <li>IP-Adresse</li>
           <li>Datum und Uhrzeit des Zugriffs</li>
-          <li>aufgerufene Seiten / Ressourcen</li>
+          <li>aufgerufene Seiten oder Ressourcen</li>
           <li>Browsertyp und Browserversion</li>
           <li>Betriebssystem</li>
           <li>Referrer-URL</li>
-          <li>technische Logdaten</li>
+          <li>technische Server- und Logdaten</li>
         </ul>
         <p>
-          Die Verarbeitung erfolgt zur technischen Bereitstellung, Stabilität und Sicherheit des
+          Die Verarbeitung erfolgt zur technischen Bereitstellung, Sicherheit und Stabilität des
           Angebots.
         </p>
         <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.</p>
@@ -71,43 +69,42 @@ export default function DatenschutzPage() {
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
           4. Registrierung und Login
         </h2>
-        <p>Wenn Nutzer ein Konto anlegen oder sich einloggen, verarbeite ich folgende Daten:</p>
+        <p>Wenn Nutzer ein Konto anlegen oder sich einloggen, verarbeite ich insbesondere:</p>
         <ul style={{ paddingLeft: 22 }}>
           <li>E-Mail-Adresse</li>
-          <li>Passwort (nicht im Klartext, sondern nur in verschlüsselter Form / als Hash)</li>
+          <li>Passwort in verschlüsselter Form bzw. als Hash</li>
           <li>Rolle des Nutzers (z. B. CUSTOMER oder BARBER)</li>
         </ul>
         <p>
-          Die Verarbeitung erfolgt zum Zweck der Einrichtung und Verwaltung von Nutzerkonten sowie
-          zur Authentifizierung und Nutzung geschützter Bereiche der App.
+          Die Verarbeitung erfolgt zum Zweck der Einrichtung und Verwaltung von Nutzerkonten, der
+          Authentifizierung sowie der Nutzung geschützter Bereiche.
         </p>
         <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</p>
       </section>
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          5. Lokale Speicherung im Browser
+          5. Lokale Speicherung
         </h2>
         <p>
-          Zur Aufrechterhaltung des Login-Status und zur technischen Nutzung der App werden im
-          Browser des Nutzers lokal Daten gespeichert, insbesondere
-          Authentifizierungsinformationen und nutzerbezogene Anwendungsdaten.
+          Zur Aufrechterhaltung des Login-Status und zur technischen Nutzung der Website oder App
+          können lokal auf dem Gerät bzw. im Browser Daten gespeichert werden, insbesondere
+          Authentifizierungsinformationen und anwendungsbezogene technische Daten.
         </p>
         <p>
-          Diese Speicherung dient ausschließlich der Bereitstellung der gewünschten Funktionen der
-          App.
+          Diese Speicherung dient ausschließlich der Bereitstellung der gewünschten Funktionen.
         </p>
         <p>
-          Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO sowie, soweit technisch erforderlich, Art.
-          6 Abs. 1 lit. f DSGVO.
+          Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO sowie, soweit technisch erforderlich,
+          Art. 6 Abs. 1 lit. f DSGVO.
         </p>
       </section>
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>6. Terminbuchungen</h2>
         <p>
-          Im Rahmen der Terminbuchung verarbeite ich die für die Durchführung der Buchung
-          erforderlichen Daten. Dazu können insbesondere gehören:
+          Im Rahmen der Terminbuchung verarbeite ich die für die Durchführung und Verwaltung der
+          Buchung erforderlichen Daten. Dazu können insbesondere gehören:
         </p>
         <ul style={{ paddingLeft: 22 }}>
           <li>gebuchter Service</li>
@@ -116,11 +113,10 @@ export default function DatenschutzPage() {
           <li>Buchungsstatus</li>
           <li>optionale Notizen</li>
           <li>Zuordnung zum Kundenkonto</li>
-          <li>Zuordnung zum Barber</li>
+          <li>Zuordnung zum Barber-Profil</li>
         </ul>
         <p>
-          Die Verarbeitung erfolgt zur Durchführung der Terminbuchung, zur Verwaltung der Termine
-          und zur Bereitstellung der entsprechenden Funktionen innerhalb der App.
+          Die Verarbeitung erfolgt zur Durchführung, Verwaltung und Dokumentation der Buchung.
         </p>
         <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</p>
       </section>
@@ -128,7 +124,7 @@ export default function DatenschutzPage() {
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>7. Barber-Profile</h2>
         <p>
-          Barber können innerhalb der App ein Profil anlegen bzw. pflegen. Dabei können
+          Barber können innerhalb der App und der Website ein Profil pflegen. Dabei können
           insbesondere folgende Daten verarbeitet und öffentlich angezeigt werden:
         </p>
         <ul style={{ paddingLeft: 22 }}>
@@ -143,8 +139,8 @@ export default function DatenschutzPage() {
           <li>Profilbild</li>
         </ul>
         <p>
-          Diese Daten werden verarbeitet, um ein öffentliches Profil und eine buchbare Präsenz
-          innerhalb der App bereitzustellen.
+          Diese Daten werden verarbeitet, um ein öffentlich sichtbares und buchbares Barber-Profil
+          bereitzustellen.
         </p>
         <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</p>
       </section>
@@ -191,33 +187,56 @@ export default function DatenschutzPage() {
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          10. Empfänger und eingesetzte Dienstleister
+          10. In-App-Käufe und Abonnements
         </h2>
         <p>
-          Zur Bereitstellung der App nutze ich technische Dienstleister. Dabei kann nicht
-          ausgeschlossen werden, dass personenbezogene Daten in dem hierfür erforderlichen Umfang an
-          diese Dienstleister übermittelt oder durch diese verarbeitet werden.
+          Für Barber kann über die App ein kostenpflichtiges Abonnement („Salora Pro“) angeboten
+          werden. Die Zahlungsabwicklung für In-App-Käufe und Abonnements erfolgt über Apple.
         </p>
-        <p>Aktuell eingesetzte Dienstleister sind insbesondere:</p>
+        <p>Dabei können im erforderlichen Umfang insbesondere folgende Daten verarbeitet werden:</p>
         <ul style={{ paddingLeft: 22 }}>
-          <li>Vercel (Frontend-Hosting)</li>
-          <li>Render (Backend-Hosting)</li>
-          <li>Neon (Hosting der PostgreSQL-Datenbank)</li>
-          <li>Cloudinary (Speicherung und Auslieferung von Profilbildern)</li>
+          <li>Informationen zum gekauften Produkt oder Abonnement</li>
+          <li>Status des Abonnements</li>
+          <li>technische Kauf- und Transaktionsinformationen</li>
+          <li>zugeordnete Account- oder Benutzerkennung</li>
         </ul>
         <p>
-          Diese Dienstleister werden nur im Rahmen der Bereitstellung und technischen Durchführung
-          des Angebots eingesetzt.
+          Zur technischen Verwaltung und Validierung von Abonnements kann zusätzlich der Dienst
+          RevenueCat eingesetzt werden.
         </p>
+        <p>
+          Die Verarbeitung erfolgt zur Durchführung und Verwaltung des Abonnements.
+        </p>
+        <p>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</p>
       </section>
 
       <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>11. Speicherdauer</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
+          11. Empfänger und eingesetzte Dienstleister
+        </h2>
+        <p>
+          Zur Bereitstellung der Website und App nutze ich technische Dienstleister. Dabei kann
+          nicht ausgeschlossen werden, dass personenbezogene Daten in dem hierfür erforderlichen
+          Umfang an diese Dienstleister übermittelt oder durch diese verarbeitet werden.
+        </p>
+        <p>Aktuell eingesetzte bzw. eingebundene Dienstleister sind insbesondere:</p>
+        <ul style={{ paddingLeft: 22 }}>
+          <li>Vercel (Frontend-Hosting der Website)</li>
+          <li>Render (Backend-Hosting)</li>
+          <li>Neon (Hosting der PostgreSQL-Datenbank)</li>
+          <li>Cloudinary (Speicherung und Auslieferung von Profilbildern)</li>
+          <li>Apple (In-App-Käufe und Abonnements)</li>
+          <li>RevenueCat (technische Verwaltung von Abonnements, sofern eingesetzt)</li>
+        </ul>
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>12. Speicherdauer</h2>
         <p>
           Ich speichere personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke
           erforderlich ist oder gesetzliche Aufbewahrungspflichten bestehen.
         </p>
-        <p>Im Einzelnen gilt:</p>
+        <p>Im Einzelnen gilt insbesondere:</p>
         <ul style={{ paddingLeft: 22 }}>
           <li>
             Kontodaten: bis zur Löschung des Nutzerkontos, soweit keine gesetzlichen
@@ -240,7 +259,7 @@ export default function DatenschutzPage() {
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          12. Rechtsgrundlagen der Verarbeitung
+          13. Rechtsgrundlagen der Verarbeitung
         </h2>
         <p>Soweit ich personenbezogene Daten verarbeite, erfolgt dies insbesondere auf Grundlage von:</p>
         <ul style={{ paddingLeft: 22 }}>
@@ -258,7 +277,7 @@ export default function DatenschutzPage() {
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          13. Rechte der betroffenen Personen
+          14. Rechte der betroffenen Personen
         </h2>
         <p>Betroffene Personen haben nach der DSGVO insbesondere folgende Rechte:</p>
         <ul style={{ paddingLeft: 22 }}>
@@ -278,7 +297,7 @@ export default function DatenschutzPage() {
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          14. Beschwerderecht bei einer Aufsichtsbehörde
+          15. Beschwerderecht bei einer Aufsichtsbehörde
         </h2>
         <p>
           Betroffene Personen haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde über die
@@ -298,31 +317,28 @@ export default function DatenschutzPage() {
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          15. Keine Nutzung von Analyse- und Marketingtools
+          16. Keine Nutzung von Analyse- und Marketingtools
         </h2>
         <p>
-          Aktuell werden nach meinem derzeitigen Stand keine Analyse-, Tracking- oder Marketingtools
-          eingesetzt, die über das technisch erforderliche Maß hinausgehen.
+          Es werden derzeit keine Analyse-, Tracking- oder Marketingtools eingesetzt, die über das
+          technisch erforderliche Maß hinausgehen.
         </p>
       </section>
 
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          16. Keine Kontaktaufnahme über Kontaktformular
+          17. Kein Kontaktformular
         </h2>
-        <p>
-          Auf dieser Website / in dieser App wird derzeit kein eigenes Kontaktformular
-          bereitgestellt.
-        </p>
+        <p>Auf dieser Website und in dieser App wird derzeit kein eigenes Kontaktformular bereitgestellt.</p>
       </section>
 
       <section>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
-          17. Aktualität und Änderung dieser Datenschutzerklärung
+          18. Aktualität und Änderung dieser Datenschutzerklärung
         </h2>
         <p>
-          Ich behalte mir vor, diese Datenschutzerklärung anzupassen, wenn sich die Rechtslage, die
-          App oder die eingesetzten Dienste ändern.
+          Ich behalte mir vor, diese Datenschutzerklärung anzupassen, wenn sich die Rechtslage, das
+          Angebot oder die eingesetzten Dienste ändern.
         </p>
       </section>
     </main>

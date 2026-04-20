@@ -22,8 +22,8 @@ export default function DatenschutzScreen() {
 
         <Section title="2. Allgemeine Hinweise zur Datenverarbeitung">
           <Text style={styles.text}>
-            Ich verarbeite personenbezogene Daten der Nutzerinnen und Nutzer nur, soweit dies zur
-            Bereitstellung einer funktionsfähigen App sowie meiner Inhalte und Leistungen
+            Ich verarbeite personenbezogene Daten nur, soweit dies zur Bereitstellung einer
+            funktionsfähigen App sowie zur Erbringung der angebotenen Funktionen und Leistungen
             erforderlich ist.
           </Text>
           <Text style={styles.text}>
@@ -34,23 +34,22 @@ export default function DatenschutzScreen() {
 
         <Section title="3. Aufruf der App">
           <Text style={styles.text}>
-            Beim Aufruf dieser App werden technisch erforderliche Daten verarbeitet, um die Inhalte
-            bereitzustellen und die Stabilität und Sicherheit des Angebots zu gewährleisten.
+            Beim Aufruf der App werden technisch erforderliche Daten verarbeitet, um die Inhalte
+            bereitzustellen sowie die Stabilität und Sicherheit des Angebots zu gewährleisten.
           </Text>
           <Text style={styles.text}>Dabei können insbesondere folgende Daten verarbeitet werden:</Text>
           <BulletList
             items={[
               "IP-Adresse",
               "Datum und Uhrzeit des Zugriffs",
-              "aufgerufene Seiten / Ressourcen",
-              "Browsertyp und Browserversion",
+              "aufgerufene Bereiche / Ressourcen",
               "Betriebssystem",
-              "Referrer-URL",
-              "technische Logdaten",
+              "Geräteinformationen",
+              "technische Server- und Logdaten",
             ]}
           />
           <Text style={styles.text}>
-            Die Verarbeitung erfolgt zur technischen Bereitstellung, Stabilität und Sicherheit des
+            Die Verarbeitung erfolgt zur technischen Bereitstellung, Sicherheit und Stabilität des
             Angebots.
           </Text>
           <Text style={styles.text}>Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.</Text>
@@ -58,31 +57,30 @@ export default function DatenschutzScreen() {
 
         <Section title="4. Registrierung und Login">
           <Text style={styles.text}>
-            Wenn Nutzer ein Konto anlegen oder sich einloggen, verarbeite ich folgende Daten:
+            Wenn Nutzer ein Konto anlegen oder sich einloggen, verarbeite ich insbesondere:
           </Text>
           <BulletList
             items={[
               "E-Mail-Adresse",
-              "Passwort (nicht im Klartext, sondern nur in verschlüsselter Form / als Hash)",
+              "Passwort in verschlüsselter Form bzw. als Hash",
               "Rolle des Nutzers (z. B. CUSTOMER oder BARBER)",
             ]}
           />
           <Text style={styles.text}>
-            Die Verarbeitung erfolgt zum Zweck der Einrichtung und Verwaltung von Nutzerkonten sowie
-            zur Authentifizierung und Nutzung geschützter Bereiche der App.
+            Die Verarbeitung erfolgt zum Zweck der Einrichtung und Verwaltung von Nutzerkonten, der
+            Authentifizierung sowie der Nutzung geschützter Bereiche.
           </Text>
           <Text style={styles.text}>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</Text>
         </Section>
 
         <Section title="5. Lokale Speicherung auf dem Gerät">
           <Text style={styles.text}>
-            Zur Aufrechterhaltung des Login-Status und zur technischen Nutzung der App werden auf
-            dem Gerät des Nutzers lokal Daten gespeichert, insbesondere
-            Authentifizierungsinformationen und nutzerbezogene Anwendungsdaten.
+            Zur Aufrechterhaltung des Login-Status und zur technischen Nutzung der App können lokal
+            auf dem Gerät Daten gespeichert werden, insbesondere Authentifizierungsinformationen und
+            anwendungsbezogene technische Daten.
           </Text>
           <Text style={styles.text}>
-            Diese Speicherung dient ausschließlich der Bereitstellung der gewünschten Funktionen der
-            App.
+            Diese Speicherung dient ausschließlich der Bereitstellung der gewünschten Funktionen.
           </Text>
           <Text style={styles.text}>
             Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO sowie, soweit technisch erforderlich,
@@ -92,8 +90,8 @@ export default function DatenschutzScreen() {
 
         <Section title="6. Terminbuchungen">
           <Text style={styles.text}>
-            Im Rahmen der Terminbuchung verarbeite ich die für die Durchführung der Buchung
-            erforderlichen Daten. Dazu können insbesondere gehören:
+            Im Rahmen der Terminbuchung verarbeite ich die für die Durchführung und Verwaltung der
+            Buchung erforderlichen Daten. Dazu können insbesondere gehören:
           </Text>
           <BulletList
             items={[
@@ -103,20 +101,19 @@ export default function DatenschutzScreen() {
               "Buchungsstatus",
               "optionale Notizen",
               "Zuordnung zum Kundenkonto",
-              "Zuordnung zum Barber",
+              "Zuordnung zum Barber-Profil",
             ]}
           />
           <Text style={styles.text}>
-            Die Verarbeitung erfolgt zur Durchführung der Terminbuchung, zur Verwaltung der Termine
-            und zur Bereitstellung der entsprechenden Funktionen innerhalb der App.
+            Die Verarbeitung erfolgt zur Durchführung, Verwaltung und Dokumentation der Buchung.
           </Text>
           <Text style={styles.text}>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</Text>
         </Section>
 
         <Section title="7. Barber-Profile">
           <Text style={styles.text}>
-            Barber können innerhalb der App ein Profil anlegen bzw. pflegen. Dabei können
-            insbesondere folgende Daten verarbeitet und öffentlich angezeigt werden:
+            Barber können innerhalb der App ein Profil pflegen. Dabei können insbesondere folgende
+            Daten verarbeitet und öffentlich angezeigt werden:
           </Text>
           <BulletList
             items={[
@@ -132,8 +129,8 @@ export default function DatenschutzScreen() {
             ]}
           />
           <Text style={styles.text}>
-            Diese Daten werden verarbeitet, um ein öffentliches Profil und eine buchbare Präsenz
-            innerhalb der App bereitzustellen.
+            Diese Daten werden verarbeitet, um ein öffentlich sichtbares und buchbares Barber-Profil
+            bereitzustellen.
           </Text>
           <Text style={styles.text}>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</Text>
         </Section>
@@ -159,8 +156,8 @@ export default function DatenschutzScreen() {
 
         <Section title="9. Benachrichtigungen innerhalb der App">
           <Text style={styles.text}>
-            Innerhalb der App können Benachrichtigungen zu Buchungen und Statusänderungen
-            verarbeitet werden. Dabei können insbesondere folgende Daten verarbeitet werden:
+            Innerhalb der App können Benachrichtigungen zu Buchungen und Statusänderungen verarbeitet
+            werden. Dabei können insbesondere folgende Daten verarbeitet werden:
           </Text>
           <BulletList
             items={[
@@ -178,33 +175,54 @@ export default function DatenschutzScreen() {
           <Text style={styles.text}>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</Text>
         </Section>
 
-        <Section title="10. Empfänger und eingesetzte Dienstleister">
+        <Section title="10. In-App-Käufe und Abonnements">
+          <Text style={styles.text}>
+            Für Barber kann über die App ein kostenpflichtiges Abonnement („Salora Pro“) angeboten
+            werden. Die Zahlungsabwicklung für In-App-Käufe und Abonnements erfolgt über Apple.
+          </Text>
+          <Text style={styles.text}>Dabei können im erforderlichen Umfang insbesondere folgende Daten verarbeitet werden:</Text>
+          <BulletList
+            items={[
+              "Informationen zum gekauften Produkt oder Abonnement",
+              "Status des Abonnements",
+              "technische Kauf- und Transaktionsinformationen",
+              "zugeordnete Account- oder Benutzerkennung",
+            ]}
+          />
+          <Text style={styles.text}>
+            Zur technischen Verwaltung und Validierung von Abonnements kann zusätzlich RevenueCat
+            eingesetzt werden.
+          </Text>
+          <Text style={styles.text}>
+            Die Verarbeitung erfolgt zur Durchführung und Verwaltung des Abonnements.
+          </Text>
+          <Text style={styles.text}>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.</Text>
+        </Section>
+
+        <Section title="11. Empfänger und eingesetzte Dienstleister">
           <Text style={styles.text}>
             Zur Bereitstellung der App nutze ich technische Dienstleister. Dabei kann nicht
             ausgeschlossen werden, dass personenbezogene Daten in dem hierfür erforderlichen Umfang
             an diese Dienstleister übermittelt oder durch diese verarbeitet werden.
           </Text>
-          <Text style={styles.text}>Aktuell eingesetzte Dienstleister sind insbesondere:</Text>
+          <Text style={styles.text}>Aktuell eingesetzte bzw. eingebundene Dienstleister sind insbesondere:</Text>
           <BulletList
             items={[
-              "Vercel (Frontend-Hosting)",
               "Render (Backend-Hosting)",
               "Neon (Hosting der PostgreSQL-Datenbank)",
               "Cloudinary (Speicherung und Auslieferung von Profilbildern)",
+              "Apple (In-App-Käufe und Abonnements)",
+              "RevenueCat (technische Verwaltung von Abonnements, sofern eingesetzt)",
             ]}
           />
-          <Text style={styles.text}>
-            Diese Dienstleister werden nur im Rahmen der Bereitstellung und technischen Durchführung
-            des Angebots eingesetzt.
-          </Text>
         </Section>
 
-        <Section title="11. Speicherdauer">
+        <Section title="12. Speicherdauer">
           <Text style={styles.text}>
             Ich speichere personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke
             erforderlich ist oder gesetzliche Aufbewahrungspflichten bestehen.
           </Text>
-          <Text style={styles.text}>Im Einzelnen gilt:</Text>
+          <Text style={styles.text}>Im Einzelnen gilt insbesondere:</Text>
           <BulletList
             items={[
               "Kontodaten: bis zur Löschung des Nutzerkontos, soweit keine gesetzlichen Aufbewahrungspflichten entgegenstehen",
@@ -215,10 +233,9 @@ export default function DatenschutzScreen() {
           />
         </Section>
 
-        <Section title="12. Rechtsgrundlagen der Verarbeitung">
+        <Section title="13. Rechtsgrundlagen der Verarbeitung">
           <Text style={styles.text}>
-            Soweit ich personenbezogene Daten verarbeite, erfolgt dies insbesondere auf Grundlage
-            von:
+            Soweit ich personenbezogene Daten verarbeite, erfolgt dies insbesondere auf Grundlage von:
           </Text>
           <BulletList
             items={[
@@ -228,7 +245,7 @@ export default function DatenschutzScreen() {
           />
         </Section>
 
-        <Section title="13. Rechte der betroffenen Personen">
+        <Section title="14. Rechte der betroffenen Personen">
           <Text style={styles.text}>
             Betroffene Personen haben nach der DSGVO insbesondere folgende Rechte:
           </Text>
@@ -249,7 +266,7 @@ export default function DatenschutzScreen() {
           </Text>
         </Section>
 
-        <Section title="14. Beschwerderecht bei einer Aufsichtsbehörde">
+        <Section title="15. Beschwerderecht bei einer Aufsichtsbehörde">
           <Text style={styles.text}>
             Betroffene Personen haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde über die
             Verarbeitung ihrer personenbezogenen Daten zu beschweren.
@@ -263,23 +280,23 @@ export default function DatenschutzScreen() {
           </Text>
         </Section>
 
-        <Section title="15. Keine Nutzung von Analyse- und Marketingtools">
+        <Section title="16. Keine Nutzung von Analyse- und Marketingtools">
           <Text style={styles.text}>
-            Aktuell werden nach meinem derzeitigen Stand keine Analyse-, Tracking- oder
-            Marketingtools eingesetzt, die über das technisch erforderliche Maß hinausgehen.
+            Es werden derzeit keine Analyse-, Tracking- oder Marketingtools eingesetzt, die über das
+            technisch erforderliche Maß hinausgehen.
           </Text>
         </Section>
 
-        <Section title="16. Keine Kontaktaufnahme über Kontaktformular">
+        <Section title="17. Kein Kontaktformular">
           <Text style={styles.text}>
             In dieser App wird derzeit kein eigenes Kontaktformular bereitgestellt.
           </Text>
         </Section>
 
-        <Section title="17. Aktualität und Änderung dieser Datenschutzerklärung">
+        <Section title="18. Aktualität und Änderung dieser Datenschutzerklärung">
           <Text style={styles.text}>
-            Ich behalte mir vor, diese Datenschutzerklärung anzupassen, wenn sich die Rechtslage,
-            die App oder die eingesetzten Dienste ändern.
+            Ich behalte mir vor, diese Datenschutzerklärung anzupassen, wenn sich die Rechtslage, die
+            App oder die eingesetzten Dienste ändern.
           </Text>
         </Section>
       </ScrollView>

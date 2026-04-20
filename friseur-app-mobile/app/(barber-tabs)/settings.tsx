@@ -9,10 +9,11 @@ import {
   Text,
   TextInput,
   View,
+  Linking,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-
+import { getCustomerInfo } from "../../lib/purchases";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
@@ -178,7 +179,9 @@ export default function BarberSettingsScreen() {
   const { token, user, signOut } = useAuth();
 
   const [tab, setTab] = useState<TabKey>("PROFILE");
-
+  const [hasActivePro, setHasActivePro] = useState(false);
+const [subscriptionManagementUrl, setSubscriptionManagementUrl] = useState("");
+const [checkingSubscription, setCheckingSubscription] = useState(true);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
@@ -208,7 +211,7 @@ export default function BarberSettingsScreen() {
       return;
     }
 
-    loadAll();
+    Promise.all([loadAll(), loadSubscriptionStatus()]);
   }, [token, user]);
 
   async function loadAll() {
@@ -258,6 +261,26 @@ export default function BarberSettingsScreen() {
       setLoading(false);
     }
   }
+
+  async function loadSubscriptionStatus() {
+  try {
+    setCheckingSubscription(true);
+
+    const info = await getCustomerInfo();
+
+    const hasPro = !!info.entitlements.active["pro"];
+    const managementUrl = info.managementURL ?? "";
+
+    setHasActivePro(hasPro);
+    setSubscriptionManagementUrl(managementUrl);
+  } catch (e) {
+    console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
+    setHasActivePro(false);
+    setSubscriptionManagementUrl("");
+  } finally {
+    setCheckingSubscription(false);
+  }
+}
 
   async function saveProfile() {
     if (!profile) return;
@@ -523,6 +546,32 @@ export default function BarberSettingsScreen() {
     router.replace("/login");
   }
 
+  async function openSubscriptionManagement() {
+  try {
+    if (!subscriptionManagementUrl) {
+      Alert.alert(
+        "Info",
+        "Die Verwaltungsseite für dein Abo konnte gerade nicht geladen werden."
+      );
+      return;
+    }
+
+    const supported = await Linking.canOpenURL(subscriptionManagementUrl);
+    if (!supported) {
+      Alert.alert(
+        "Fehler",
+        "Die Abo-Verwaltung konnte nicht geöffnet werden."
+      );
+      return;
+    }
+
+    await Linking.openURL(subscriptionManagementUrl);
+  } catch (e) {
+    console.log("OPEN SUBSCRIPTION MANAGEMENT ERROR:", e);
+    Alert.alert("Fehler", "Die Abo-Verwaltung konnte nicht geöffnet werden.");
+  }
+}
+
   function confirmLogout() {
     Alert.alert("Ausloggen", "Willst du dich wirklich ausloggen?", [
       { text: "Abbrechen", style: "cancel" },
@@ -531,20 +580,51 @@ export default function BarberSettingsScreen() {
   }
 
   async function deleteAccount() {
-    try {
-      setError("");
-      setMessage("");
+  try {
+    setError("");
+    setMessage("");
 
-      await api.delete("/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    if (hasActivePro) {
+      Alert.alert(
+        "Aktives Abo vorhanden",
+        "Dein Salora Pro Abo wird über Apple verwaltet und nicht automatisch beendet, wenn du deinen Account löschst. Kündige dein Abo zuerst in den Apple-Abonnements oder lösche deinen Account nur, wenn du weißt, dass das Abo bis zur Kündigung weiterlaufen kann.",
+        [
+          { text: "Abbrechen", style: "cancel" },
+          {
+            text: "Abo verwalten",
+            onPress: openSubscriptionManagement,
+          },
+          {
+            text: "Trotzdem löschen",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await api.delete("/me", {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
 
-      await signOut();
-      router.replace("/login");
-    } catch (e: any) {
-      setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
+                await signOut();
+                router.replace("/login");
+              } catch (e: any) {
+                setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
+              }
+            },
+          },
+        ]
+      );
+      return;
     }
+
+    await api.delete("/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await signOut();
+    router.replace("/login");
+  } catch (e: any) {
+    setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
   }
+}
 
   function confirmDeleteAccount() {
     Alert.alert(
@@ -802,16 +882,32 @@ export default function BarberSettingsScreen() {
             <View style={[card, { marginTop: 16 }]}>
               <Text style={sectionTitle}>Konto</Text>
               <Text style={sectionSub}>Sichere Aktionen für deinen Account.</Text>
-
+              {hasActivePro ? (
+  <Text style={[sectionSub, { marginTop: 10 }]}>
+    Für dein Konto ist aktuell ein aktives Pro-Abo hinterlegt. Die Kündigung erfolgt über Apple.
+  </Text>
+) : null}
               <View style={{ gap: 10, marginTop: 16 }}>
-                <Pressable onPress={confirmLogout} style={secondaryBtn}>
-                  <Text style={secondaryBtnText}>Ausloggen</Text>
-                </Pressable>
+  {hasActivePro ? (
+    <Pressable
+      onPress={openSubscriptionManagement}
+      disabled={checkingSubscription}
+      style={[secondaryBtn, checkingSubscription ? disabledBtn : null]}
+    >
+      <Text style={secondaryBtnText}>
+        {checkingSubscription ? "Lädt..." : "Abo verwalten"}
+      </Text>
+    </Pressable>
+  ) : null}
 
-                <Pressable onPress={confirmDeleteAccount} style={dangerBtn}>
-                  <Text style={dangerBtnText}>Account löschen</Text>
-                </Pressable>
-              </View>
+  <Pressable onPress={confirmLogout} style={secondaryBtn}>
+    <Text style={secondaryBtnText}>Ausloggen</Text>
+  </Pressable>
+
+  <Pressable onPress={confirmDeleteAccount} style={dangerBtn}>
+    <Text style={dangerBtnText}>Account löschen</Text>
+  </Pressable>
+</View>
             </View>
           </>
         ) : tab === "SERVICES" ? (

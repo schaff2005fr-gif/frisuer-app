@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -154,6 +155,26 @@ export default function BarberSubscriptionScreen() {
     await signOut();
     router.replace("/login");
   }
+
+  async function handleOpenPrivacy() {
+  router.push("/datenschutz");
+}
+
+async function handleOpenTerms() {
+  const url = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
+
+  try {
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) {
+      Alert.alert("Fehler", "Der Link zu den Nutzungsbedingungen konnte nicht geöffnet werden.");
+      return;
+    }
+
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert("Fehler", "Der Link zu den Nutzungsbedingungen konnte nicht geöffnet werden.");
+  }
+}
 
   if (loading) {
     return (
@@ -387,6 +408,78 @@ export default function BarberSubscriptionScreen() {
             Das Abo verlängert sich automatisch monatlich, wenn es nicht mindestens 24 Stunden vor Ablauf des aktuellen Zeitraums gekündigt wird. Die Verwaltung und Kündigung erfolgt in deinen Apple Account Einstellungen.
           </Text>
         </View>
+
+        <View
+  style={{
+    borderWidth: 1,
+    borderColor: "#ececef",
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    padding: 16,
+    marginBottom: 16,
+  }}
+>
+  <Text
+    style={{
+      color: "#444",
+      fontSize: 13,
+      lineHeight: 21,
+      marginBottom: 12,
+    }}
+  >
+    Mit dem Abschluss des Abos gelten unsere Datenschutzinformationen und die Nutzungsbedingungen.
+  </Text>
+
+  <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+    <Pressable
+      onPress={handleOpenPrivacy}
+      style={{
+        minHeight: 44,
+        paddingHorizontal: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#ddd",
+        backgroundColor: "#fff",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text
+        style={{
+          color: "#111",
+          fontWeight: "900",
+          fontSize: 13,
+        }}
+      >
+        Datenschutz
+      </Text>
+    </Pressable>
+
+    <Pressable
+      onPress={handleOpenTerms}
+      style={{
+        minHeight: 44,
+        paddingHorizontal: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#ddd",
+        backgroundColor: "#fff",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text
+        style={{
+          color: "#111",
+          fontWeight: "900",
+          fontSize: 13,
+        }}
+      >
+        Nutzungsbedingungen (EULA)
+      </Text>
+    </Pressable>
+  </View>
+</View>
 
         <Pressable
           onPress={handleBackToLogin}
