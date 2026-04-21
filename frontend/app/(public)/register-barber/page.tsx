@@ -220,7 +220,7 @@ function RegisterBarberInner() {
                 Name / Friseurname
               </div>
               <input
-                placeholder="z. B. Ali Barber"
+                placeholder="z. B. Barber"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
