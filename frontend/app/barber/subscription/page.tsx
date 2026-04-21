@@ -137,19 +137,10 @@ function SubscriptionInner() {
   function handleSubscribe() {
   setError("");
 
-  if (!WEB_CHECKOUT_URL) {
-    setError("Es ist noch keine Web-Checkout-URL hinterlegt.");
-    return;
-  }
-
   const checkoutUrl = buildCheckoutUrl();
 
-  console.log("WEB_CHECKOUT_URL RAW:", WEB_CHECKOUT_URL);
-  console.log("LOCAL USER:", getUser());
-  console.log("FINAL CHECKOUT URL:", checkoutUrl);
-
   if (!checkoutUrl) {
-    setError("Checkout-Link konnte nicht erstellt werden.");
+    setError("Es ist noch keine Web-Checkout-URL hinterlegt.");
     return;
   }
 
