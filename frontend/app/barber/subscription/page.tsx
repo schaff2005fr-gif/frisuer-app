@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const API_BASE =
@@ -26,8 +26,36 @@ function getUser() {
 }
 
 export default function BarberSubscriptionPage() {
+  return (
+    <Suspense fallback={<SubscriptionFallback />}>
+      <SubscriptionInner />
+    </Suspense>
+  );
+}
+
+function SubscriptionFallback() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f6f6f7",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ color: "#666", fontWeight: 800 }}>Lade Abo-Seite...</div>
+    </div>
+  );
+}
+
+function SubscriptionInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const success = useMemo(() => searchParams.get("success"), [searchParams]);
 
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
@@ -41,12 +69,11 @@ export default function BarberSubscriptionPage() {
   }, []);
 
   useEffect(() => {
-    const success = searchParams.get("success");
     if (success === "1") {
       checkSubscriptionStatus(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [success]);
 
   async function init() {
     const token = getToken();
@@ -77,6 +104,7 @@ export default function BarberSubscriptionPage() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        cache: "no-store",
       });
 
       const raw = await res.text();
@@ -144,21 +172,7 @@ export default function BarberSubscriptionPage() {
   }
 
   if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#f6f6f7",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-          boxSizing: "border-box",
-        }}
-      >
-        <div style={{ color: "#666", fontWeight: 800 }}>Lade Abo-Seite...</div>
-      </div>
-    );
+    return <SubscriptionFallback />;
   }
 
   return (
