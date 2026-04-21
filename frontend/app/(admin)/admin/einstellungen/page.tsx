@@ -3,13 +3,29 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 const PUBLIC_APP_URL = process.env.NEXT_PUBLIC_PUBLIC_APP_URL || "";
 
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
 const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
 
 type Role = "CUSTOMER" | "BARBER";
+type TabKey = "PROFILE" | "SERVICES" | "HOURS" | "RULES";
+
+type BarberProfile = {
+  id: number;
+  name: string;
+  slug: string;
+  phone: string | null;
+  bio: string | null;
+  street: string | null;
+  postalCode: string | null;
+  city: string | null;
+  instagram: string | null;
+  website: string | null;
+  imageUrl: string | null;
+};
 
 type Service = {
   id: number;
@@ -29,24 +45,11 @@ type WorkingHoursRow = {
 type AppSettings = {
   stepMin: number;
   workingHours: WorkingHoursRow[];
+  displayStartMin: number;
+  displayEndMin: number;
   extendIfFirstHourFull: boolean;
   extendStepMin: number;
-  earliestLimitMin: number;
   minDaysBetweenBookings: number;
-};
-
-type BarberProfile = {
-  id: number;
-  name: string;
-  slug: string;
-  phone: string | null;
-  bio: string | null;
-  street: string | null;
-  postalCode: string | null;
-  city: string | null;
-  instagram: string | null;
-  website: string | null;
-  imageUrl: string | null;
 };
 
 const WEEKDAYS = [
@@ -59,25 +62,48 @@ const WEEKDAYS = [
   { k: 6, name: "Samstag" },
 ];
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function minToHHMM(min: number) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${pad2(h)}:${pad2(m)}`;
-}
-
-function hhmmToMin(v: string) {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(v).trim());
-  if (!m) return null;
-  return Number(m[1]) * 60 + Number(m[2]);
-}
-
-function clamp(n: number, a: number, b: number) {
-  return Math.max(a, Math.min(b, n));
-}
+const SERVICE_DURATION_OPTIONS = [10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
+const STEP_MIN_OPTIONS = [5, 10, 15, 20, 30];
+const EXTEND_STEP_OPTIONS = [15, 30, 45, 60];
+const DISPLAY_TIME_OPTIONS = [
+  6 * 60,
+  7 * 60,
+  8 * 60,
+  9 * 60,
+  10 * 60,
+  11 * 60,
+  12 * 60,
+  13 * 60,
+  14 * 60,
+  15 * 60,
+  16 * 60,
+  17 * 60,
+  18 * 60,
+  19 * 60,
+  20 * 60,
+  21 * 60,
+  22 * 60,
+];
+const MIN_DAYS_OPTIONS = [0, 1, 2, 3, 5, 7, 10, 14, 21, 30];
+const WORK_TIME_OPTIONS = [
+  6 * 60,
+  7 * 60,
+  8 * 60,
+  9 * 60,
+  10 * 60,
+  11 * 60,
+  12 * 60,
+  13 * 60,
+  14 * 60,
+  15 * 60,
+  16 * 60,
+  17 * 60,
+  18 * 60,
+  19 * 60,
+  20 * 60,
+  21 * 60,
+  22 * 60,
+];
 
 function cleanUrl(u?: string | null) {
   const s = String(u ?? "").trim();
@@ -88,6 +114,20 @@ function cleanUrl(u?: string | null) {
 
 function trimTrailingSlash(url: string) {
   return url.replace(/\/+$/, "");
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function minToHHMM(min: number) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+
+function clamp(n: number, a: number, b: number) {
+  return Math.max(a, Math.min(b, n));
 }
 
 async function uploadToCloudinary(file: File): Promise<string> {
@@ -106,119 +146,199 @@ async function uploadToCloudinary(file: File): Promise<string> {
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error?.message || "Upload fehlgeschlagen");
-  return data.secure_url as string;
+  if (!res.ok) {
+    throw new Error(data?.error?.message || "Upload fehlgeschlagen");
+  }
+
+  return String(data.secure_url || "");
+}
+
+function getToken() {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("token") || "";
+}
+
+function getUser() {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem("user");
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 export default function AdminSettingsPage() {
   const router = useRouter();
 
-  const [tab, setTab] = useState<"PROFILE" | "SERVICES" | "HOURS" | "SLOTS">("PROFILE");
+  const [tab, setTab] = useState<TabKey>("PROFILE");
+  const [hasActivePro, setHasActivePro] = useState(false);
+  const [subscriptionManagementUrl, setSubscriptionManagementUrl] = useState("");
+  const [checkingSubscription, setCheckingSubscription] = useState(true);
 
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingRules, setSavingRules] = useState(false);
+  const [savingHours, setSavingHours] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [creatingService, setCreatingService] = useState(false);
+  const [busyServiceId, setBusyServiceId] = useState<number | null>(null);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const [copied, setCopied] = useState<"" | "profile" | "book">("");
-
-  const [uploadingImg, setUploadingImg] = useState(false);
-  const [imgMsg, setImgMsg] = useState("");
-  const [localPreview, setLocalPreview] = useState<string>("");
-
   const [profile, setProfile] = useState<BarberProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
-  const [newName, setNewName] = useState("Haare");
-  const [newDuration, setNewDuration] = useState(30);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
-  function clearAlerts() {
-    setError("");
-    setMessage("");
-  }
+  const [newServiceName, setNewServiceName] = useState("");
+  const [newServiceDuration, setNewServiceDuration] = useState(30);
 
-  function publicBaseUrl() {
-    const envUrl = trimTrailingSlash(cleanUrl(PUBLIC_APP_URL));
-    if (envUrl) return envUrl;
+  const [copied, setCopied] = useState<"" | "profile" | "book">("");
+  const [localPreview, setLocalPreview] = useState("");
 
-    if (typeof window !== "undefined") {
-      return trimTrailingSlash(window.location.origin);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const user = getUser();
+
+    if (!token || !user) {
+      router.replace("/login");
+      return;
     }
 
-    return "https://salora-booking.de";
-  }
-
-  async function copyToClipboard(text: string, kind: "profile" | "book") {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(kind);
-      setTimeout(() => setCopied(""), 1200);
-    } catch {
-      window.prompt("Kopiere den Link:", text);
+    if ((user.role as Role) !== "BARBER") {
+      router.replace("/");
+      return;
     }
-  }
 
-  function getToken() {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("token") || "";
-  }
+    Promise.all([loadAll(), loadSubscriptionStatus()]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function apiFetch(path: string, init?: RequestInit) {
     const token = getToken();
     if (!token) throw new Error("Kein Token. Bitte neu einloggen.");
 
+    const isFormData = init?.body instanceof FormData;
+
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers: {
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(init?.headers ?? {}),
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
       },
+      cache: "no-store",
     });
 
-    const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(data?.error || `Fehler (${res.status})`);
+    const raw = await res.text();
+    let data: any = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = { raw };
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.error || `Fehler (${res.status})`);
+    }
+
     return data;
   }
 
+  async function syncSubscriptionToBackend() {
+    await apiFetch("/admin/subscription/sync", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
   async function loadAll() {
-    setLoading(true);
-    clearAlerts();
-
     try {
-      const p = await apiFetch("/admin/profile", { method: "GET" });
-      setProfile(p?.barber ?? null);
+      setLoading(true);
+      setError("");
+      setMessage("");
 
-      const s1 = await apiFetch("/admin/services", { method: "GET" });
-      setServices(Array.isArray(s1?.services) ? s1.services : []);
+      const [profileRes, servicesRes, settingsRes] = await Promise.all([
+        apiFetch("/admin/profile", { method: "GET" }),
+        apiFetch("/admin/services", { method: "GET" }),
+        apiFetch("/admin/settings", { method: "GET" }),
+      ]);
 
-      const s2 = await apiFetch("/admin/settings", { method: "GET" });
-      const raw = (s2?.settings ?? null) as AppSettings | null;
+      setProfile((profileRes.data?.barber ?? profileRes.barber ?? null) as BarberProfile | null);
+      setServices(
+        Array.isArray(servicesRes.data?.services)
+          ? servicesRes.data.services
+          : Array.isArray(servicesRes.services)
+          ? servicesRes.services
+          : []
+      );
 
-      if (raw) {
+      const rawSettings =
+        (settingsRes.data?.settings ?? settingsRes.settings ?? null) as AppSettings | null;
+
+      if (rawSettings) {
         setSettings({
-          ...raw,
-          minDaysBetweenBookings: Number.isFinite((raw as any).minDaysBetweenBookings)
-            ? Number((raw as any).minDaysBetweenBookings)
+          ...rawSettings,
+          displayStartMin: Number.isFinite((rawSettings as any).displayStartMin)
+            ? Number((rawSettings as any).displayStartMin)
+            : Number.isFinite((rawSettings as any).earliestLimitMin)
+            ? Number((rawSettings as any).earliestLimitMin)
+            : 12 * 60,
+          displayEndMin: Number.isFinite((rawSettings as any).displayEndMin)
+            ? Number((rawSettings as any).displayEndMin)
+            : 17 * 60,
+          minDaysBetweenBookings: Number.isFinite((rawSettings as any).minDaysBetweenBookings)
+            ? Number((rawSettings as any).minDaysBetweenBookings)
             : 0,
         });
       } else {
         setSettings(null);
       }
     } catch (e: any) {
-      setError(e?.message ?? "Fehler");
+      setError(e?.message || "Einstellungen konnten nicht geladen werden.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSubscriptionStatus() {
+    try {
+      setCheckingSubscription(true);
+
+      await syncSubscriptionToBackend();
+
+      const data = await apiFetch("/admin/subscription-status", { method: "GET" });
+      const subscription = data?.subscription ?? {};
+
+      setHasActivePro(!!subscription?.isPro);
+      setSubscriptionManagementUrl(
+        String(
+          subscription?.managementUrl ||
+            subscription?.managementURL ||
+            subscription?.customerPortalUrl ||
+            ""
+        )
+      );
+    } catch (e) {
+      console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
+      setHasActivePro(false);
+      setSubscriptionManagementUrl("");
+    } finally {
+      setCheckingSubscription(false);
     }
   }
 
   async function saveProfile() {
     if (!profile) return;
 
-    setSaving(true);
-    clearAlerts();
-
     try {
+      setSavingProfile(true);
+      setError("");
+      setMessage("");
+
       const data = await apiFetch("/admin/profile", {
         method: "PUT",
         body: JSON.stringify({
@@ -233,133 +353,206 @@ export default function AdminSettingsPage() {
         }),
       });
 
-      setProfile(data?.barber ?? profile);
+      setProfile((data?.barber ?? data?.data?.barber ?? profile) as BarberProfile);
       setMessage("Profil gespeichert.");
     } catch (e: any) {
-      setError(e?.message ?? "Fehler");
+      setError(e?.message || "Profil konnte nicht gespeichert werden.");
     } finally {
-      setSaving(false);
+      setSavingProfile(false);
     }
   }
 
-  async function saveImageOnly(nextUrl: string | null) {
-    const data = await apiFetch("/admin/profile", {
-      method: "PUT",
-      body: JSON.stringify({ imageUrl: nextUrl }),
-    });
+  async function pickImage(file: File | null) {
+    if (!file || !profile) return;
 
-    setProfile((prev) => (prev ? { ...prev, imageUrl: data?.barber?.imageUrl ?? nextUrl } : prev));
-  }
-
-  async function onPickProfileImage(e: React.ChangeEvent<HTMLInputElement>) {
-    setImgMsg("");
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (localPreview) URL.revokeObjectURL(localPreview);
-
-    if (!file.type.startsWith("image/")) {
-      setImgMsg("Bitte nur Bilder auswählen.");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setImgMsg("Bild ist zu groß (max. 5MB).");
-      return;
-    }
-
-    const preview = URL.createObjectURL(file);
-    setLocalPreview(preview);
-
-    setUploadingImg(true);
     try {
-      const url = await uploadToCloudinary(file);
+      setError("");
+      setMessage("");
 
-      if (profile) setProfile({ ...profile, imageUrl: url });
-      await saveImageOnly(url);
-      setImgMsg("✅ Profilbild gespeichert.");
-    } catch (err: any) {
-      setImgMsg(err?.message || "Upload fehlgeschlagen");
+      if (localPreview) URL.revokeObjectURL(localPreview);
+
+      if (!file.type.startsWith("image/")) {
+        setError("Bitte nur Bilder auswählen.");
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Bild ist zu groß (max. 5MB).");
+        return;
+      }
+
+      const preview = URL.createObjectURL(file);
+      setLocalPreview(preview);
+      setUploadingImg(true);
+
+      const uploadedUrl = await uploadToCloudinary(file);
+
+      setProfile((prev) => (prev ? { ...prev, imageUrl: uploadedUrl } : prev));
+
+      await apiFetch("/admin/profile", {
+        method: "PUT",
+        body: JSON.stringify({ imageUrl: uploadedUrl }),
+      });
+
+      setMessage("Profilbild gespeichert.");
+    } catch (e: any) {
+      setError(e?.message || "Profilbild konnte nicht hochgeladen werden.");
     } finally {
       setUploadingImg(false);
-      e.target.value = "";
+    }
+  }
+
+  async function removeImage() {
+    if (!profile) return;
+
+    try {
+      setUploadingImg(true);
+      setError("");
+      setMessage("");
+
+      setProfile((prev) => (prev ? { ...prev, imageUrl: null } : prev));
+
+      await apiFetch("/admin/profile", {
+        method: "PUT",
+        body: JSON.stringify({ imageUrl: null }),
+      });
+
+      setLocalPreview("");
+      setMessage("Profilbild entfernt.");
+    } catch (e: any) {
+      setError(e?.message || "Profilbild konnte nicht entfernt werden.");
+    } finally {
+      setUploadingImg(false);
     }
   }
 
   async function createService() {
-    clearAlerts();
-    setSaving(true);
+    const name = newServiceName.trim();
+    const durationMin = Number(newServiceDuration);
+
+    if (!name) {
+      setError("Bitte einen Service-Namen eingeben.");
+      return;
+    }
+
+    if (!Number.isFinite(durationMin) || durationMin <= 0) {
+      setError("Bitte eine gültige Dauer auswählen.");
+      return;
+    }
 
     try {
-      const name = newName.trim();
-      const durationMin = Number(newDuration);
-
-      if (!name) throw new Error("Service-Name fehlt");
-      if (!Number.isFinite(durationMin) || durationMin <= 0) throw new Error("Dauer muss > 0 sein");
+      setCreatingService(true);
+      setError("");
+      setMessage("");
 
       const data = await apiFetch("/admin/services", {
         method: "POST",
-        body: JSON.stringify({ name, durationMin, isActive: true }),
+        body: JSON.stringify({
+          name,
+          durationMin,
+          isActive: true,
+        }),
       });
 
-      const created: Service = data?.service;
+      const created = data?.service as Service;
       setServices((prev) => [...prev, created].sort((a, b) => a.id - b.id));
-      setMessage("Service erstellt.");
-      setNewName("");
-      setNewDuration(30);
+      setNewServiceName("");
+      setNewServiceDuration(30);
+      setMessage("Service hinzugefügt.");
     } catch (e: any) {
-      setError(e?.message ?? "Fehler");
+      setError(e?.message || "Service konnte nicht erstellt werden.");
     } finally {
-      setSaving(false);
+      setCreatingService(false);
     }
   }
 
-  async function updateService(id: number, patch: Partial<Pick<Service, "name" | "durationMin" | "isActive">>) {
-    clearAlerts();
-
+  async function updateService(
+    id: number,
+    patch: Partial<Pick<Service, "name" | "durationMin" | "isActive">>
+  ) {
     try {
+      setBusyServiceId(id);
+      setError("");
+      setMessage("");
+
       const data = await apiFetch(`/admin/services/${id}`, {
         method: "PATCH",
         body: JSON.stringify(patch),
       });
 
-      const updated: Service = data?.service;
+      const updated = data?.service as Service;
       setServices((prev) => prev.map((s) => (s.id === id ? updated : s)));
       setMessage("Service aktualisiert.");
     } catch (e: any) {
-      setError(e?.message ?? "Fehler");
+      setError(e?.message || "Service konnte nicht aktualisiert werden.");
+    } finally {
+      setBusyServiceId(null);
     }
   }
 
   async function deleteService(id: number) {
-    clearAlerts();
-    if (!confirm("Service wirklich löschen?")) return;
+    const ok = window.confirm("Willst du diesen Service wirklich löschen?");
+    if (!ok) return;
 
     try {
-      await apiFetch(`/admin/services/${id}`, { method: "DELETE" });
+      setBusyServiceId(id);
+      setError("");
+      setMessage("");
+
+      await apiFetch(`/admin/services/${id}`, {
+        method: "DELETE",
+      });
+
       setServices((prev) => prev.filter((s) => s.id !== id));
       setMessage("Service gelöscht.");
     } catch (e: any) {
-      setError(e?.message ?? "Fehler");
+      setError(e?.message || "Service konnte nicht gelöscht werden.");
+    } finally {
+      setBusyServiceId(null);
     }
   }
 
-  async function saveSettings(next: AppSettings) {
-    clearAlerts();
-    setSaving(true);
+  async function saveRules() {
+    if (!settings) return;
 
     try {
+      setSavingRules(true);
+      setError("");
+      setMessage("");
+
       const data = await apiFetch("/admin/settings", {
         method: "PUT",
-        body: JSON.stringify(next),
+        body: JSON.stringify(settings),
       });
 
-      setSettings(data?.settings ?? next);
-      setMessage("Einstellungen gespeichert.");
+      setSettings((data?.settings ?? settings) as AppSettings);
+      setMessage("Buchungsregeln gespeichert.");
     } catch (e: any) {
-      setError(e?.message ?? "Fehler");
+      setError(e?.message || "Buchungsregeln konnten nicht gespeichert werden.");
     } finally {
-      setSaving(false);
+      setSavingRules(false);
+    }
+  }
+
+  async function saveHours() {
+    if (!settings) return;
+
+    try {
+      setSavingHours(true);
+      setError("");
+      setMessage("");
+
+      const data = await apiFetch("/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify(settings),
+      });
+
+      setSettings((data?.settings ?? settings) as AppSettings);
+      setMessage("Arbeitszeiten gespeichert.");
+    } catch (e: any) {
+      setError(e?.message || "Arbeitszeiten konnten nicht gespeichert werden.");
+    } finally {
+      setSavingHours(false);
     }
   }
 
@@ -367,939 +560,1282 @@ export default function AdminSettingsPage() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     router.replace("/login");
-    router.refresh();
+  }
+
+  function openSubscriptionManagement() {
+    const targetUrl = subscriptionManagementUrl || "/barber/subscription";
+
+    if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+      window.open(targetUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    router.push(targetUrl);
+  }
+
+  async function copyToClipboard(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label === "Profil-Link" ? "profile" : "book");
+      setTimeout(() => setCopied(""), 1200);
+      setMessage(`${label} kopiert.`);
+      setError("");
+    } catch {
+      window.prompt("Kopiere den Link:", value);
+    }
+  }
+
+  async function shareLink(value: string) {
+    try {
+      if (navigator.share) {
+        await navigator.share({ url: value });
+      } else {
+        await navigator.clipboard.writeText(value);
+        setMessage("Link kopiert.");
+      }
+    } catch (e) {
+      console.log("SHARE ERROR:", e);
+    }
+  }
+
+  function confirmLogout() {
+    const ok = window.confirm("Willst du dich wirklich ausloggen?");
+    if (!ok) return;
+    logout();
   }
 
   async function deleteAccount() {
-    const ok = window.confirm("Willst du deinen Account wirklich löschen?");
-    if (!ok) return;
-
     try {
-      await apiFetch("/auth/me", { method: "DELETE" });
+      setError("");
+      setMessage("");
+
+      if (hasActivePro) {
+        const goManage = window.confirm(
+          "Dein Salora Pro Abo ist noch aktiv. Kündige dein Abo zuerst über die Abo-Verwaltung. Klicke auf OK, um die Abo-Verwaltung zu öffnen."
+        );
+
+        if (goManage) {
+          openSubscriptionManagement();
+        }
+        return;
+      }
+
+      await apiFetch("/me", {
+        method: "DELETE",
+      });
+
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      router.replace("/");
-      router.refresh();
-    } catch {
-      setError("Account-Löschen ist aktuell nicht verfügbar.");
+      router.replace("/login");
+    } catch (e: any) {
+      setError(e?.message || "Account konnte nicht gelöscht werden.");
     }
   }
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const userRaw = localStorage.getItem("user");
+  function confirmDeleteAccount() {
+    const ok = window.confirm(
+      "Willst du deinen Account wirklich endgültig löschen? Dieser Schritt kann nicht rückgängig gemacht werden."
+    );
+    if (!ok) return;
+    deleteAccount();
+  }
 
-    if (!token || !userRaw) {
-      router.replace("/login");
-      return;
-    }
+  const profileUrl = useMemo(() => {
+    if (!profile?.slug) return "";
+    const base = trimTrailingSlash(cleanUrl(PUBLIC_APP_URL || window.location.origin));
+    return `${base}/b/${profile.slug}`;
+  }, [profile?.slug]);
 
-    let u: any = null;
-    try {
-      u = JSON.parse(userRaw);
-    } catch {
-      u = null;
-    }
-
-    if (!u || (u.role as Role) !== "BARBER") {
-      router.replace("/");
-      return;
-    }
-
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const bookingUrl = useMemo(() => {
+    if (!profile?.slug) return "";
+    const base = trimTrailingSlash(cleanUrl(PUBLIC_APP_URL || window.location.origin));
+    return `${base}/b/${profile.slug}/book`;
+  }, [profile?.slug]);
 
   const workingHoursUi = useMemo(() => {
     const wh = settings?.workingHours ?? [];
     const map = new Map<number, WorkingHoursRow>();
-    for (const r of wh) map.set(r.day, r);
+    for (const row of wh) map.set(row.day, row);
 
     return WEEKDAYS.map(
       (d) => map.get(d.k) ?? { day: d.k, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 }
     );
   }, [settings]);
 
-  const previewUrl = cleanUrl(profile?.imageUrl ?? "");
-  const showPreview = previewUrl || localPreview;
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: "60vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#666",
+          fontWeight: 800,
+        }}
+      >
+        Lade Einstellungen...
+      </div>
+    );
+  }
 
-  const profileUrl = profile ? `${publicBaseUrl()}/b/${profile.slug}` : "";
-  const bookUrl = profile ? `${publicBaseUrl()}/b/${profile.slug}/book` : "";
+  if (!profile || !settings) {
+    return (
+      <div style={{ padding: 16 }}>
+        <div style={alertErr}>
+          <div style={alertErrText}>Einstellungen konnten nicht geladen werden.</div>
+        </div>
+      </div>
+    );
+  }
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    minWidth: 0,
-    maxWidth: "100%",
-    height: 52,
-    borderRadius: 14,
-    border: "1px solid #dedede",
-    background: "#fff",
-    padding: "0 16px",
-    fontSize: 16,
-    color: "#111",
-    outline: "none",
-    boxSizing: "border-box",
-    display: "block",
-  };
-
-  const textareaStyle: React.CSSProperties = {
-    width: "100%",
-    minWidth: 0,
-    maxWidth: "100%",
-    borderRadius: 14,
-    border: "1px solid #dedede",
-    background: "#fff",
-    padding: "14px 16px",
-    fontSize: 16,
-    color: "#111",
-    outline: "none",
-    boxSizing: "border-box",
-    display: "block",
-    resize: "vertical",
-    fontFamily: "inherit",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#555",
-    marginBottom: 8,
-  };
-
-  const pageCardStyle: React.CSSProperties = {
-    border: "1px solid #e9e9e9",
-    borderRadius: 24,
-    background: "#fff",
-    padding: 18,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-    overflow: "hidden",
-  };
-
-  const sectionCardStyle: React.CSSProperties = {
-    border: "1px solid #ededed",
-    borderRadius: 18,
-    background: "#fcfcfc",
-    padding: 14,
-  };
-
-  const primaryButton: React.CSSProperties = {
-    height: 52,
-    borderRadius: 14,
-    border: "1px solid #111",
-    background: "#111",
-    color: "#fff",
-    fontWeight: 900,
-    fontSize: 15,
-    cursor: saving ? "not-allowed" : "pointer",
-    width: "100%",
-    opacity: saving ? 0.75 : 1,
-  };
-
-  const secondaryButton: React.CSSProperties = {
-    height: 44,
-    borderRadius: 12,
-    border: "1px solid #d8d8d8",
-    background: "#fff",
-    color: "#111",
-    fontWeight: 800,
-    fontSize: 14,
-    cursor: "pointer",
-    padding: "0 14px",
-    width: "100%",
-  };
-
-  const dangerButton: React.CSSProperties = {
-    height: 44,
-    borderRadius: 12,
-    border: "1px solid #e3c7c7",
-    background: "#fff",
-    color: "#8a1c1c",
-    fontWeight: 900,
-    fontSize: 14,
-    cursor: "pointer",
-    padding: "0 14px",
-    width: "100%",
-  };
-
-  const activeTabButton = (active: boolean): React.CSSProperties => ({
-    height: 48,
-    borderRadius: 14,
-    border: active ? "1px solid #111" : "1px solid #ddd",
-    background: active ? "#111" : "#fff",
-    color: active ? "#fff" : "#111",
-    fontWeight: 900,
-    cursor: "pointer",
-    width: "100%",
-    fontSize: 14,
-  });
+  const previewUrl = cleanUrl(localPreview || profile.imageUrl);
 
   return (
-    <div style={{ padding: 16, maxWidth: 1120, margin: "0 auto", overflowX: "hidden" }}>
+    <div style={{ padding: 16, maxWidth: 1120, margin: "0 auto" }}>
       <style jsx>{`
-        @media (max-width: 720px) {
-          .twoColGrid,
+        .tabGrid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          margin-bottom: 16px;
+        }
+
+        .profileGrid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+          gap: 16px;
+          align-items: start;
+        }
+
+        .hoursRowGrid,
+        .twoColGrid,
+        .threeColGrid {
+          display: grid;
+          gap: 12px;
+        }
+
+        .twoColGrid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .threeColGrid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .accountButtons {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        @media (max-width: 900px) {
+          .profileGrid,
           .threeColGrid,
-          .tabGrid {
-            grid-template-columns: 1fr !important;
+          .accountButtons {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .tabGrid,
+          .twoColGrid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
 
       <div style={{ marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, letterSpacing: -0.8 }}>Einstellungen</h1>
-        <div style={{ marginTop: 8, color: "#666", fontSize: 17, lineHeight: 1.45 }}>
-          Alles für dein Profil, deine Services und deine Buchungsregeln.
+        <div style={pageTitle}>Einstellungen</div>
+        <div style={pageSub}>
+          Profil, Services, Arbeitszeiten und Buchungsregeln verwalten.
         </div>
       </div>
 
-      {(message || error) && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "14px 16px",
-            borderRadius: 16,
-            border: error ? "1px solid #f1c7c7" : "1px solid #cfe7d1",
-            background: error ? "#fff5f5" : "#f4fbf4",
-            color: error ? "#b42318" : "#17663a",
-            fontWeight: 700,
-          }}
+      {message ? (
+        <div style={alertOk}>
+          <div style={alertOkText}>{message}</div>
+        </div>
+      ) : null}
+
+      {error ? (
+        <div style={alertErr}>
+          <div style={alertErrText}>{error}</div>
+        </div>
+      ) : null}
+
+      <div className="tabGrid">
+        <button
+          onClick={() => setTab("PROFILE")}
+          style={{ ...tabBtn, ...(tab === "PROFILE" ? tabBtnActive : {}) }}
         >
-          {error || message}
-        </div>
-      )}
+          <span style={{ ...tabBtnText, ...(tab === "PROFILE" ? tabBtnTextActive : {}) }}>
+            Profil
+          </span>
+        </button>
 
-      <div
-        className="tabGrid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <button style={activeTabButton(tab === "PROFILE")} onClick={() => setTab("PROFILE")}>
-          Profil
+        <button
+          onClick={() => setTab("SERVICES")}
+          style={{ ...tabBtn, ...(tab === "SERVICES" ? tabBtnActive : {}) }}
+        >
+          <span style={{ ...tabBtnText, ...(tab === "SERVICES" ? tabBtnTextActive : {}) }}>
+            Services
+          </span>
         </button>
-        <button style={activeTabButton(tab === "SERVICES")} onClick={() => setTab("SERVICES")}>
-          Services
+
+        <button
+          onClick={() => setTab("HOURS")}
+          style={{ ...tabBtn, ...(tab === "HOURS" ? tabBtnActive : {}) }}
+        >
+          <span style={{ ...tabBtnText, ...(tab === "HOURS" ? tabBtnTextActive : {}) }}>
+            Zeiten
+          </span>
         </button>
-        <button style={activeTabButton(tab === "HOURS")} onClick={() => setTab("HOURS")}>
-          Arbeitszeiten
-        </button>
-        <button style={activeTabButton(tab === "SLOTS")} onClick={() => setTab("SLOTS")}>
-          Slot-Logik
+
+        <button
+          onClick={() => setTab("RULES")}
+          style={{ ...tabBtn, ...(tab === "RULES" ? tabBtnActive : {}) }}
+        >
+          <span style={{ ...tabBtnText, ...(tab === "RULES" ? tabBtnTextActive : {}) }}>
+            Regeln
+          </span>
         </button>
       </div>
 
-      {loading ? (
-        <div style={{ color: "#666" }}>Lade Einstellungen...</div>
-      ) : tab === "PROFILE" ? (
-        <div style={pageCardStyle}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.1 }}>Profil</h2>
-            <div style={{ marginTop: 6, color: "#666", fontSize: 15 }}>
-              Öffentliche Infos, Links und Profilbild.
+      {tab === "PROFILE" ? (
+        <>
+          <div style={card}>
+            <div style={sectionTitle}>Profilbild</div>
+            <div style={sectionSub}>So sehen Kunden dein Profil.</div>
+
+            <div
+              style={{
+                marginTop: 16,
+                display: "flex",
+                gap: 14,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={avatarWrap}>
+                {previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewUrl} alt="Profilbild" style={avatarImg} />
+                ) : (
+                  <div style={avatarFallback}>{profile.name?.trim()?.[0]?.toUpperCase() || "B"}</div>
+                )}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 260, display: "grid", gap: 10 }}>
+                <label style={primaryBtnLikeLabel(uploadingImg)}>
+                  <span style={primaryBtnText}>
+                    {uploadingImg ? "Lädt..." : "Profilbild auswählen"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingImg}
+                    onChange={(e) => pickImage(e.target.files?.[0] || null)}
+                    style={{ display: "none" }}
+                  />
+                </label>
+
+                {previewUrl ? (
+                  <button
+                    onClick={removeImage}
+                    disabled={uploadingImg}
+                    style={{ ...secondaryBtn, ...(uploadingImg ? disabledBtn : {}) }}
+                  >
+                    <span style={secondaryBtnText}>Profilbild entfernen</span>
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          {!profile ? (
-            <div style={{ marginTop: 16, color: "#666" }}>Kein Profil geladen.</div>
-          ) : (
-            <div style={{ marginTop: 18, display: "grid", gap: 16 }}>
-              <div
-                className="twoColGrid"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
-                  gap: 16,
-                  alignItems: "start",
-                }}
-              >
-                <div style={sectionCardStyle}>
-                  <div style={{ fontWeight: 900, fontSize: 17 }}>Deine Kundenlinks</div>
+          <div style={{ ...card, marginTop: 16 }}>
+            <div style={sectionTitle}>Öffentliches Profil</div>
+            <div style={sectionSub}>Diese Informationen sehen deine Kunden.</div>
 
-                  <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
-                    <LinkBox
-                      title="Profil-Link"
-                      url={profileUrl}
-                      copied={copied === "profile"}
-                      onCopy={() => copyToClipboard(profileUrl, "profile")}
-                      openLabel="Profil öffnen"
-                    />
+            <div style={fieldGap}>
+              <Field label="Name">
+                <input value={profile.name || ""} disabled style={{ ...input, ...disabledInput }} />
+              </Field>
 
-                    <LinkBox
-                      title="Buchungs-Link"
-                      url={bookUrl}
-                      copied={copied === "book"}
-                      onCopy={() => copyToClipboard(bookUrl, "book")}
-                      openLabel="Buchung öffnen"
-                    />
-                  </div>
-                </div>
+              <Field label="Telefon">
+                <input
+                  value={profile.phone ?? ""}
+                  onChange={(e) => setProfile({ ...profile, phone: e.target.value || null })}
+                  placeholder="z. B. 0176..."
+                  style={input}
+                />
+              </Field>
 
-                <div style={sectionCardStyle}>
-                  <div style={{ fontWeight: 900, fontSize: 17 }}>Profilbild</div>
+              <div className="threeColGrid">
+                <Field label="Straße + Nr.">
+                  <input
+                    value={profile.street ?? ""}
+                    onChange={(e) => setProfile({ ...profile, street: e.target.value || null })}
+                    placeholder="z. B. Musterstraße 12"
+                    style={input}
+                  />
+                </Field>
 
-                  <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
-                    <div
-                      style={{
-                        width: 96,
-                        height: 96,
-                        borderRadius: 999,
-                        border: "1px solid #e7e7e7",
-                        background: "#fafafa",
-                        overflow: "hidden",
-                        display: "grid",
-                        placeItems: "center",
-                        fontWeight: 900,
-                        color: "#666",
-                      }}
-                    >
-                      {showPreview ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={showPreview}
-                          alt="Profilbild"
-                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        "—"
-                      )}
-                    </div>
+                <Field label="PLZ">
+                  <input
+                    value={profile.postalCode ?? ""}
+                    onChange={(e) =>
+                      setProfile({ ...profile, postalCode: e.target.value || null })
+                    }
+                    placeholder="45127"
+                    style={input}
+                  />
+                </Field>
 
-                    <div>
-                      <div style={labelStyle}>Bild auswählen</div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={onPickProfileImage}
-                        disabled={uploadingImg || saving}
-                        style={{
-                          ...inputStyle,
-                          paddingTop: 12,
-                          paddingBottom: 12,
-                          height: "auto",
-                        }}
-                      />
-                    </div>
+                <Field label="Stadt">
+                  <input
+                    value={profile.city ?? ""}
+                    onChange={(e) => setProfile({ ...profile, city: e.target.value || null })}
+                    placeholder="Essen"
+                    style={input}
+                  />
+                </Field>
+              </div>
 
-                    <Field
-                      label="Profilbild (Link)"
-                      value={profile.imageUrl ?? ""}
-                      onChange={(v) => setProfile({ ...profile, imageUrl: v || null })}
-                      placeholder="https://..."
-                      inputStyle={inputStyle}
-                      labelStyle={labelStyle}
-                    />
+              <Field label="Instagram">
+                <input
+                  value={profile.instagram ?? ""}
+                  onChange={(e) => setProfile({ ...profile, instagram: e.target.value || null })}
+                  placeholder="@deinprofil"
+                  style={input}
+                />
+              </Field>
 
-                    {imgMsg ? (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 900,
-                          color: imgMsg.startsWith("✅") ? "#17663a" : "#b42318",
-                        }}
+              <Field label="Website">
+                <input
+                  value={profile.website ?? ""}
+                  onChange={(e) => setProfile({ ...profile, website: e.target.value || null })}
+                  placeholder="https://..."
+                  style={input}
+                />
+              </Field>
+
+              <Field label="Bio">
+                <textarea
+                  value={profile.bio ?? ""}
+                  onChange={(e) => setProfile({ ...profile, bio: e.target.value || null })}
+                  placeholder="Kurz über dich"
+                  style={textarea}
+                  rows={5}
+                />
+              </Field>
+            </div>
+
+            <button
+              onClick={saveProfile}
+              disabled={savingProfile}
+              style={{ ...primaryBtn, marginTop: 16, ...(savingProfile ? disabledBtn : {}) }}
+            >
+              <span style={primaryBtnText}>
+                {savingProfile ? "Speichert..." : "Profil speichern"}
+              </span>
+            </button>
+          </div>
+
+          {(profileUrl || bookingUrl) && (
+            <div style={{ ...card, marginTop: 16 }}>
+              <div style={sectionTitle}>Deine Links</div>
+              <div style={sectionSub}>
+                Diese Links kannst du direkt an Kunden schicken oder teilen.
+              </div>
+
+              <div style={fieldGap}>
+                {profileUrl ? (
+                  <div style={linkCard}>
+                    <div style={linkLabel}>Profil-Link</div>
+                    <div style={linkValue}>{profileUrl}</div>
+
+                    <div className="twoColGrid" style={{ marginTop: 12 }}>
+                      <button
+                        onClick={() => copyToClipboard(profileUrl, "Profil-Link")}
+                        style={secondaryBtnSmall}
                       >
-                        {imgMsg}
-                      </div>
-                    ) : null}
+                        <span style={secondaryBtnSmallText}>
+                          {copied === "profile" ? "Kopiert" : "Kopieren"}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => shareLink(profileUrl)}
+                        style={primaryBtnSmall}
+                      >
+                        <span style={primaryBtnSmallText}>Teilen</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
+                ) : null}
 
-              <div style={sectionCardStyle}>
-                <div style={{ fontWeight: 900, fontSize: 17 }}>Grunddaten</div>
+                {bookingUrl ? (
+                  <div style={linkCard}>
+                    <div style={linkLabel}>Buchungs-Link</div>
+                    <div style={linkValue}>{bookingUrl}</div>
 
-                <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
-                  <div>
-                    <div style={labelStyle}>Name</div>
-                    <input value={profile.name} disabled style={{ ...inputStyle, opacity: 0.8 }} />
+                    <div className="twoColGrid" style={{ marginTop: 12 }}>
+                      <button
+                        onClick={() => copyToClipboard(bookingUrl, "Buchungs-Link")}
+                        style={secondaryBtnSmall}
+                      >
+                        <span style={secondaryBtnSmallText}>
+                          {copied === "book" ? "Kopiert" : "Kopieren"}
+                        </span>
+                      </button>
+
+                      <button onClick={() => shareLink(bookingUrl)} style={primaryBtnSmall}>
+                        <span style={primaryBtnSmallText}>Teilen</span>
+                      </button>
+                    </div>
                   </div>
-
-                  <Field
-                    label="Telefon"
-                    value={profile.phone ?? ""}
-                    onChange={(v) => setProfile({ ...profile, phone: v || null })}
-                    placeholder="z. B. 0176..."
-                    inputStyle={inputStyle}
-                    labelStyle={labelStyle}
-                  />
-
-                  <div
-                    className="threeColGrid"
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                      gap: 12,
-                    }}
-                  >
-                    <Field
-                      label="Straße + Nr."
-                      value={profile.street ?? ""}
-                      onChange={(v) => setProfile({ ...profile, street: v || null })}
-                      placeholder="Musterstraße 12"
-                      inputStyle={inputStyle}
-                      labelStyle={labelStyle}
-                    />
-                    <Field
-                      label="PLZ"
-                      value={profile.postalCode ?? ""}
-                      onChange={(v) => setProfile({ ...profile, postalCode: v || null })}
-                      placeholder="45127"
-                      inputStyle={inputStyle}
-                      labelStyle={labelStyle}
-                    />
-                    <Field
-                      label="Stadt"
-                      value={profile.city ?? ""}
-                      onChange={(v) => setProfile({ ...profile, city: v || null })}
-                      placeholder="Essen"
-                      inputStyle={inputStyle}
-                      labelStyle={labelStyle}
-                    />
-                  </div>
-
-                  <Field
-                    label="Instagram"
-                    value={profile.instagram ?? ""}
-                    onChange={(v) => setProfile({ ...profile, instagram: v || null })}
-                    placeholder="@deinprofil"
-                    inputStyle={inputStyle}
-                    labelStyle={labelStyle}
-                  />
-
-                  <Field
-                    label="Website"
-                    value={profile.website ?? ""}
-                    onChange={(v) => setProfile({ ...profile, website: v || null })}
-                    placeholder="https://..."
-                    inputStyle={inputStyle}
-                    labelStyle={labelStyle}
-                  />
-
-                  <div>
-                    <div style={labelStyle}>Bio</div>
-                    <textarea
-                      value={profile.bio ?? ""}
-                      onChange={(e) => setProfile({ ...profile, bio: e.target.value || null })}
-                      placeholder="Kurz über dich"
-                      rows={5}
-                      style={textareaStyle}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <button disabled={saving} onClick={saveProfile} style={primaryButton}>
-                {saving ? "Speichert..." : "Profil speichern"}
-              </button>
-
-              <div
-                style={{
-                  border: "1px solid #f0e0e0",
-                  borderRadius: 18,
-                  background: "#fffafa",
-                  padding: 14,
-                  marginTop: 6,
-                }}
-              >
-                <div style={{ fontWeight: 900, fontSize: 17, color: "#8a1c1c" }}>Konto & Sicherheit</div>
-
-                <div
-                  className="twoColGrid"
-                  style={{
-                    marginTop: 12,
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 10,
-                  }}
-                >
-                  <button type="button" onClick={logout} style={secondaryButton}>
-                    Ausloggen
-                  </button>
-
-                  <button type="button" onClick={deleteAccount} style={dangerButton}>
-                    Account löschen
-                  </button>
-                </div>
+                ) : null}
               </div>
             </div>
           )}
-        </div>
-      ) : tab === "SERVICES" ? (
-        <div style={pageCardStyle}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.1 }}>Services</h2>
-            <div style={{ marginTop: 6, color: "#666", fontSize: 15 }}>
-              Leistungen, Dauer und Aktiv-Status.
+
+          <div style={{ ...card, marginTop: 16 }}>
+            <div style={sectionTitle}>Konto</div>
+            <div style={sectionSub}>Sichere Aktionen für deinen Account.</div>
+            <div style={{ ...sectionSub, marginTop: 10 }}>
+              Web-Abonnements müssen vor dem Löschen des Accounts zuerst gekündigt werden.
             </div>
-          </div>
 
-          <div style={{ ...sectionCardStyle, marginTop: 18 }}>
-            <div style={{ fontWeight: 900, fontSize: 17 }}>Neuen Service anlegen</div>
+            <div className="accountButtons" style={{ marginTop: 16 }}>
+              <button
+                onClick={openSubscriptionManagement}
+                disabled={checkingSubscription}
+                style={{ ...secondaryBtn, ...(checkingSubscription ? disabledBtn : {}) }}
+              >
+                <span style={secondaryBtnText}>
+                  {checkingSubscription ? "Lädt..." : "Abo verwalten"}
+                </span>
+              </button>
 
-            <div
-              className="threeColGrid"
-              style={{
-                marginTop: 14,
-                display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                gap: 12,
-                alignItems: "end",
-              }}
-            >
-              <Field
-                label="Name"
-                value={newName}
-                onChange={setNewName}
-                placeholder="z. B. Haare"
-                inputStyle={inputStyle}
-                labelStyle={labelStyle}
-              />
+              <button onClick={confirmLogout} style={secondaryBtn}>
+                <span style={secondaryBtnText}>Ausloggen</span>
+              </button>
 
-              <div>
-                <div style={labelStyle}>Dauer (Minuten)</div>
-                <input
-                  type="number"
-                  value={newDuration}
-                  onChange={(e) => setNewDuration(Number(e.target.value))}
-                  style={inputStyle}
-                />
-              </div>
-
-              <button disabled={saving} onClick={createService} style={primaryButton}>
-                {saving ? "Speichert..." : "Service hinzufügen"}
+              <button onClick={confirmDeleteAccount} style={dangerBtn}>
+                <span style={dangerBtnText}>Account löschen</span>
               </button>
             </div>
+          </div>
+        </>
+      ) : tab === "SERVICES" ? (
+        <>
+          <div style={card}>
+            <div style={sectionTitle}>Neuen Service anlegen</div>
+            <div style={sectionSub}>Name eingeben, Dauer auswählen.</div>
+
+            <div style={fieldGap}>
+              <Field label="Service-Name">
+                <input
+                  value={newServiceName}
+                  onChange={(e) => setNewServiceName(e.target.value)}
+                  placeholder="z. B. Haare"
+                  style={input}
+                />
+              </Field>
+
+              <SelectField
+                label="Dauer"
+                value={newServiceDuration}
+                options={SERVICE_DURATION_OPTIONS.map((dur) => ({
+                  label: `${dur} min`,
+                  value: dur,
+                }))}
+                onChange={setNewServiceDuration}
+              />
+            </div>
+
+            <button
+              onClick={createService}
+              disabled={creatingService}
+              style={{ ...primaryBtn, marginTop: 16, ...(creatingService ? disabledBtn : {}) }}
+            >
+              <span style={primaryBtnText}>
+                {creatingService ? "Speichert..." : "Service hinzufügen"}
+              </span>
+            </button>
+          </div>
+
+          <div style={{ ...card, marginTop: 16 }}>
+            <div style={sectionTitle}>Deine Services</div>
+            <div style={sectionSub}>Dauer ändern, aktivieren oder löschen.</div>
+
+            <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+              {services.length === 0 ? (
+                <div style={linkCard}>
+                  <div style={linkValue}>Noch keine Services vorhanden.</div>
+                </div>
+              ) : (
+                services
+                  .slice()
+                  .sort((a, b) => a.id - b.id)
+                  .map((service) => {
+                    const isBusy = busyServiceId === service.id;
+
+                    return (
+                      <div key={service.id} style={serviceCard}>
+                        <input
+                          defaultValue={service.name}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v && v !== service.name) {
+                              updateService(service.id, { name: v });
+                            }
+                          }}
+                          style={input}
+                          placeholder="Service-Name"
+                        />
+
+                        <div style={{ marginTop: 12 }}>
+                          <SelectField
+                            label="Dauer"
+                            value={service.durationMin}
+                            options={SERVICE_DURATION_OPTIONS.map((dur) => ({
+                              label: `${dur} min`,
+                              value: dur,
+                            }))}
+                            onChange={(dur) =>
+                              updateService(service.id, { durationMin: dur })
+                            }
+                          />
+                        </div>
+
+                        <div className="twoColGrid" style={{ marginTop: 12 }}>
+                          <button
+                            onClick={() =>
+                              updateService(service.id, { isActive: !service.isActive })
+                            }
+                            disabled={isBusy}
+                            style={{
+                              ...(service.isActive ? primaryBtnSmall : secondaryBtnSmall),
+                              ...(isBusy ? disabledBtn : {}),
+                            }}
+                          >
+                            <span
+                              style={
+                                service.isActive ? primaryBtnSmallText : secondaryBtnSmallText
+                              }
+                            >
+                              {service.isActive ? "Aktiv" : "Inaktiv"}
+                            </span>
+                          </button>
+
+                          <button
+                            onClick={() => deleteService(service.id)}
+                            disabled={isBusy}
+                            style={{ ...dangerBtnSmall, ...(isBusy ? disabledBtn : {}) }}
+                          >
+                            <span style={dangerBtnSmallText}>Löschen</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </div>
+        </>
+      ) : tab === "HOURS" ? (
+        <div style={card}>
+          <div style={sectionTitle}>Arbeitszeiten</div>
+          <div style={sectionSub}>
+            Lege fest, an welchen Tagen und Uhrzeiten du buchbar bist.
           </div>
 
           <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-            {services.length === 0 ? (
-              <div style={{ color: "#666" }}>Keine Services vorhanden.</div>
-            ) : (
-              services
-                .slice()
-                .sort((a, b) => a.id - b.id)
-                .map((s) => (
-                  <div key={s.id} style={sectionCardStyle}>
-                    <div
-                      className="twoColGrid"
+            {workingHoursUi.map((row) => {
+              const dayName = WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
+
+              return (
+                <div key={row.day} style={serviceCard}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={dayTitle}>{dayName}</div>
+
+                    <button
+                      onClick={() => {
+                        setSettings({
+                          ...settings,
+                          workingHours: workingHoursUi.map((r) =>
+                            r.day === row.day ? { ...r, isOpen: !r.isOpen } : r
+                          ),
+                        });
+                      }}
                       style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                        gap: 12,
-                        alignItems: "end",
+                        ...(row.isOpen ? primaryBtnSmall : secondaryBtnSmall),
+                        minWidth: 110,
                       }}
                     >
-                      <div>
-                        <div style={labelStyle}>Name</div>
-                        <input
-                          defaultValue={s.name}
-                          onBlur={(e) => {
-                            const v = e.target.value.trim();
-                            if (v && v !== s.name) updateService(s.id, { name: v });
-                          }}
-                          style={inputStyle}
-                        />
-                      </div>
+                      <span style={row.isOpen ? primaryBtnSmallText : secondaryBtnSmallText}>
+                        {row.isOpen ? "Geöffnet" : "Geschlossen"}
+                      </span>
+                    </button>
+                  </div>
 
-                      <div>
-                        <div style={labelStyle}>Dauer (Minuten)</div>
-                        <input
-                          type="number"
-                          defaultValue={s.durationMin}
-                          onBlur={(e) => {
-                            const v = Number(e.target.value);
-                            if (Number.isFinite(v) && v > 0 && v !== s.durationMin) {
-                              updateService(s.id, { durationMin: v });
-                            }
-                          }}
-                          style={inputStyle}
-                        />
-                      </div>
-                    </div>
+                  {row.isOpen ? (
+                    <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+                      <SelectField
+                        label="Start"
+                        value={row.startMin}
+                        options={WORK_TIME_OPTIONS.map((value) => ({
+                          label: minToHHMM(value),
+                          value,
+                        }))}
+                        onChange={(value) => {
+                          const safeStart = clamp(value, 0, 1439);
+                          const safeEnd = row.endMin <= safeStart ? safeStart + 60 : row.endMin;
 
-                    <div style={{ marginTop: 10, color: "#666", fontSize: 12 }}>
-                      {s.key}
-                    </div>
-
-                    <div
-                      className="twoColGrid"
-                      style={{
-                        marginTop: 12,
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                        gap: 10,
-                      }}
-                    >
-                      <button
-                        onClick={() => updateService(s.id, { isActive: !s.isActive })}
-                        style={{
-                          ...secondaryButton,
-                          border: s.isActive ? "1px solid #111" : "1px solid #ddd",
-                          background: s.isActive ? "#111" : "#fff",
-                          color: s.isActive ? "#fff" : "#111",
+                          setSettings({
+                            ...settings,
+                            workingHours: workingHoursUi.map((r) =>
+                              r.day === row.day
+                                ? {
+                                    ...r,
+                                    startMin: safeStart,
+                                    endMin: clamp(safeEnd, safeStart + 1, 1440),
+                                  }
+                                : r
+                            ),
+                          });
                         }}
-                      >
-                        {s.isActive ? "Aktiv" : "Inaktiv"}
-                      </button>
+                      />
 
-                      <button onClick={() => deleteService(s.id)} style={secondaryButton}>
-                        Löschen
-                      </button>
+                      <SelectField
+                        label="Ende"
+                        value={row.endMin}
+                        options={WORK_TIME_OPTIONS.filter((value) => value > row.startMin).map(
+                          (value) => ({
+                            label: minToHHMM(value),
+                            value,
+                          })
+                        )}
+                        onChange={(value) => {
+                          setSettings({
+                            ...settings,
+                            workingHours: workingHoursUi.map((r) =>
+                              r.day === row.day
+                                ? { ...r, endMin: clamp(value, r.startMin + 1, 1440) }
+                                : r
+                            ),
+                          });
+                        }}
+                      />
                     </div>
-                  </div>
-                ))
-            )}
+                  ) : (
+                    <div style={helperText}>
+                      An diesem Tag können keine Termine gebucht werden.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
-      ) : tab === "HOURS" ? (
-        <div style={pageCardStyle}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.1 }}>Arbeitszeiten</h2>
-            <div style={{ marginTop: 6, color: "#666", fontSize: 15 }}>
-              Öffnungszeiten pro Wochentag.
-            </div>
-          </div>
 
-          {!settings ? (
-            <div style={{ marginTop: 16, color: "#666" }}>Keine Einstellungen geladen.</div>
-          ) : (
-            <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-              {workingHoursUi.map((row) => {
-                const dayName = WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
-
-                return (
-                  <div key={row.day} style={sectionCardStyle}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        flexWrap: "wrap",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div style={{ fontWeight: 900, fontSize: 17 }}>{dayName}</div>
-
-                      <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 800 }}>
-                        <input
-                          type="checkbox"
-                          checked={row.isOpen}
-                          onChange={(e) => {
-                            const next = { ...(settings as AppSettings) };
-                            next.workingHours = workingHoursUi.map((r) =>
-                              r.day === row.day ? { ...r, isOpen: e.target.checked } : r
-                            );
-                            setSettings(next);
-                          }}
-                        />
-                        Geöffnet
-                      </label>
-                    </div>
-
-                    <div
-                      className="twoColGrid"
-                      style={{
-                        marginTop: 12,
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                        gap: 12,
-                        alignItems: "end",
-                      }}
-                    >
-                      <div>
-                        <div style={labelStyle}>Start</div>
-                        <input
-                          defaultValue={minToHHMM(row.startMin)}
-                          onBlur={(e) => {
-                            const v = hhmmToMin(e.target.value);
-                            if (v == null) return;
-
-                            const next = { ...(settings as AppSettings) };
-                            next.workingHours = workingHoursUi.map((r) =>
-                              r.day === row.day ? { ...r, startMin: clamp(v, 0, 1439) } : r
-                            );
-                            setSettings(next);
-                          }}
-                          style={inputStyle}
-                        />
-                      </div>
-
-                      <div>
-                        <div style={labelStyle}>Ende</div>
-                        <input
-                          defaultValue={minToHHMM(row.endMin)}
-                          onBlur={(e) => {
-                            const v = hhmmToMin(e.target.value);
-                            if (v == null) return;
-
-                            const next = { ...(settings as AppSettings) };
-                            next.workingHours = workingHoursUi.map((r) =>
-                              r.day === row.day ? { ...r, endMin: clamp(v, 1, 1440) } : r
-                            );
-                            setSettings(next);
-                          }}
-                          style={inputStyle}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <button disabled={saving} onClick={() => saveSettings(settings)} style={primaryButton}>
-                {saving ? "Speichert..." : "Arbeitszeiten speichern"}
-              </button>
-            </div>
-          )}
+          <button
+            onClick={saveHours}
+            disabled={savingHours}
+            style={{ ...primaryBtn, marginTop: 16, ...(savingHours ? disabledBtn : {}) }}
+          >
+            <span style={primaryBtnText}>
+              {savingHours ? "Speichert..." : "Arbeitszeiten speichern"}
+            </span>
+          </button>
         </div>
       ) : (
-        <div style={pageCardStyle}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 24, lineHeight: 1.1 }}>Slot-Logik</h2>
-            <div style={{ marginTop: 6, color: "#666", fontSize: 15 }}>
-              Regeln für verfügbare Termine.
-            </div>
+        <div style={card}>
+          <div style={sectionTitle}>Buchungsregeln</div>
+          <div style={sectionSub}>Hier legst du fest, was Kunden zuerst sehen.</div>
+
+          <div style={fieldGap}>
+            <SelectField
+              label="Schrittweite"
+              helperText="Legt fest, in welchen Minutenabständen freie Termine angezeigt werden."
+              value={settings.stepMin}
+              options={STEP_MIN_OPTIONS.map((value) => ({
+                label: `${value} min`,
+                value,
+              }))}
+              onChange={(value) => setSettings({ ...settings, stepMin: value })}
+            />
+
+            <SelectField
+              label="Zuerst sichtbarer Start"
+              helperText="Ab dieser Uhrzeit werden freie Slots Kunden anfangs angezeigt."
+              value={settings.displayStartMin}
+              options={DISPLAY_TIME_OPTIONS.map((value) => ({
+                label: minToHHMM(value),
+                value,
+              }))}
+              onChange={(value) => {
+                const nextStart = value;
+                const nextEnd =
+                  settings.displayEndMin <= nextStart
+                    ? Math.min(1440, nextStart + 60)
+                    : settings.displayEndMin;
+
+                setSettings({
+                  ...settings,
+                  displayStartMin: nextStart,
+                  displayEndMin: nextEnd,
+                });
+              }}
+            />
+
+            <SelectField
+              label="Zuerst sichtbares Ende"
+              helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
+              value={settings.displayEndMin}
+              options={DISPLAY_TIME_OPTIONS.filter(
+                (value) => value > settings.displayStartMin
+              ).map((value) => ({
+                label: minToHHMM(value),
+                value,
+              }))}
+              onChange={(value) =>
+                setSettings({
+                  ...settings,
+                  displayEndMin: value,
+                })
+              }
+            />
+
+            <Field
+              label="Automatische Vorverlagerung"
+              helperText="Wenn die erste sichtbare Stunde voll ist, können automatisch frühere Slots geöffnet werden – aber nur innerhalb deiner echten Arbeitszeit."
+            >
+              <button
+                onClick={() =>
+                  setSettings({
+                    ...settings,
+                    extendIfFirstHourFull: !settings.extendIfFirstHourFull,
+                  })
+                }
+                style={
+                  settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall
+                }
+              >
+                <span
+                  style={
+                    settings.extendIfFirstHourFull
+                      ? primaryBtnSmallText
+                      : secondaryBtnSmallText
+                  }
+                >
+                  {settings.extendIfFirstHourFull ? "AN" : "AUS"}
+                </span>
+              </button>
+            </Field>
+
+            <SelectField
+              label="Erweiterungsschritt"
+              helperText="Bestimmt, in welchen Schritten früher geöffnet wird, z. B. 15 oder 30 Minuten."
+              value={settings.extendStepMin}
+              options={EXTEND_STEP_OPTIONS.map((value) => ({
+                label: `${value} min`,
+                value,
+              }))}
+              onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
+            />
+
+            <SelectField
+              label="Mindestabstand pro Kunde"
+              helperText="Legt fest, wie viele Tage ein Kunde nach einer Buchung mindestens warten muss, bis erneut gebucht werden kann."
+              value={settings.minDaysBetweenBookings ?? 0}
+              options={MIN_DAYS_OPTIONS.map((value) => ({
+                label: `${value} Tag${value === 1 ? "" : "e"}`,
+                value,
+              }))}
+              onChange={(value) =>
+                setSettings({ ...settings, minDaysBetweenBookings: value })
+              }
+            />
           </div>
 
-          {!settings ? (
-            <div style={{ marginTop: 16, color: "#666" }}>Keine Einstellungen geladen.</div>
-          ) : (
-            <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-              <FieldNumber
-                label="Schrittweite (stepMin) in Minuten"
-                value={settings.stepMin}
-                onChange={(v) => setSettings({ ...settings, stepMin: clamp(v, 1, 120) })}
-                inputStyle={inputStyle}
-              />
-
-              <label
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "flex-start",
-                  border: "1px solid #eee",
-                  borderRadius: 16,
-                  padding: 14,
-                  background: "#fcfcfc",
-                  flexWrap: "wrap",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={settings.extendIfFirstHourFull}
-                  onChange={(e) => setSettings({ ...settings, extendIfFirstHourFull: e.target.checked })}
-                  style={{ marginTop: 3 }}
-                />
-                <div>
-                  <div style={{ fontWeight: 900 }}>Wenn erste Stunde voll ist, nach vorne öffnen</div>
-                </div>
-              </label>
-
-              <FieldNumber
-                label="Erweiterungsschritt (extendStepMin) in Minuten"
-                value={settings.extendStepMin}
-                onChange={(v) => setSettings({ ...settings, extendStepMin: clamp(v, 10, 240) })}
-                inputStyle={inputStyle}
-              />
-
-              <FieldTime
-                label="Früheste Grenze"
-                valueMin={settings.earliestLimitMin}
-                onChangeMin={(min) => setSettings({ ...settings, earliestLimitMin: clamp(min, 0, 1439) })}
-                inputStyle={inputStyle}
-              />
-
-              <div
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 16,
-                  padding: 14,
-                  background: "#fcfcfc",
-                }}
-              >
-                <div style={{ fontWeight: 900 }}>Mindestabstand pro Kunde</div>
-
-                <input
-                  type="number"
-                  value={settings.minDaysBetweenBookings ?? 0}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setSettings({
-                      ...settings,
-                      minDaysBetweenBookings: clamp(Number.isFinite(v) ? v : 0, 0, 365),
-                    });
-                  }}
-                  style={{ ...inputStyle, marginTop: 12, maxWidth: 260 }}
-                />
-              </div>
-
-              <button disabled={saving} onClick={() => saveSettings(settings)} style={primaryButton}>
-                {saving ? "Speichert..." : "Slot-Einstellungen speichern"}
-              </button>
-            </div>
-          )}
+          <button
+            onClick={saveRules}
+            disabled={savingRules}
+            style={{ ...primaryBtn, marginTop: 16, ...(savingRules ? disabledBtn : {}) }}
+          >
+            <span style={primaryBtnText}>
+              {savingRules ? "Speichert..." : "Buchungsregeln speichern"}
+            </span>
+          </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function LinkBox(props: {
-  title: string;
-  url: string;
-  copied: boolean;
-  onCopy: () => void;
-  openLabel: string;
-}) {
-  return (
-    <div
-      style={{
-        border: "1px solid #e9e9e9",
-        borderRadius: 16,
-        padding: 14,
-        background: "#fff",
-      }}
-    >
-      <div style={{ fontSize: 13, color: "#666", fontWeight: 800 }}>{props.title}</div>
-      <div style={{ marginTop: 8, fontWeight: 900, wordBreak: "break-word", lineHeight: 1.4 }}>{props.url}</div>
-
-      <div
-        className="twoColGrid"
-        style={{
-          marginTop: 12,
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: 10,
-        }}
-      >
-        <button
-          type="button"
-          onClick={props.onCopy}
-          style={{
-            height: 44,
-            borderRadius: 12,
-            border: "1px solid #ddd",
-            background: "#fff",
-            fontWeight: 900,
-            cursor: "pointer",
-            width: "100%",
-          }}
-        >
-          {props.copied ? "✅ Kopiert" : "Link kopieren"}
-        </button>
-
-        <a
-          href={props.url}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            height: 44,
-            borderRadius: 12,
-            border: "1px solid #111",
-            background: "#111",
-            color: "#fff",
-            fontWeight: 900,
-            textDecoration: "none",
-            display: "grid",
-            placeItems: "center",
-            width: "100%",
-          }}
-        >
-          {props.openLabel}
-        </a>
-      </div>
     </div>
   );
 }
 
 function Field(props: {
   label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  inputStyle: React.CSSProperties;
-  labelStyle: React.CSSProperties;
+  children: React.ReactNode;
+  helperText?: string;
 }) {
   return (
-    <div style={{ display: "grid", gap: 6 }}>
-      <div style={props.labelStyle}>{props.label}</div>
-      <input
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
-        placeholder={props.placeholder}
-        style={props.inputStyle}
-      />
+    <div>
+      <div style={fieldLabel}>{props.label}</div>
+      {props.children}
+      {props.helperText ? <div style={helperText}>{props.helperText}</div> : null}
     </div>
   );
 }
 
-function FieldNumber(props: {
+function SelectField<T extends string | number>(props: {
   label: string;
-  value: number;
-  onChange: (v: number) => void;
-  inputStyle: React.CSSProperties;
+  value: T;
+  options: { label: string; value: T }[];
+  onChange: (value: T) => void;
+  helperText?: string;
 }) {
+  const [open, setOpen] = useState(false);
+
+  const selected =
+    props.options.find((o) => o.value === props.value)?.label ?? String(props.value);
+
   return (
-    <div
-      style={{
-        border: "1px solid #eee",
-        borderRadius: 16,
-        padding: 14,
-        background: "#fcfcfc",
-      }}
-    >
-      <div style={{ fontWeight: 900 }}>{props.label}</div>
-      <input
-        type="number"
-        value={props.value}
-        onChange={(e) => props.onChange(Number(e.target.value))}
-        style={{ ...props.inputStyle, marginTop: 10, maxWidth: 260 }}
-      />
+    <div style={{ position: "relative", zIndex: open ? 50 : 1 }}>
+      <div style={fieldLabel}>{props.label}</div>
+
+      <button type="button" onClick={() => setOpen((v) => !v)} style={selectTrigger}>
+        <span style={selectTriggerText}>{selected}</span>
+        <span style={selectChevron}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {props.helperText ? <div style={helperText}>{props.helperText}</div> : null}
+
+      {open ? (
+        <div style={selectMenu}>
+          <div style={{ maxHeight: 220, overflowY: "auto" }}>
+            {props.options.map((option, index) => {
+              const active = option.value === props.value;
+
+              return (
+                <button
+                  type="button"
+                  key={`${String(option.value)}-${index}`}
+                  onClick={() => {
+                    props.onChange(option.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    ...selectOption,
+                    ...(index === 0 ? { borderTopWidth: 0 } : {}),
+                    ...(active ? selectOptionActive : {}),
+                  }}
+                >
+                  <span style={{ ...selectOptionText, ...(active ? selectOptionTextActive : {}) }}>
+                    {option.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function FieldTime(props: {
-  label: string;
-  valueMin: number;
-  onChangeMin: (min: number) => void;
-  inputStyle: React.CSSProperties;
-}) {
-  function localMinToHHMM(min: number) {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  }
+const pageTitle: React.CSSProperties = {
+  fontSize: 32,
+  lineHeight: "36px",
+  fontWeight: 900,
+  color: "#111",
+};
 
-  function localHhmmToMin(v: string) {
-    const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(v).trim());
-    if (!m) return null;
-    return Number(m[1]) * 60 + Number(m[2]);
-  }
+const pageSub: React.CSSProperties = {
+  marginTop: 8,
+  color: "#666",
+  fontSize: 15,
+  lineHeight: "22px",
+};
 
-  return (
-    <div
-      style={{
-        border: "1px solid #eee",
-        borderRadius: 16,
-        padding: 14,
-        background: "#fcfcfc",
-      }}
-    >
-      <div style={{ fontWeight: 900 }}>{props.label}</div>
-      <input
-        value={localMinToHHMM(props.valueMin)}
-        onChange={(e) => {
-          const v = localHhmmToMin(e.target.value);
-          if (v != null) props.onChangeMin(v);
-        }}
-        style={{ ...props.inputStyle, marginTop: 10, maxWidth: 260 }}
-      />
-    </div>
-  );
+const tabBtn: React.CSSProperties = {
+  minHeight: 44,
+  borderRadius: 14,
+  border: "none",
+  background: "transparent",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+};
+
+const tabBtnActive: React.CSSProperties = {
+  backgroundColor: "#111",
+};
+
+const tabBtnText: React.CSSProperties = {
+  color: "#111",
+  fontWeight: 900,
+  fontSize: 14,
+};
+
+const tabBtnTextActive: React.CSSProperties = {
+  color: "#fff",
+};
+
+const card: React.CSSProperties = {
+  border: "1px solid #e8e8eb",
+  borderRadius: 24,
+  background: "#fff",
+  padding: 18,
+};
+
+const sectionTitle: React.CSSProperties = {
+  fontSize: 24,
+  lineHeight: "28px",
+  fontWeight: 900,
+  color: "#111",
+};
+
+const sectionSub: React.CSSProperties = {
+  marginTop: 6,
+  color: "#666",
+  fontSize: 15,
+  lineHeight: "20px",
+};
+
+const avatarWrap: React.CSSProperties = {
+  width: 92,
+  height: 92,
+  borderRadius: 999,
+  overflow: "hidden",
+  background: "#f1f1f3",
+  border: "1px solid #e3e3e6",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const avatarImg: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+};
+
+const avatarFallback: React.CSSProperties = {
+  fontSize: 32,
+  fontWeight: 900,
+  color: "#555",
+};
+
+const fieldGap: React.CSSProperties = {
+  marginTop: 16,
+  display: "grid",
+  gap: 14,
+};
+
+const fieldLabel: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: "#555",
+  marginBottom: 8,
+};
+
+const helperText: React.CSSProperties = {
+  marginTop: 8,
+  color: "#777",
+  fontSize: 13,
+  lineHeight: "18px",
+};
+
+const input: React.CSSProperties = {
+  width: "100%",
+  minHeight: 52,
+  borderRadius: 14,
+  border: "1px solid #dedede",
+  background: "#fff",
+  padding: "0 16px",
+  fontSize: 16,
+  color: "#111",
+  boxSizing: "border-box",
+};
+
+const textarea: React.CSSProperties = {
+  width: "100%",
+  minHeight: 120,
+  borderRadius: 14,
+  border: "1px solid #dedede",
+  background: "#fff",
+  padding: "14px 16px",
+  fontSize: 16,
+  color: "#111",
+  boxSizing: "border-box",
+  resize: "vertical",
+  fontFamily: "inherit",
+};
+
+const disabledInput: React.CSSProperties = {
+  background: "#f4f4f6",
+  color: "#777",
+};
+
+const primaryBtn: React.CSSProperties = {
+  minHeight: 52,
+  borderRadius: 14,
+  border: "1px solid #111",
+  background: "#111",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 14px",
+  width: "100%",
+  cursor: "pointer",
+};
+
+const primaryBtnText: React.CSSProperties = {
+  color: "#fff",
+  fontWeight: 900,
+  fontSize: 15,
+};
+
+const secondaryBtn: React.CSSProperties = {
+  minHeight: 50,
+  borderRadius: 14,
+  border: "1px solid #d8d8d8",
+  background: "#fff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 14px",
+  width: "100%",
+  cursor: "pointer",
+};
+
+const secondaryBtnText: React.CSSProperties = {
+  color: "#111",
+  fontWeight: 800,
+  fontSize: 15,
+};
+
+const dangerBtn: React.CSSProperties = {
+  minHeight: 50,
+  borderRadius: 14,
+  border: "1px solid #e6c7c7",
+  background: "#fff5f5",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 14px",
+  width: "100%",
+  cursor: "pointer",
+};
+
+const dangerBtnText: React.CSSProperties = {
+  color: "#9b1c1c",
+  fontWeight: 900,
+  fontSize: 15,
+};
+
+const primaryBtnSmall: React.CSSProperties = {
+  minHeight: 44,
+  borderRadius: 12,
+  border: "1px solid #111",
+  background: "#111",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 12px",
+  width: "100%",
+  cursor: "pointer",
+};
+
+const primaryBtnSmallText: React.CSSProperties = {
+  color: "#fff",
+  fontWeight: 900,
+  fontSize: 13,
+};
+
+const secondaryBtnSmall: React.CSSProperties = {
+  minHeight: 44,
+  borderRadius: 12,
+  border: "1px solid #d8d8d8",
+  background: "#fff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 12px",
+  width: "100%",
+  cursor: "pointer",
+};
+
+const secondaryBtnSmallText: React.CSSProperties = {
+  color: "#111",
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const dangerBtnSmall: React.CSSProperties = {
+  minHeight: 44,
+  borderRadius: 12,
+  border: "1px solid #e6c7c7",
+  background: "#fff5f5",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 12px",
+  width: "100%",
+  cursor: "pointer",
+};
+
+const dangerBtnSmallText: React.CSSProperties = {
+  color: "#9b1c1c",
+  fontWeight: 900,
+  fontSize: 13,
+};
+
+const disabledBtn: React.CSSProperties = {
+  opacity: 0.7,
+  cursor: "not-allowed",
+};
+
+const serviceCard: React.CSSProperties = {
+  border: "1px solid #ececef",
+  borderRadius: 16,
+  background: "#fbfbfc",
+  padding: 14,
+};
+
+const dayTitle: React.CSSProperties = {
+  fontSize: 17,
+  lineHeight: "22px",
+  color: "#111",
+  fontWeight: 900,
+};
+
+const linkCard: React.CSSProperties = {
+  border: "1px solid #ececef",
+  borderRadius: 16,
+  background: "#fbfbfc",
+  padding: 14,
+};
+
+const linkLabel: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: "#666",
+};
+
+const linkValue: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 14,
+  lineHeight: "20px",
+  color: "#111",
+  fontWeight: 700,
+  wordBreak: "break-word",
+};
+
+const alertOk: React.CSSProperties = {
+  marginBottom: 16,
+  padding: "14px 16px",
+  borderRadius: 16,
+  border: "1px solid #cfe7d1",
+  background: "#f4fbf4",
+};
+
+const alertOkText: React.CSSProperties = {
+  color: "#17663a",
+  fontWeight: 700,
+};
+
+const alertErr: React.CSSProperties = {
+  marginBottom: 16,
+  padding: "14px 16px",
+  borderRadius: 16,
+  border: "1px solid #f1c7c7",
+  background: "#fff5f5",
+};
+
+const alertErrText: React.CSSProperties = {
+  color: "#b42318",
+  fontWeight: 700,
+};
+
+const selectTrigger: React.CSSProperties = {
+  width: "100%",
+  minHeight: 52,
+  borderRadius: 14,
+  border: "1px solid #dedede",
+  background: "#fff",
+  padding: "0 16px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  cursor: "pointer",
+};
+
+const selectTriggerText: React.CSSProperties = {
+  fontSize: 16,
+  color: "#111",
+  fontWeight: 700,
+};
+
+const selectChevron: React.CSSProperties = {
+  fontSize: 14,
+  color: "#666",
+  fontWeight: 800,
+};
+
+const selectMenu: React.CSSProperties = {
+  marginTop: 8,
+  border: "1px solid #e6e6e8",
+  borderRadius: 14,
+  background: "#fff",
+  overflow: "hidden",
+  position: "absolute",
+  left: 0,
+  right: 0,
+  top: "100%",
+  zIndex: 100,
+};
+
+const selectOption: React.CSSProperties = {
+  width: "100%",
+  minHeight: 48,
+  padding: "0 16px",
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "center",
+  borderTop: "1px solid #f1f1f3",
+  background: "#fff",
+  cursor: "pointer",
+};
+
+const selectOptionActive: React.CSSProperties = {
+  background: "#111",
+};
+
+const selectOptionText: React.CSSProperties = {
+  fontSize: 15,
+  color: "#111",
+  fontWeight: 700,
+};
+
+const selectOptionTextActive: React.CSSProperties = {
+  color: "#fff",
+};
+
+function primaryBtnLikeLabel(disabled: boolean): React.CSSProperties {
+  return {
+    ...primaryBtn,
+    ...(disabled ? disabledBtn : {}),
+  };
 }
