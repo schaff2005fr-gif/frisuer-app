@@ -989,21 +989,45 @@ app.post("/auth/register-barber", async (req, res) => {
     const name = String(req.body?.name ?? "").trim();
     const phone = req.body?.phone != null ? String(req.body.phone).trim() : null;
 
-    if (!email || !password || !name) return res.status(400).json({ error: "email, password, name are required" });
-    if (password.length < 8) return res.status(400).json({ error: "password must be at least 8 characters" });
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "email, password, name are required" });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: "password must be at least 8 characters" });
+    }
 
     const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) return res.status(409).json({ error: "email already exists" });
+    if (existing) {
+      return res.status(409).json({ error: "email already exists" });
+    }
 
     const passwordHash = await bcrypt.hash(password, 10);
     const slug = await uniqueSlug(name);
 
-    const barber = await prisma.barber.create({
-      data: { name, slug, phone: phone || null, isActive: true },
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        role: "BARBER",
+      },
     });
 
-    const user = await prisma.user.create({
-      data: { email, passwordHash, role: "BARBER", barberId: barber.id },
+    const revenueCatAppUserId = `barber-${user.id}`;
+
+    const barber = await prisma.barber.create({
+      data: {
+        name,
+        slug,
+        phone: phone || null,
+        isActive: true,
+        revenueCatAppUserId,
+      },
+    });
+
+    const linkedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { barberId: barber.id },
       include: { barber: true },
     });
 
@@ -1016,33 +1040,33 @@ app.post("/auth/register-barber", async (req, res) => {
       skipDuplicates: true,
     });
 
-    const token = signToken({ userId: user.id, role: "BARBER" });
+    const token = signToken({ userId: linkedUser.id, role: "BARBER" });
 
-    res.status(201).json({
-      token,
-      user: {
-  id: user.id,
-  email: user.email,
-  role: user.role,
-  barberId: barber.id,
-  barber: user.barber
-    ? {
-        id: user.barber.id,
-        name: user.barber.name,
-        slug: user.barber.slug,
-        phone: user.barber.phone,
-        subscriptionStatus: user.barber.subscriptionStatus,
-        subscriptionPlan: user.barber.subscriptionPlan,
-        subscriptionSource: user.barber.subscriptionSource,
-        subscriptionExpiresAt: user.barber.subscriptionExpiresAt,
-        trialEndsAt: user.barber.trialEndsAt,
-        revenueCatAppUserId: user.barber.revenueCatAppUserId,
-        subscriptionUpdatedAt: user.barber.subscriptionUpdatedAt,
-      }
-    : null,
-},
-      publicLink: `/b/${barber.slug}`,
-    });
+res.status(201).json({
+  token,
+  user: {
+    id: linkedUser.id,
+    email: linkedUser.email,
+    role: linkedUser.role,
+    barberId: barber.id,
+    barber: linkedUser.barber
+      ? {
+          id: linkedUser.barber.id,
+          name: linkedUser.barber.name,
+          slug: linkedUser.barber.slug,
+          phone: linkedUser.barber.phone,
+          subscriptionStatus: linkedUser.barber.subscriptionStatus,
+          subscriptionPlan: linkedUser.barber.subscriptionPlan,
+          subscriptionSource: linkedUser.barber.subscriptionSource,
+          subscriptionExpiresAt: linkedUser.barber.subscriptionExpiresAt,
+          trialEndsAt: linkedUser.barber.trialEndsAt,
+          revenueCatAppUserId: linkedUser.barber.revenueCatAppUserId,
+          subscriptionUpdatedAt: linkedUser.barber.subscriptionUpdatedAt,
+        }
+      : null,
+  },
+  publicLink: `/b/${barber.slug}`,
+});
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
   }
@@ -1997,28 +2021,13 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
     const revenueCatAppUserId = barber.revenueCatAppUserId || `barber-${userId}`;
     const subscriber = await fetchRevenueCatSubscriber(revenueCatAppUserId);
 
-    console.log("RC SYNC DEBUG START");
-console.log("revenueCatAppUserId:", revenueCatAppUserId);
-console.log("subscriber:", JSON.stringify(subscriber, null, 2));
-console.log("subscriber.entitlements:", JSON.stringify(subscriber?.entitlements ?? null, null, 2));
-console.log("subscriber.subscriptions:", JSON.stringify(subscriber?.subscriptions ?? null, null, 2));
-console.log("RC SYNC DEBUG END");
-
     const entitlement = subscriber?.entitlements?.pro ?? null;
-const managementUrl = subscriber?.management_url ?? null;
-const expiresAt = entitlement?.expires_date ? new Date(entitlement.expires_date) : null;
+    const managementUrl = subscriber?.management_url ?? null;
+    const expiresAt = entitlement?.expires_date ? new Date(entitlement.expires_date) : null;
 
-const isActive =
-  !!entitlement &&
-  (!expiresAt || expiresAt.getTime() > Date.now());
-
-console.log("RC SYNC DEBUG:", {
-  revenueCatAppUserId,
-  entitlements: subscriber?.entitlements ?? null,
-  subscriptions: subscriber?.subscriptions ?? null,
-  managementUrl,
-  isActive,
-});
+    const isActive =
+      !!entitlement &&
+      (!expiresAt || expiresAt.getTime() > Date.now());
 
     const updated = await prisma.barber.update({
       where: { id: barberId },
@@ -2027,7 +2036,7 @@ console.log("RC SYNC DEBUG:", {
         subscriptionStatus: isActive ? "active" : "inactive",
         subscriptionPlan: isActive ? "pro_monthly" : null,
         subscriptionSource: isActive ? "revenuecat" : null,
-        subscriptionExpiresAt: expiresAt,
+        subscriptionExpiresAt: isActive ? expiresAt : null,
         trialEndsAt: null,
         subscriptionUpdatedAt: new Date(),
       },
@@ -2051,6 +2060,7 @@ console.log("RC SYNC DEBUG:", {
       barber: updated,
       isPro: isActive,
       managementUrl,
+      revenueCatAppUserId,
     });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? "Server error" });

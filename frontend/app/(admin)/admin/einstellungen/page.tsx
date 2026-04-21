@@ -549,21 +549,41 @@ export default function AdminSettingsPage() {
   }
 
   async function openSubscriptionManagement() {
-    try {
-      setError("");
-      const data = await apiFetch("/admin/subscription/portal", { method: "GET" });
-      const url = String(data?.url || "").trim();
-
-      if (!url) {
-        setError("Die Abo-Verwaltung konnte nicht geöffnet werden.");
-        return;
-      }
-
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (e: any) {
-      setError(e?.message || "Die Abo-Verwaltung konnte nicht geöffnet werden.");
+  try {
+    setError("");
+    const token = getToken();
+    if (!token) {
+      router.push("/login");
+      return;
     }
+
+    const res = await fetch(`${API_BASE}/admin/subscription/portal`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+
+    const raw = await res.text();
+    let data: any = {};
+
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = { raw };
+    }
+
+    if (!res.ok || !data?.url) {
+      setError(data?.error || "Abo-Verwaltung konnte nicht geöffnet werden.");
+      return;
+    }
+
+    window.open(data.url, "_blank", "noopener,noreferrer");
+  } catch (e: any) {
+    setError(e?.message || "Abo-Verwaltung konnte nicht geöffnet werden.");
   }
+}
 
   async function copyToClipboard(value: string, label: string) {
     try {

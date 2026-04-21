@@ -121,23 +121,7 @@ function LoginInner() {
       return;
     }
 
-    const subRes = await fetch(`${base}/admin/subscription-status`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    });
-
-    const subData = await subRes.json().catch(() => null);
-
-    if (!subRes.ok) {
-      window.location.assign("/barber/subscription");
-      return;
-    }
-
-    const isPro = !!subData?.subscription?.isPro;
-    window.location.assign(isPro ? "/admin" : "/barber/subscription");
+    window.location.assign("/barber/subscription");
   } catch (err: any) {
     setError(err?.message || "Login fehlgeschlagen");
   } finally {

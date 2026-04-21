@@ -55,12 +55,14 @@ function buildCheckoutUrl() {
   if (!WEB_CHECKOUT_URL) return "";
 
   const user = getUser();
-  if (!user?.id) return "";
+  const appUserId =
+    user?.barber?.revenueCatAppUserId ||
+    (user?.id ? `barber-${user.id}` : "");
 
-  const url = new URL(WEB_CHECKOUT_URL);
-  url.searchParams.set("app_user_id", `barber-${user.id}`);
+  if (!appUserId) return "";
 
-  return url.toString();
+  const cleanBase = WEB_CHECKOUT_URL.replace(/\/+$/, "");
+  return `${cleanBase}/${encodeURIComponent(appUserId)}`;
 }
 function SubscriptionInner() {
   const router = useRouter();
@@ -109,32 +111,8 @@ function SubscriptionInner() {
     setChecking(true);
     setError("");
 
-    await syncSubscriptionToBackend();
-
-    const token = getToken();
-
-    const res = await fetch(`${API_BASE}/admin/subscription-status`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    });
-
-    const raw = await res.text();
-    let data: any = {};
-
-    try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      data = { raw };
-    }
-
-    if (!res.ok) {
-      setError(data?.error || "Abo-Status konnte nicht geladen werden.");
-      return;
-    }
-
-    const isPro = !!data?.subscription?.isPro;
+    const syncData = await syncSubscriptionToBackend();
+    const isPro = !!syncData?.isPro;
 
     if (isPro) {
       if (showSuccessMessage) {
@@ -166,6 +144,10 @@ function SubscriptionInner() {
 
   const checkoutUrl = buildCheckoutUrl();
 
+  console.log("WEB_CHECKOUT_URL RAW:", WEB_CHECKOUT_URL);
+  console.log("LOCAL USER:", getUser());
+  console.log("FINAL CHECKOUT URL:", checkoutUrl);
+
   if (!checkoutUrl) {
     setError("Checkout-Link konnte nicht erstellt werden.");
     return;
@@ -189,6 +171,7 @@ async function syncSubscriptionToBackend() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({}),
+    cache: "no-store",
   });
 
   const raw = await res.text();
@@ -202,6 +185,18 @@ async function syncSubscriptionToBackend() {
 
   if (!res.ok) {
     throw new Error(data?.error || "Abo konnte nicht synchronisiert werden.");
+  }
+
+  const localUser = getUser();
+  if (localUser?.barber && data?.barber) {
+    const nextUser = {
+      ...localUser,
+      barber: {
+        ...localUser.barber,
+        ...data.barber,
+      },
+    };
+    localStorage.setItem("user", JSON.stringify(nextUser));
   }
 
   return data;
