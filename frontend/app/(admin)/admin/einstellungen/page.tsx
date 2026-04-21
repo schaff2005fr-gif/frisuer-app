@@ -563,16 +563,13 @@ export default function AdminSettingsPage() {
   }
 
   function openSubscriptionManagement() {
-    const targetUrl = subscriptionManagementUrl || "/barber/subscription";
-
-    if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
-      window.open(targetUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    router.push(targetUrl);
+  if (subscriptionManagementUrl) {
+    window.open(subscriptionManagementUrl, "_blank", "noopener,noreferrer");
+    return;
   }
 
+  router.push("/barber/subscription");
+}
   async function copyToClipboard(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
