@@ -175,7 +175,6 @@ export default function AdminSettingsPage() {
 
   const [tab, setTab] = useState<TabKey>("PROFILE");
   const [hasActivePro, setHasActivePro] = useState(false);
-  const [subscriptionManagementUrl, setSubscriptionManagementUrl] = useState("");
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   const [loading, setLoading] = useState(true);
@@ -248,13 +247,6 @@ export default function AdminSettingsPage() {
     return data;
   }
 
-  async function syncSubscriptionToBackend() {
-    await apiFetch("/admin/subscription/sync", {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-  }
-
   async function loadAll() {
     try {
       setLoading(true);
@@ -267,17 +259,18 @@ export default function AdminSettingsPage() {
         apiFetch("/admin/settings", { method: "GET" }),
       ]);
 
-      setProfile((profileRes.data?.barber ?? profileRes.barber ?? null) as BarberProfile | null);
+      setProfile((profileRes.barber ?? profileRes.data?.barber ?? null) as BarberProfile | null);
+
       setServices(
-        Array.isArray(servicesRes.data?.services)
-          ? servicesRes.data.services
-          : Array.isArray(servicesRes.services)
+        Array.isArray(servicesRes.services)
           ? servicesRes.services
+          : Array.isArray(servicesRes.data?.services)
+          ? servicesRes.data.services
           : []
       );
 
       const rawSettings =
-        (settingsRes.data?.settings ?? settingsRes.settings ?? null) as AppSettings | null;
+        (settingsRes.settings ?? settingsRes.data?.settings ?? null) as AppSettings | null;
 
       if (rawSettings) {
         setSettings({
@@ -308,24 +301,17 @@ export default function AdminSettingsPage() {
     try {
       setCheckingSubscription(true);
 
-      await syncSubscriptionToBackend();
+      await apiFetch("/admin/subscription/sync", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
 
       const data = await apiFetch("/admin/subscription-status", { method: "GET" });
       const subscription = data?.subscription ?? {};
-
       setHasActivePro(!!subscription?.isPro);
-      setSubscriptionManagementUrl(
-        String(
-          subscription?.managementUrl ||
-            subscription?.managementURL ||
-            subscription?.customerPortalUrl ||
-            ""
-        )
-      );
     } catch (e) {
       console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
       setHasActivePro(false);
-      setSubscriptionManagementUrl("");
     } finally {
       setCheckingSubscription(false);
     }
@@ -562,14 +548,23 @@ export default function AdminSettingsPage() {
     router.replace("/login");
   }
 
-  function openSubscriptionManagement() {
-  if (subscriptionManagementUrl) {
-    window.open(subscriptionManagementUrl, "_blank", "noopener,noreferrer");
-    return;
+  async function openSubscriptionManagement() {
+    try {
+      setError("");
+      const data = await apiFetch("/admin/subscription/portal", { method: "GET" });
+      const url = String(data?.url || "").trim();
+
+      if (!url) {
+        setError("Die Abo-Verwaltung konnte nicht geöffnet werden.");
+        return;
+      }
+
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      setError(e?.message || "Die Abo-Verwaltung konnte nicht geöffnet werden.");
+    }
   }
 
-  router.push("/barber/subscription");
-}
   async function copyToClipboard(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -582,10 +577,10 @@ export default function AdminSettingsPage() {
     }
   }
 
-  async function shareLink(value: string) {
+  async function shareLink(value: string, title: string) {
     try {
       if (navigator.share) {
-        await navigator.share({ url: value });
+        await navigator.share({ url: value, title });
       } else {
         await navigator.clipboard.writeText(value);
         setMessage("Link kopiert.");
@@ -607,12 +602,12 @@ export default function AdminSettingsPage() {
       setMessage("");
 
       if (hasActivePro) {
-        const goManage = window.confirm(
-          "Dein Salora Pro Abo ist noch aktiv. Kündige dein Abo zuerst über die Abo-Verwaltung. Klicke auf OK, um die Abo-Verwaltung zu öffnen."
+        const proceed = window.confirm(
+          "Dein Salora Pro Abo ist noch aktiv. Es wird nicht automatisch beendet, wenn du deinen Account löschst. Kündige dein Abo zuerst über die Abo-Verwaltung. Klicke auf OK, um die Abo-Verwaltung zu öffnen."
         );
 
-        if (goManage) {
-          openSubscriptionManagement();
+        if (proceed) {
+          await openSubscriptionManagement();
         }
         return;
       }
@@ -639,13 +634,17 @@ export default function AdminSettingsPage() {
 
   const profileUrl = useMemo(() => {
     if (!profile?.slug) return "";
-    const base = trimTrailingSlash(cleanUrl(PUBLIC_APP_URL || window.location.origin));
+    const base = trimTrailingSlash(
+      cleanUrl(PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : ""))
+    );
     return `${base}/b/${profile.slug}`;
   }, [profile?.slug]);
 
   const bookingUrl = useMemo(() => {
     if (!profile?.slug) return "";
-    const base = trimTrailingSlash(cleanUrl(PUBLIC_APP_URL || window.location.origin));
+    const base = trimTrailingSlash(
+      cleanUrl(PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : ""))
+    );
     return `${base}/b/${profile.slug}/book`;
   }, [profile?.slug]);
 
@@ -698,16 +697,9 @@ export default function AdminSettingsPage() {
           margin-bottom: 16px;
         }
 
-        .profileGrid {
-          display: grid;
-          grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-          gap: 16px;
-          align-items: start;
-        }
-
-        .hoursRowGrid,
         .twoColGrid,
-        .threeColGrid {
+        .threeColGrid,
+        .accountButtons {
           display: grid;
           gap: 12px;
         }
@@ -721,13 +713,10 @@ export default function AdminSettingsPage() {
         }
 
         .accountButtons {
-          display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px;
         }
 
         @media (max-width: 900px) {
-          .profileGrid,
           .threeColGrid,
           .accountButtons {
             grid-template-columns: 1fr;
@@ -881,9 +870,7 @@ export default function AdminSettingsPage() {
                 <Field label="PLZ">
                   <input
                     value={profile.postalCode ?? ""}
-                    onChange={(e) =>
-                      setProfile({ ...profile, postalCode: e.target.value || null })
-                    }
+                    onChange={(e) => setProfile({ ...profile, postalCode: e.target.value || null })}
                     placeholder="45127"
                     style={input}
                   />
@@ -962,10 +949,7 @@ export default function AdminSettingsPage() {
                         </span>
                       </button>
 
-                      <button
-                        onClick={() => shareLink(profileUrl)}
-                        style={primaryBtnSmall}
-                      >
+                      <button onClick={() => shareLink(profileUrl, "Profil-Link")} style={primaryBtnSmall}>
                         <span style={primaryBtnSmallText}>Teilen</span>
                       </button>
                     </div>
@@ -987,7 +971,7 @@ export default function AdminSettingsPage() {
                         </span>
                       </button>
 
-                      <button onClick={() => shareLink(bookingUrl)} style={primaryBtnSmall}>
+                      <button onClick={() => shareLink(bookingUrl, "Buchungs-Link")} style={primaryBtnSmall}>
                         <span style={primaryBtnSmallText}>Teilen</span>
                       </button>
                     </div>
@@ -1001,7 +985,9 @@ export default function AdminSettingsPage() {
             <div style={sectionTitle}>Konto</div>
             <div style={sectionSub}>Sichere Aktionen für deinen Account.</div>
             <div style={{ ...sectionSub, marginTop: 10 }}>
-              Web-Abonnements müssen vor dem Löschen des Accounts zuerst gekündigt werden.
+              Abonnements werden separat verwaltet. Wenn dein Abo aktiv ist, öffnet „Abo verwalten“
+              direkt die echte Verwaltungsseite. Vor dem Löschen des Accounts solltest du ein aktives
+              Abo zuerst kündigen.
             </div>
 
             <div className="accountButtons" style={{ marginTop: 16 }}>
@@ -1101,28 +1087,20 @@ export default function AdminSettingsPage() {
                               label: `${dur} min`,
                               value: dur,
                             }))}
-                            onChange={(dur) =>
-                              updateService(service.id, { durationMin: dur })
-                            }
+                            onChange={(dur) => updateService(service.id, { durationMin: dur })}
                           />
                         </div>
 
                         <div className="twoColGrid" style={{ marginTop: 12 }}>
                           <button
-                            onClick={() =>
-                              updateService(service.id, { isActive: !service.isActive })
-                            }
+                            onClick={() => updateService(service.id, { isActive: !service.isActive })}
                             disabled={isBusy}
                             style={{
                               ...(service.isActive ? primaryBtnSmall : secondaryBtnSmall),
                               ...(isBusy ? disabledBtn : {}),
                             }}
                           >
-                            <span
-                              style={
-                                service.isActive ? primaryBtnSmallText : secondaryBtnSmallText
-                              }
-                            >
+                            <span style={service.isActive ? primaryBtnSmallText : secondaryBtnSmallText}>
                               {service.isActive ? "Aktiv" : "Inaktiv"}
                             </span>
                           </button>
@@ -1217,12 +1195,10 @@ export default function AdminSettingsPage() {
                       <SelectField
                         label="Ende"
                         value={row.endMin}
-                        options={WORK_TIME_OPTIONS.filter((value) => value > row.startMin).map(
-                          (value) => ({
-                            label: minToHHMM(value),
-                            value,
-                          })
-                        )}
+                        options={WORK_TIME_OPTIONS.filter((value) => value > row.startMin).map((value) => ({
+                          label: minToHHMM(value),
+                          value,
+                        }))}
                         onChange={(value) => {
                           setSettings({
                             ...settings,
@@ -1299,12 +1275,12 @@ export default function AdminSettingsPage() {
               label="Zuerst sichtbares Ende"
               helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
               value={settings.displayEndMin}
-              options={DISPLAY_TIME_OPTIONS.filter(
-                (value) => value > settings.displayStartMin
-              ).map((value) => ({
-                label: minToHHMM(value),
-                value,
-              }))}
+              options={DISPLAY_TIME_OPTIONS.filter((value) => value > settings.displayStartMin).map(
+                (value) => ({
+                  label: minToHHMM(value),
+                  value,
+                })
+              )}
               onChange={(value) =>
                 setSettings({
                   ...settings,
@@ -1324,15 +1300,11 @@ export default function AdminSettingsPage() {
                     extendIfFirstHourFull: !settings.extendIfFirstHourFull,
                   })
                 }
-                style={
-                  settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall
-                }
+                style={settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall}
               >
                 <span
                   style={
-                    settings.extendIfFirstHourFull
-                      ? primaryBtnSmallText
-                      : secondaryBtnSmallText
+                    settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText
                   }
                 >
                   {settings.extendIfFirstHourFull ? "AN" : "AUS"}
@@ -1359,9 +1331,7 @@ export default function AdminSettingsPage() {
                 label: `${value} Tag${value === 1 ? "" : "e"}`,
                 value,
               }))}
-              onChange={(value) =>
-                setSettings({ ...settings, minDaysBetweenBookings: value })
-              }
+              onChange={(value) => setSettings({ ...settings, minDaysBetweenBookings: value })}
             />
           </div>
 
