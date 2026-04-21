@@ -33,7 +33,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET missing (set it in Render env vars)");
 }
-
+const REVENUECAT_SECRET_API_KEY = process.env.sk_PuRktmEmPBBragcuGnEQhwtnCnbrJ;
 type Role = "CUSTOMER" | "BARBER";
 type JwtPayload = { userId: number; role: Role };
 
@@ -136,6 +136,37 @@ function stripInternalFields(msg: string) {
     .trim();
 }
 
+async function fetchRevenueCatSubscriber(appUserId: string) {
+  if (!REVENUECAT_SECRET_API_KEY) {
+    throw new Error("REVENUECAT_SECRET_API_KEY missing");
+  }
+
+  const res = await fetch(
+    `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${REVENUECAT_SECRET_API_KEY}`,
+        Accept: "application/json",
+      },
+    }
+  );
+
+  const raw = await res.text();
+  let data: any = {};
+
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = { raw };
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.message || data?.error || "RevenueCat request failed");
+  }
+
+  return data?.subscriber ?? null;
+}
 
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = getBearerToken(req);
@@ -1955,11 +1986,6 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
       where: { id: barberId },
       select: {
         id: true,
-        subscriptionStatus: true,
-        subscriptionPlan: true,
-        subscriptionSource: true,
-        subscriptionExpiresAt: true,
-        trialEndsAt: true,
         revenueCatAppUserId: true,
       },
     });
@@ -1969,21 +1995,24 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
     }
 
     const revenueCatAppUserId = barber.revenueCatAppUserId || `barber-${userId}`;
+    const subscriber = await fetchRevenueCatSubscriber(revenueCatAppUserId);
 
-    const now = new Date();
-    const nextMonth = new Date(now);
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const entitlement = subscriber?.entitlements?.pro ?? null;
+    const managementUrl = subscriber?.management_url ?? null;
+
+    const isActive = !!entitlement;
+    const expiresAt = entitlement?.expires_date ? new Date(entitlement.expires_date) : null;
 
     const updated = await prisma.barber.update({
       where: { id: barberId },
       data: {
         revenueCatAppUserId,
-        subscriptionStatus: "active",
-        subscriptionPlan: "pro_monthly",
-        subscriptionSource: "revenuecat",
-        subscriptionExpiresAt: nextMonth,
+        subscriptionStatus: isActive ? "active" : "inactive",
+        subscriptionPlan: isActive ? "pro_monthly" : null,
+        subscriptionSource: isActive ? "revenuecat" : null,
+        subscriptionExpiresAt: expiresAt,
         trialEndsAt: null,
-        subscriptionUpdatedAt: now,
+        subscriptionUpdatedAt: new Date(),
       },
       select: {
         id: true,
@@ -2003,13 +2032,47 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
     return res.json({
       ok: true,
       barber: updated,
-      isPro: hasActiveSubscription(updated),
+      isPro: isActive,
+      managementUrl,
     });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? "Server error" });
   }
 });
+app.get("/admin/subscription/portal", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
 
+    const barber = await prisma.barber.findUnique({
+      where: { id: barberId },
+      select: {
+        id: true,
+        revenueCatAppUserId: true,
+      },
+    });
+
+    if (!barber) {
+      return res.status(404).json({ error: "Barber not found" });
+    }
+
+    const revenueCatAppUserId = barber.revenueCatAppUserId || `barber-${userId}`;
+    const subscriber = await fetchRevenueCatSubscriber(revenueCatAppUserId);
+
+    const managementUrl = subscriber?.management_url ?? null;
+
+    if (!managementUrl) {
+      return res.status(404).json({ error: "No subscription management URL found" });
+    }
+
+    return res.json({
+      ok: true,
+      url: managementUrl,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
 app.put("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
