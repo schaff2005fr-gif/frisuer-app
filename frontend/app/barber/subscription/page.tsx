@@ -51,6 +51,16 @@ function SubscriptionFallback() {
   );
 }
 
+function buildCheckoutUrl() {
+  if (!WEB_CHECKOUT_URL) return "";
+
+  const user = getUser();
+  const barberAppUserId = user?.id ? `barber-${user.id}` : "barber-test";
+
+  const base = WEB_CHECKOUT_URL.split("?")[0];
+  return `${base}?app_user_id=${encodeURIComponent(barberAppUserId)}`;
+}
+
 function SubscriptionInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -144,18 +154,18 @@ function SubscriptionInner() {
   }
 
   function handleSubscribe() {
-    setError("");
+  setError("");
 
-    if (!WEB_CHECKOUT_URL) {
-      setError(
-        "Es ist noch keine Web-Checkout-URL hinterlegt. Setze NEXT_PUBLIC_WEB_CHECKOUT_URL."
-      );
-      return;
-    }
-
-    setBuying(true);
-    window.location.href = WEB_CHECKOUT_URL;
+  if (!WEB_CHECKOUT_URL) {
+    setError("Es ist noch keine Web-Checkout-URL hinterlegt.");
+    return;
   }
+
+  const checkoutUrl = buildCheckoutUrl();
+
+  setBuying(true);
+  window.location.href = checkoutUrl;
+}
 
   function handleBackToLogin() {
     localStorage.removeItem("token");

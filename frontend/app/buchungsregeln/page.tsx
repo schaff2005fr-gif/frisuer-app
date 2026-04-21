@@ -147,8 +147,8 @@ export default function BuchungsregelnPage() {
           11. Sperrung von Konten
         </h2>
         <p>
-          Bei Verstößen gegen diese Regeln oder bei missbräuchlicher Nutzung kann ein Konto vorübergehend
-          oder dauerhaft eingeschränkt bzw. gesperrt werden.
+          Bei Verstößen gegen diese Regeln oder bei missbräuchlicher Nutzung kann ein Konto
+          vorübergehend oder dauerhaft eingeschränkt bzw. gesperrt werden.
         </p>
       </section>
 
@@ -177,13 +177,82 @@ export default function BuchungsregelnPage() {
         </p>
       </section>
 
-      <section>
+      <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
           14. Änderungen dieser Regeln
         </h2>
         <p>
           Diese Buchungs- und Nutzungsregeln können angepasst werden, wenn dies aufgrund technischer,
           organisatorischer oder rechtlicher Änderungen erforderlich ist.
+        </p>
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
+          15. Salora Pro Abo für Friseure
+        </h2>
+        <p>
+          Für die Nutzung bestimmter Funktionen im Barber-Bereich kann ein kostenpflichtiges
+          Abonnement (&quot;Salora Pro&quot;) erforderlich sein.
+        </p>
+        <p>
+          Salora Pro wird derzeit als monatliches Abonnement zu einem Preis von 39,99 € pro Monat
+          angeboten, sofern im jeweiligen Checkout oder in der App kein anderer Preis angezeigt
+          wird.
+        </p>
+        <p>
+          Die im Rahmen von Salora Pro freigeschalteten Funktionen ergeben sich aus der jeweils
+          aktuellen Beschreibung in der App, auf der Website oder im Checkout.
+        </p>
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
+          16. Laufzeit, Verlängerung und Kündigung
+        </h2>
+        <p>
+          Das Salora Pro Abo wird monatlich abgerechnet und verlängert sich automatisch um jeweils
+          einen weiteren Monat, sofern es nicht vor dem nächsten Abrechnungszeitraum gekündigt
+          wird.
+        </p>
+        <p>
+          Eine Kündigung wirkt jeweils zum Ende des laufenden Abrechnungszeitraums. Bereits
+          gezahlte Entgelte werden, vorbehaltlich zwingender gesetzlicher Vorschriften, nicht
+          anteilig erstattet.
+        </p>
+        <p>
+          Die Verwaltung und Kündigung erfolgt über den jeweils verwendeten Zahlungsweg bzw. den
+          dort bereitgestellten Kundenbereich oder die zugehörigen Kontoeinstellungen.
+        </p>
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
+          17. Zahlungsabwicklung
+        </h2>
+        <p>
+          Die Zahlungsabwicklung für kostenpflichtige Web-Abonnements erfolgt über den im Checkout
+          angegebenen Zahlungsdienstleister.
+        </p>
+        <p>
+          Bei Käufen innerhalb von mobilen Apps kann die Abrechnung zusätzlich über den jeweiligen
+          App-Store-Anbieter erfolgen. In diesen Fällen können ergänzend die Bedingungen des
+          jeweiligen Zahlungs- oder Plattformanbieters gelten.
+        </p>
+      </section>
+
+      <section>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>
+          18. Digitale Leistung und Widerruf
+        </h2>
+        <p>
+          Bei Salora Pro handelt es sich um eine digitale Leistung, die unmittelbar nach
+          Vertragsschluss bzw. nach erfolgreicher Zahlung freigeschaltet werden kann.
+        </p>
+        <p>
+          Sofern gesetzlich erforderlich, wird der Nutzer vor Abschluss des Abonnements gesondert
+          darauf hingewiesen, dass mit Beginn der Ausführung der digitalen Leistung das gesetzliche
+          Widerrufsrecht ganz oder teilweise erlöschen kann.
         </p>
       </section>
     </main>
