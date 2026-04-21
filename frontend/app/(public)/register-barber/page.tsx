@@ -132,7 +132,7 @@ function RegisterBarberInner() {
       }
 
       const target = nextPath || "/barber/subscription";
-      window.location.assign(target);
+window.location.assign(target);
     } catch (err: any) {
       setError(err?.message || "Registrierung fehlgeschlagen");
     } finally {

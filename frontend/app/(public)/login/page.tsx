@@ -56,97 +56,94 @@ function LoginInner() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const userRaw = localStorage.getItem("user");
+  const token = localStorage.getItem("token");
+  const userRaw = localStorage.getItem("user");
 
-    if (!token || !userRaw) return;
+  if (!token || !userRaw) return;
 
-    try {
-      const user = JSON.parse(userRaw);
+  try {
+    const user = JSON.parse(userRaw);
 
-      if (user?.role === "CUSTOMER") {
-        router.replace("/");
-      } else if (user?.role === "BARBER") {
-        router.replace("/admin");
-      }
-    } catch {}
-  }, [router]);
+    if (user?.role === "CUSTOMER") {
+      router.replace("/");
+    } else if (user?.role === "BARBER") {
+      router.replace("/barber/subscription");
+    }
+  } catch {}
+}, [router]);
+  
 
-  async function checkBarberSubscription(token: string) {
+ async function onSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  if (submitting) return;
+
+  setError("");
+  setSubmitting(true);
+
+  try {
     const base = normalizeBase(API_BASE);
 
-    const res = await fetch(`${base}/admin/subscription-status`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    const res = await fetch(`${base}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+      }),
       cache: "no-store",
     });
 
     const data = await res.json().catch(() => null);
 
     if (!res.ok) {
-      throw new Error(data?.error || "Abo-Status konnte nicht geladen werden.");
+      throw new Error(data?.error || "Login fehlgeschlagen");
     }
 
-    return !!data?.subscription?.isPro;
-  }
+    const token: string | undefined = data?.token;
+    const user: any = data?.user;
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (submitting) return;
-
-    setError("");
-    setSubmitting(true);
-
-    try {
-      const base = normalizeBase(API_BASE);
-
-      const res = await fetch(`${base}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
-        }),
-        cache: "no-store",
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || "Login fehlgeschlagen");
-      }
-
-      const token: string | undefined = data?.token;
-      const user: any = data?.user;
-
-      if (!token || !user) {
-        throw new Error("Login fehlgeschlagen.");
-      }
-
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
-
-      const role = (user.role as Role) || "CUSTOMER";
-
-      if (nextPath) {
-        window.location.assign(nextPath);
-        return;
-      }
-
-      if (role === "CUSTOMER") {
-        window.location.assign("/");
-        return;
-      }
-
-      const hasPro = await checkBarberSubscription(token);
-      window.location.assign(hasPro ? "/admin" : "/barber/subscription");
-    } catch (err: any) {
-      setError(err?.message || "Login fehlgeschlagen");
-    } finally {
-      setSubmitting(false);
+    if (!token || !user) {
+      throw new Error("Login fehlgeschlagen.");
     }
+
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
+
+    const role = (user.role as Role) || "CUSTOMER";
+
+    if (nextPath) {
+      window.location.assign(nextPath);
+      return;
+    }
+
+    if (role === "CUSTOMER") {
+      window.location.assign("/");
+      return;
+    }
+
+    const subRes = await fetch(`${base}/admin/subscription-status`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+
+    const subData = await subRes.json().catch(() => null);
+
+    if (!subRes.ok) {
+      window.location.assign("/barber/subscription");
+      return;
+    }
+
+    const isPro = !!subData?.subscription?.isPro;
+    window.location.assign(isPro ? "/admin" : "/barber/subscription");
+  } catch (err: any) {
+    setError(err?.message || "Login fehlgeschlagen");
+  } finally {
+    setSubmitting(false);
   }
+}
 
   return (
     <div

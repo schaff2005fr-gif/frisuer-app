@@ -162,15 +162,17 @@ function SubscriptionInner() {
   function handleSubscribe() {
   setError("");
 
-  console.log("WEB_CHECKOUT_URL:", WEB_CHECKOUT_URL);
-
   if (!WEB_CHECKOUT_URL) {
     setError("Es ist noch keine Web-Checkout-URL hinterlegt.");
     return;
   }
 
   const checkoutUrl = buildCheckoutUrl();
-  console.log("checkoutUrl:", checkoutUrl);
+
+  if (!checkoutUrl) {
+    setError("Checkout-Link konnte nicht erstellt werden.");
+    return;
+  }
 
   setBuying(true);
   window.location.href = checkoutUrl;
