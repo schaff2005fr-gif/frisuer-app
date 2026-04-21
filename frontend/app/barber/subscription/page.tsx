@@ -103,55 +103,57 @@ function SubscriptionInner() {
   }
 
   async function checkSubscriptionStatus(showSuccessMessage: boolean) {
+  try {
+    setLoading(true);
+    setChecking(true);
+    setError("");
+
+    await syncSubscriptionToBackend();
+
+    const token = getToken();
+
+    const res = await fetch(`${API_BASE}/admin/subscription-status`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+
+    const raw = await res.text();
+    let data: any = {};
+
     try {
-      setLoading(true);
-      setChecking(true);
-      setError("");
-
-      const token = getToken();
-
-      const res = await fetch(`${API_BASE}/admin/subscription-status`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
-
-      const raw = await res.text();
-      let data: any = {};
-
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch {
-        data = { raw };
-      }
-
-      if (!res.ok) {
-        setError(data?.error || "Abo-Status konnte nicht geladen werden.");
-        return;
-      }
-
-      const isPro = !!data?.subscription?.isPro;
-
-      if (isPro) {
-        if (showSuccessMessage) {
-          setStatusMessage("✅ Dein Pro-Abo ist jetzt aktiv.");
-        }
-        router.replace("/admin");
-        return;
-      }
-
-      if (showSuccessMessage) {
-        setStatusMessage("Es wurde noch kein aktives Pro-Abo gefunden.");
-      }
-    } catch (e) {
-      console.error(e);
-      setError("Abo-Status konnte nicht geladen werden.");
-    } finally {
-      setLoading(false);
-      setChecking(false);
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = { raw };
     }
+
+    if (!res.ok) {
+      setError(data?.error || "Abo-Status konnte nicht geladen werden.");
+      return;
+    }
+
+    const isPro = !!data?.subscription?.isPro;
+
+    if (isPro) {
+      if (showSuccessMessage) {
+        setStatusMessage("✅ Dein Pro-Abo ist jetzt aktiv.");
+      }
+      router.replace("/admin");
+      return;
+    }
+
+    if (showSuccessMessage) {
+      setStatusMessage("Es wurde noch kein aktives Pro-Abo gefunden.");
+    }
+  } catch (e: any) {
+    console.error(e);
+    setError(e?.message || "Abo-Status konnte nicht geladen werden.");
+  } finally {
+    setLoading(false);
+    setChecking(false);
   }
+}
 
   function handleSubscribe() {
   setError("");
