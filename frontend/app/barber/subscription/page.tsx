@@ -170,6 +170,38 @@ function SubscriptionInner() {
   window.location.href = checkoutUrl;
 }
 
+async function syncSubscriptionToBackend() {
+  const token = getToken();
+
+  if (!token) {
+    throw new Error("Kein Token gefunden.");
+  }
+
+  const res = await fetch(`${API_BASE}/admin/subscription/sync`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+
+  const raw = await res.text();
+  let data: any = {};
+
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = { raw };
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.error || "Abo konnte nicht synchronisiert werden.");
+  }
+
+  return data;
+}
+
   function handleBackToLogin() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
