@@ -203,6 +203,45 @@ export default function PublicBarberProfilePage() {
           alignItems: "stretch",
         }}
       >
+        <section
+  style={{
+    marginTop: 16,
+    border: "1px solid #e9e9e9",
+    borderRadius: 24,
+    background: "#fff",
+    padding: 18,
+  }}
+>
+  <div style={{ fontWeight: 900, fontSize: 18, color: "#111" }}>
+    Besser in der App
+  </div>
+
+  <div style={{ marginTop: 8, color: "#555", lineHeight: 1.6 }}>
+    Öffne dieses Profil direkt in der Salora App oder lade die App herunter.
+  </div>
+
+  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+    <a
+      href={`https://apps.apple.com/app/id6762065140`}
+      style={{
+        display: "inline-flex",
+        justifyContent: "center",
+        alignItems: "center",
+        minHeight: 46,
+        padding: "0 16px",
+        borderRadius: 14,
+        border: "1px solid #111",
+        background: "#111",
+        color: "#fff",
+        textDecoration: "none",
+        fontWeight: 900,
+        fontSize: 14,
+      }}
+    >
+      App herunterladen
+    </a>
+  </div>
+</section>
         <section style={{ ...cardStyle, padding: 22 }}>
           <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
             <div
