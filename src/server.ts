@@ -1997,6 +1997,13 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
     const revenueCatAppUserId = barber.revenueCatAppUserId || `barber-${userId}`;
     const subscriber = await fetchRevenueCatSubscriber(revenueCatAppUserId);
 
+    console.log("RC SYNC DEBUG START");
+console.log("revenueCatAppUserId:", revenueCatAppUserId);
+console.log("subscriber:", JSON.stringify(subscriber, null, 2));
+console.log("subscriber.entitlements:", JSON.stringify(subscriber?.entitlements ?? null, null, 2));
+console.log("subscriber.subscriptions:", JSON.stringify(subscriber?.subscriptions ?? null, null, 2));
+console.log("RC SYNC DEBUG END");
+
     const entitlement = subscriber?.entitlements?.pro ?? null;
 const managementUrl = subscriber?.management_url ?? null;
 const expiresAt = entitlement?.expires_date ? new Date(entitlement.expires_date) : null;

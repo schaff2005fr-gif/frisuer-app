@@ -57,12 +57,10 @@ function buildCheckoutUrl() {
   const user = getUser();
   if (!user?.id) return "";
 
-  const barberAppUserId = `barber-${user.id}`;
+  const barberAppUserId = encodeURIComponent(`barber-${user.id}`);
+  const cleanBase = WEB_CHECKOUT_URL.replace(/\/+$/, "");
 
-  const url = new URL(WEB_CHECKOUT_URL);
-  url.searchParams.set("app_user_id", barberAppUserId);
-
-  return url.toString();
+  return `${cleanBase}/${barberAppUserId}`;
 }
 
 function SubscriptionInner() {
