@@ -22,9 +22,18 @@ type ApiBooking = {
   windowEnd?: number | null;
 };
 
+type ApiBlock = {
+  id: number;
+  startMin: number;
+  endMin: number;
+  reason?: string | null;
+  source: "recurring" | "time";
+};
+
 type DayData = {
   date: string;
   bookings: ApiBooking[];
+  blocks: ApiBlock[];
 };
 
 type PositionedBooking = ApiBooking & {
@@ -34,45 +43,10 @@ type PositionedBooking = ApiBooking & {
   laneCount: number;
 };
 
-type RecurringBlock = {
-  id: number;
-  weekday: number;
-  startMin: number;
-  endMin: number;
-  reason: string | null;
-  enabled: boolean;
-};
-
-type TimeBlock = {
-  id: number;
-  date: string | Date;
-  startMin: number;
-  endMin: number;
-  reason: string | null;
-};
-
-type CalendarPauseBlock = {
-  id: string;
-  date: string;
-  startMin: number;
-  endMin: number;
-  reason: string | null;
-  kind: "recurring" | "timeblock";
-};
-
 type ServiceOption = {
   key: string;
   name: string;
   durationMin: number;
-};
-
-type ManualBookingPayload = {
-  customerName: string;
-  customerPhone: string | null;
-  serviceKey: string;
-  date: string;
-  startTime: string;
-  note: string | null;
 };
 
 type AvailableTimesResponse = {
@@ -154,52 +128,42 @@ function statusLabel(s: BookingStatus) {
 }
 
 function statusColors(s: BookingStatus) {
-  if (s === "CONFIRMED") return { bg: "#111", text: "#fff", soft: "#f5f5f5" };
-  if (s === "COMPLETED") return { bg: "#0a7a2f", text: "#fff", soft: "#eef9f1" };
-  if (s === "NO_SHOW") return { bg: "#b36b00", text: "#fff", soft: "#fff6e8" };
-  return { bg: "#b00020", text: "#fff", soft: "#fff0f3" };
-}
-
-function getToken() {
-  return localStorage.getItem("token") || "";
-}
-
-function getNowMinutes() {
-  const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
-}
-
-function isSameLocalDate(iso: string) {
-  return iso === todayIsoLocal();
-}
-
-function getWeekdayFromIso(iso: string) {
-  return parseIsoDateLocal(iso).getDay();
-}
-
-function normalizeDateLike(value: string | Date) {
-  if (typeof value === "string") return value.slice(0, 10);
-  return toIsoLocal(value);
-}
-
-function getDayWindow(bookings: ApiBooking[]) {
-  const parsed = bookings
-    .map((b) => parseStartEndFromTimeHHMM(b.timeHHMM))
-    .filter((x): x is { startMin: number; endMin: number } => !!x);
-
-  if (parsed.length === 0) {
-    return { start: 9 * 60, end: 18 * 60 };
+  if (s === "CONFIRMED") {
+    return {
+      bg: "#111111",
+      text: "#ffffff",
+      soft: "#f6f6f7",
+      border: "#e6e6e8",
+      accent: "#111111",
+    };
   }
 
-  const minStart = Math.min(...parsed.map((x) => x.startMin));
-  const maxEnd = Math.max(...parsed.map((x) => x.endMin));
+  if (s === "COMPLETED") {
+    return {
+      bg: "#116530",
+      text: "#ffffff",
+      soft: "#eef9f1",
+      border: "#d7ecdd",
+      accent: "#116530",
+    };
+  }
 
-  const start = Math.max(6 * 60, Math.floor(minStart / 60) * 60);
-  const end = Math.min(22 * 60, Math.ceil(maxEnd / 60) * 60);
+  if (s === "NO_SHOW") {
+    return {
+      bg: "#a86400",
+      text: "#ffffff",
+      soft: "#fff6e8",
+      border: "#f0dfbd",
+      accent: "#a86400",
+    };
+  }
 
   return {
-    start,
-    end: Math.max(end, start + 60),
+    bg: "#b42318",
+    text: "#ffffff",
+    soft: "#fff1f1",
+    border: "#f2d0d0",
+    accent: "#b42318",
   };
 }
 
@@ -225,62 +189,18 @@ function formatWeekRange(anchorIso: string) {
   return `${formatShortDay(dates[0])} – ${formatShortDay(dates[6])}`;
 }
 
-function monthStart(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
+function getNowMinutes() {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
 }
 
-function monthEnd(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+function isSameLocalDate(iso: string) {
+  return iso === todayIsoLocal();
 }
 
-function addMonths(date: Date, amount: number) {
-  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
-}
-
-function getCalendarDays(monthDate: Date) {
-  const start = monthStart(monthDate);
-  const end = monthEnd(monthDate);
-
-  const startWeekday = start.getDay();
-  const lead = startWeekday === 0 ? 6 : startWeekday - 1;
-  const daysInMonth = end.getDate();
-
-  const cells: Array<{ iso: string; day: number; inMonth: boolean }> = [];
-
-  for (let i = lead; i > 0; i--) {
-    const d = new Date(start);
-    d.setDate(start.getDate() - i);
-    cells.push({ iso: toIsoLocal(d), day: d.getDate(), inMonth: false });
-  }
-
-  for (let i = 1; i <= daysInMonth; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth(), i);
-    cells.push({ iso: toIsoLocal(d), day: i, inMonth: true });
-  }
-
-  while (cells.length % 7 !== 0) {
-    const last = parseIsoDateLocal(cells[cells.length - 1].iso);
-    last.setDate(last.getDate() + 1);
-    cells.push({ iso: toIsoLocal(last), day: last.getDate(), inMonth: false });
-  }
-
-  return cells;
-}
-
-function formatMonthYear(date: Date) {
-  return new Intl.DateTimeFormat("de-DE", {
-    month: "long",
-    year: "numeric",
-  }).format(date);
-}
-
-function formatPickerDate(iso: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(parseIsoDateLocal(iso));
+function getToken() {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("token") || "";
 }
 
 function layoutOverlappingBookings(bookings: ApiBooking[]): PositionedBooking[] {
@@ -298,7 +218,6 @@ function layoutOverlappingBookings(bookings: ApiBooking[]): PositionedBooking[] 
     });
 
   const result: PositionedBooking[] = [];
-
   let group: Array<ApiBooking & { startMin: number; endMin: number }> = [];
   let groupEnd = -1;
 
@@ -359,8 +278,35 @@ function layoutOverlappingBookings(bookings: ApiBooking[]): PositionedBooking[] 
   }
 
   flushGroup();
-
   return result;
+}
+
+function getWindowFromRanges(bookings: ApiBooking[], blocks: ApiBlock[]) {
+  const bookingRanges = bookings
+    .map((b) => parseStartEndFromTimeHHMM(b.timeHHMM))
+    .filter((x): x is { startMin: number; endMin: number } => !!x);
+
+  const blockRanges = blocks.map((b) => ({
+    startMin: b.startMin,
+    endMin: b.endMin,
+  }));
+
+  const allRanges = [...bookingRanges, ...blockRanges];
+
+  if (allRanges.length === 0) {
+    return { start: 9 * 60, end: 18 * 60 };
+  }
+
+  const minStart = Math.min(...allRanges.map((x) => x.startMin));
+  const maxEnd = Math.max(...allRanges.map((x) => x.endMin));
+
+  const start = Math.max(6 * 60, Math.floor(minStart / 60) * 60);
+  const end = Math.min(22 * 60, Math.ceil(maxEnd / 60) * 60);
+
+  return {
+    start,
+    end: Math.max(end, start + 60),
+  };
 }
 
 function TopButton(props: {
@@ -417,65 +363,9 @@ function SmallNavButton(props: {
   );
 }
 
-function StatCard(props: { title: string; value: string; sub: string }) {
-  return (
-    <div
-      style={{
-        border: "1px solid #ececec",
-        borderRadius: 14,
-        padding: 12,
-        background: "#fff",
-        minWidth: 0,
-      }}
-    >
-      <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>{props.title}</div>
-      <div style={{ marginTop: 8, fontSize: 28, lineHeight: 1, fontWeight: 1000 }}>{props.value}</div>
-      <div
-        style={{
-          marginTop: 6,
-          color: "#777",
-          fontSize: 12,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {props.sub}
-      </div>
-    </div>
-  );
-}
-
-function StatusButton(props: {
-  label: string;
-  active: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      disabled={props.disabled}
-      onClick={props.onClick}
-      style={{
-        padding: "10px 12px",
-        borderRadius: 10,
-        border: props.active ? "1px solid #111" : "1px solid #ddd",
-        background: props.active ? "#111" : "#fff",
-        color: props.active ? "#fff" : "#111",
-        cursor: props.disabled ? "not-allowed" : "pointer",
-        fontWeight: 900,
-        fontSize: 12,
-        opacity: props.disabled ? 0.75 : 1,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {props.label}
-    </button>
-  );
-}
-
 export default function AdminPage() {
   const router = useRouter();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const [view, setView] = useState<ViewMode>("day");
   const [anchorDate, setAnchorDate] = useState<string>(todayIsoLocal());
@@ -484,18 +374,19 @@ export default function AdminPage() {
   const [dayData, setDayData] = useState<DayData | null>(null);
   const [weekData, setWeekData] = useState<DayData[]>([]);
 
+  const [loading, setLoading] = useState(true);
   const [calendarLoading, setCalendarLoading] = useState(false);
-  const [error, setError] = useState<string>("");
-  const [message, setMessage] = useState<string>("");
+  const [checkingSubscription, setCheckingSubscription] = useState(true);
 
-  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const [selectedBooking, setSelectedBooking] = useState<ApiBooking | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-
-  const [recurringBlocks, setRecurringBlocks] = useState<RecurringBlock[]>([]);
-  const [timeBlocksByDate, setTimeBlocksByDate] = useState<Record<string, TimeBlock[]>>({});
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creatingBooking, setCreatingBooking] = useState(false);
+
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [barberSlug, setBarberSlug] = useState("");
 
@@ -503,40 +394,129 @@ export default function AdminPage() {
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newServiceKey, setNewServiceKey] = useState("");
   const [newBookingDate, setNewBookingDate] = useState(anchorDate);
-  const [newBookingTime, setNewBookingTime] = useState("");
   const [newBookingNote, setNewBookingNote] = useState("");
-
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [pickerMonth, setPickerMonth] = useState<Date>(parseIsoDateLocal(anchorDate));
+  const [newBookingTime, setNewBookingTime] = useState("");
 
   const [manualAvailableTimes, setManualAvailableTimes] = useState<string[]>([]);
   const [manualTimesLoading, setManualTimesLoading] = useState(false);
-  const [manualTimesError, setManualTimesError] = useState("");
 
   const swipeStartX = useRef<number | null>(null);
 
-  async function fetchDay(date: string): Promise<DayData> {
-    const token = getToken();
-    const res = await fetch(`${API_BASE}/admin/bookings?date=${encodeURIComponent(date)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  useEffect(() => {
+    function update() {
+      setIsMobile(window.innerWidth <= 768);
+    }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
-    const raw = await res.text();
-    let data: any = {};
+  useEffect(() => {
+    async function init() {
+      const token = getToken();
+      const userRaw = localStorage.getItem("user");
+
+      if (!token || !userRaw) {
+        router.replace("/login");
+        return;
+      }
+
+      let user: any = null;
+      try {
+        user = JSON.parse(userRaw);
+      } catch {
+        user = null;
+      }
+
+      if (!user || user.role !== "BARBER") {
+        router.replace("/");
+        return;
+      }
+
+      const allowed = await checkSubscriptionAccess();
+      if (!allowed) return;
+
+      await loadInitialData();
+    }
+
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (checkingSubscription) return;
+    loadCurrentView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchorDate, view, checkingSubscription]);
+
+  useEffect(() => {
+    if (!showCreateModal) return;
+    if (!newBookingDate || !newServiceKey || !barberSlug) return;
+    loadManualAvailableTimes(newBookingDate, newServiceKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreateModal, newBookingDate, newServiceKey, barberSlug]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setSelectedBooking(null);
+        setShowCreateModal(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!scrollRef.current || view !== "day") return;
+
+    const nowMin = getNowMinutes();
+    const pxPerMin = 2.15;
+    const offset = Math.max(0, (nowMin - commonWindow.start) * pxPerMin - 180);
+
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ top: offset, behavior: "smooth" });
+    }, 150);
+  }, [view, anchorDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function checkSubscriptionAccess() {
     try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      data = { raw };
-    }
+      setCheckingSubscription(true);
 
-    if (!res.ok) {
-      throw new Error(data?.error || `Fehler (Status ${res.status})`);
-    }
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/admin/subscription-status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    return {
-      date,
-      bookings: Array.isArray(data?.bookings) ? data.bookings : [],
-    };
+      const raw = await res.text();
+      let data: any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      if (!res.ok) {
+        setError(data?.error || "Fehler beim Prüfen des Abos.");
+        return false;
+      }
+
+      const isPro = !!data?.subscription?.isPro;
+
+      if (!isPro) {
+        router.replace("/barber/subscription");
+        return false;
+      }
+
+      return true;
+    } catch (e: any) {
+      console.error(e);
+      setError("Fehler beim Prüfen des Abos.");
+      return false;
+    } finally {
+      setCheckingSubscription(false);
+    }
   }
 
   async function fetchRecurringBlocks() {
@@ -560,7 +540,7 @@ export default function AdminPage() {
     return Array.isArray(data?.blocks) ? data.blocks : [];
   }
 
-  async function fetchTimeBlocksForDate(date: string) {
+  async function fetchTimeBlocks(date: string) {
     const token = getToken();
     const res = await fetch(`${API_BASE}/admin/time-blocks?date=${encodeURIComponent(date)}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -579,6 +559,56 @@ export default function AdminPage() {
     }
 
     return Array.isArray(data?.blocks) ? data.blocks : [];
+  }
+
+  async function fetchDay(date: string): Promise<DayData> {
+    const token = getToken();
+
+    const [bookingsRes, recurringBlocks, timeBlocks] = await Promise.all([
+      fetch(`${API_BASE}/admin/bookings?date=${encodeURIComponent(date)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetchRecurringBlocks(),
+      fetchTimeBlocks(date),
+    ]);
+
+    const bookingsRaw = await bookingsRes.text();
+    let bookingsData: any = {};
+    try {
+      bookingsData = bookingsRaw ? JSON.parse(bookingsRaw) : {};
+    } catch {
+      bookingsData = { raw: bookingsRaw };
+    }
+
+    if (!bookingsRes.ok) {
+      throw new Error(bookingsData?.error || `Fehler (Status ${bookingsRes.status})`);
+    }
+
+    const weekday = parseIsoDateLocal(date).getDay();
+
+    const recurringForDay: ApiBlock[] = recurringBlocks
+      .filter((b: any) => Number(b.weekday) === weekday && b.enabled !== false)
+      .map((b: any) => ({
+        id: Number(b.id),
+        startMin: Number(b.startMin),
+        endMin: Number(b.endMin),
+        reason: b.reason ?? null,
+        source: "recurring" as const,
+      }));
+
+    const timeForDay: ApiBlock[] = timeBlocks.map((b: any) => ({
+      id: Number(b.id),
+      startMin: Number(b.startMin),
+      endMin: Number(b.endMin),
+      reason: b.reason ?? null,
+      source: "time" as const,
+    }));
+
+    return {
+      date,
+      bookings: Array.isArray(bookingsData?.bookings) ? bookingsData.bookings : [],
+      blocks: [...recurringForDay, ...timeForDay].sort((a, b) => a.startMin - b.startMin),
+    };
   }
 
   async function fetchServices() {
@@ -628,96 +658,81 @@ export default function AdminPage() {
     return String(data?.barber?.slug ?? "");
   }
 
-  async function loadCurrentView() {
-    setCalendarLoading(true);
-    setError("");
-    setMessage("");
-
+  async function loadInitialData() {
     try {
-      const token = getToken();
-      if (!token) {
-        setError("Kein Token gefunden. Bitte als BARBER einloggen.");
-        setDayData(null);
-        setWeekData([]);
-        setRecurringBlocks([]);
-        setTimeBlocksByDate({});
-        return;
+      setLoading(true);
+      setError("");
+      setMessage("");
+
+      const [servicesList, slug] = await Promise.all([fetchServices(), fetchBarberSlug()]);
+      setServices(servicesList);
+      setBarberSlug(slug);
+
+      if (servicesList.length > 0) {
+        setNewServiceKey(servicesList[0].key);
       }
 
-      const recurringPromise = fetchRecurringBlocks();
+      await loadCurrentView();
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Fehler beim Laden.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadCurrentView() {
+    try {
+      setCalendarLoading(true);
+      setError("");
+      setMessage("");
 
       if (view === "day") {
-        const [result, recurring, timeBlocks] = await Promise.all([
-          fetchDay(anchorDate),
-          recurringPromise,
-          fetchTimeBlocksForDate(anchorDate),
-        ]);
-
+        const result = await fetchDay(anchorDate);
         setDayData(result);
         setWeekData([]);
-        setRecurringBlocks(recurring);
-        setTimeBlocksByDate({ [anchorDate]: timeBlocks });
-
-        setMessage(`✅ ${result.bookings.length} Termine geladen`);
       } else {
         const dates = getWeekDates(anchorDate);
-
-        const [results, recurring, timeBlockLists] = await Promise.all([
-          Promise.all(dates.map((d) => fetchDay(d))),
-          recurringPromise,
-          Promise.all(dates.map((d) => fetchTimeBlocksForDate(d))),
-        ]);
-
-        const tbMap: Record<string, TimeBlock[]> = {};
-        dates.forEach((d, i) => {
-          tbMap[d] = timeBlockLists[i];
-        });
-
+        const results = await Promise.all(dates.map((d) => fetchDay(d)));
         setWeekData(results);
         setDayData(null);
-        setRecurringBlocks(recurring);
-        setTimeBlocksByDate(tbMap);
-
-        const total = results.reduce((sum, d) => sum + d.bookings.length, 0);
-        setMessage(`✅ ${total} Termine in der Woche geladen`);
       }
     } catch (e: any) {
       console.error(e);
       setError(e?.message || "Fehler beim Laden.");
       setDayData(null);
       setWeekData([]);
-      setRecurringBlocks([]);
-      setTimeBlocksByDate({});
     } finally {
       setCalendarLoading(false);
     }
   }
 
   async function updateStatus(bookingId: number, status: BookingStatus) {
-    const token = getToken();
-    if (!token) {
-      setError("Kein Token gefunden. Bitte als BARBER einloggen.");
-      return;
-    }
-
-    setUpdatingId(bookingId);
-    setError("");
-    setMessage("");
-
     try {
+      setUpdatingId(bookingId);
+      setError("");
+      setMessage("");
+
+      const token = getToken();
       const res = await fetch(`${API_BASE}/admin/bookings/${bookingId}/status`, {
         method: "PATCH",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ status }),
       });
 
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.error || "Status konnte nicht geändert werden.");
-        return;
+      const raw = await res.text();
+      let data: any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Status konnte nicht geändert werden.");
       }
 
       setDayData((prev) =>
@@ -736,10 +751,11 @@ export default function AdminPage() {
         }))
       );
 
+      setSelectedBooking((prev) => (prev && prev.id === bookingId ? { ...prev, status } : prev));
       setMessage("✅ Status aktualisiert");
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setError("Fehler beim Aktualisieren.");
+      setError(e?.message || "Fehler beim Aktualisieren.");
     } finally {
       setUpdatingId(null);
     }
@@ -755,6 +771,127 @@ export default function AdminPage() {
 
   function goToday() {
     setAnchorDate(todayIsoLocal());
+  }
+
+  function openCreateModal() {
+    setError("");
+    setMessage("");
+    setNewCustomerName("");
+    setNewCustomerPhone("");
+    setNewBookingDate(anchorDate);
+    setNewBookingTime("");
+    setNewBookingNote("");
+    setManualAvailableTimes([]);
+
+    if (services.length > 0) {
+      setNewServiceKey(services[0].key);
+    }
+
+    setShowCreateModal(true);
+  }
+
+  async function loadManualAvailableTimes(date: string, serviceKey: string) {
+    try {
+      setManualTimesLoading(true);
+
+      const res = await fetch(
+        `${API_BASE}/public/available-times?barberSlug=${encodeURIComponent(
+          barberSlug
+        )}&date=${encodeURIComponent(date)}&serviceKey=${encodeURIComponent(serviceKey)}`
+      );
+
+      const raw = await res.text();
+      let data: AvailableTimesResponse | any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      const times = Array.isArray(data?.timesHHMM) ? data.timesHHMM : [];
+      setManualAvailableTimes(times);
+
+      if (!times.includes(newBookingTime)) {
+        setNewBookingTime(times[0] ?? "");
+      }
+    } catch (e) {
+      console.error(e);
+      setManualAvailableTimes([]);
+      setNewBookingTime("");
+    } finally {
+      setManualTimesLoading(false);
+    }
+  }
+
+  async function createManualBooking() {
+    try {
+      setCreatingBooking(true);
+      setError("");
+      setMessage("");
+
+      if (!newCustomerName.trim()) {
+        setError("Bitte Kundennamen eingeben.");
+        return;
+      }
+
+      if (!newServiceKey.trim()) {
+        setError("Bitte einen Service auswählen.");
+        return;
+      }
+
+      if (!newBookingDate.trim()) {
+        setError("Bitte ein Datum wählen.");
+        return;
+      }
+
+      if (!newBookingTime.trim()) {
+        setError("Bitte einen freien Termin auswählen.");
+        return;
+      }
+
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/admin/manual-bookings`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerName: newCustomerName.trim(),
+          customerPhone: newCustomerPhone.trim() ? newCustomerPhone.trim() : null,
+          serviceKey: newServiceKey,
+          date: newBookingDate,
+          startTime: newBookingTime,
+          note: newBookingNote.trim() ? newBookingNote.trim() : null,
+        }),
+      });
+
+      const raw = await res.text();
+      let data: any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Termin konnte nicht erstellt werden.");
+      }
+
+      setShowCreateModal(false);
+      setMessage("✅ Termin erfolgreich hinzugefügt");
+
+      if (view === "day" && newBookingDate !== anchorDate) {
+        setAnchorDate(newBookingDate);
+      } else {
+        await loadCurrentView();
+      }
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Fehler beim Erstellen des Termins.");
+    } finally {
+      setCreatingBooking(false);
+    }
   }
 
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
@@ -777,330 +914,17 @@ export default function AdminPage() {
     swipeStartX.current = null;
   }
 
-  function closeBookingModal() {
-    setSelectedBookingId(null);
-  }
-
-  function openCreateModal() {
-    setError("");
-    setMessage("");
-    setManualTimesError("");
-    setManualAvailableTimes([]);
-    setNewCustomerName("");
-    setNewCustomerPhone("");
-    setNewServiceKey(services[0]?.key ?? "");
-    setNewBookingDate(anchorDate);
-    setNewBookingTime("");
-    setNewBookingNote("");
-    setPickerMonth(parseIsoDateLocal(anchorDate));
-    setShowDatePicker(false);
-    setShowCreateModal(true);
-  }
-
-  function closeCreateModal() {
-    if (creatingBooking) return;
-    setShowCreateModal(false);
-    setShowDatePicker(false);
-  }
-
-  async function loadManualAvailableTimes(date: string, serviceKey: string) {
-    if (!barberSlug || !date || !serviceKey) {
-      setManualAvailableTimes([]);
-      return;
-    }
-
-    setManualTimesLoading(true);
-    setManualTimesError("");
-
-    try {
-      const res = await fetch(
-        `${API_BASE}/public/available-times?barberSlug=${encodeURIComponent(barberSlug)}&date=${encodeURIComponent(
-          date
-        )}&serviceKey=${encodeURIComponent(serviceKey)}`
-      );
-
-      const raw = await res.text();
-      let data: AvailableTimesResponse | any = {};
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch {
-        data = { raw };
-      }
-
-      if (!res.ok) {
-        setManualAvailableTimes([]);
-        setManualTimesError(data?.error || "Freie Zeiten konnten nicht geladen werden.");
-        return;
-      }
-
-      const times = Array.isArray(data?.timesHHMM) ? data.timesHHMM : [];
-      setManualAvailableTimes(times);
-
-      if (!times.includes(newBookingTime)) {
-        setNewBookingTime(times[0] ?? "");
-      }
-    } catch (e) {
-      console.error(e);
-      setManualAvailableTimes([]);
-      setManualTimesError("Freie Zeiten konnten nicht geladen werden.");
-    } finally {
-      setManualTimesLoading(false);
-    }
-  }
-
-  async function createManualBooking() {
-    setError("");
-    setMessage("");
-
-    const customerName = newCustomerName.trim();
-    const serviceKey = newServiceKey.trim();
-    const date = newBookingDate.trim();
-    const startTime = newBookingTime.trim();
-    const note = newBookingNote.trim();
-
-    if (!customerName) {
-      setError("Bitte Kundennamen eingeben.");
-      return;
-    }
-
-    if (!serviceKey) {
-      setError("Bitte einen Service auswählen.");
-      return;
-    }
-
-    if (!date) {
-      setError("Bitte ein Datum wählen.");
-      return;
-    }
-
-    if (!startTime) {
-      setError("Bitte einen freien Termin auswählen.");
-      return;
-    }
-
-    const payload: ManualBookingPayload = {
-      customerName,
-      customerPhone: newCustomerPhone.trim() ? newCustomerPhone.trim() : null,
-      serviceKey,
-      date,
-      startTime,
-      note: note ? note : null,
-    };
-
-    const token = getToken();
-    if (!token) {
-      setError("Kein Token gefunden. Bitte als BARBER einloggen.");
-      return;
-    }
-
-    setCreatingBooking(true);
-
-    try {
-      const res = await fetch(`${API_BASE}/admin/manual-bookings`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const raw = await res.text();
-      let data: any = {};
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch {
-        data = { raw };
-      }
-
-      if (!res.ok) {
-        setError(data?.error || "Termin konnte nicht erstellt werden.");
-        return;
-      }
-
-      setShowCreateModal(false);
-      setMessage("✅ Termin erfolgreich hinzugefügt");
-
-      if (view === "day" && date !== anchorDate) {
-        setAnchorDate(date);
-      } else {
-        await loadCurrentView();
-      }
-    } catch (e) {
-      console.error(e);
-      setError("Fehler beim Erstellen des Termins.");
-    } finally {
-      setCreatingBooking(false);
-    }
-  }
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const userRaw = localStorage.getItem("user");
-
-    if (!token || !userRaw) {
-      router.replace("/login");
-      return;
-    }
-
-    let user: any = null;
-    try {
-      user = JSON.parse(userRaw);
-    } catch {
-      user = null;
-    }
-
-    if (!user || user.role !== "BARBER") {
-      router.replace("/");
-      return;
-    }
-  }, [router]);
-
-  useEffect(() => {
-    function update() {
-      setIsMobile(window.innerWidth <= 760);
-    }
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
-  useEffect(() => {
-    loadCurrentView();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchorDate, view]);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadInitialData() {
-      try {
-        const [list, slug] = await Promise.all([fetchServices(), fetchBarberSlug()]);
-        if (!active) return;
-
-        setServices(list);
-        setBarberSlug(slug);
-
-        if (list.length > 0) {
-          setNewServiceKey(list[0].key);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    loadInitialData();
-
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!showCreateModal) {
-      setNewBookingDate(anchorDate);
-      return;
-    }
-
-    setPickerMonth(parseIsoDateLocal(newBookingDate));
-  }, [anchorDate, newBookingDate, showCreateModal]);
-
-  useEffect(() => {
-    if (!showCreateModal) return;
-    if (!newBookingDate || !newServiceKey) {
-      setManualAvailableTimes([]);
-      setNewBookingTime("");
-      return;
-    }
-
-    loadManualAvailableTimes(newBookingDate, newServiceKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCreateModal, newBookingDate, newServiceKey, barberSlug]);
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setSelectedBookingId(null);
-        setShowCreateModal(false);
-        setShowDatePicker(false);
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  const selectedBooking = useMemo(() => {
-    const all = [...(dayData?.bookings ?? []), ...weekData.flatMap((d) => d.bookings)];
-    return all.find((b) => b.id === selectedBookingId) || null;
-  }, [dayData, weekData, selectedBookingId]);
-
-  const pauseBlocksByDate = useMemo(() => {
-    const result: Record<string, CalendarPauseBlock[]> = {};
-    const dates = view === "day" ? [anchorDate] : getWeekDates(anchorDate);
-
-    for (const date of dates) {
-      const weekday = getWeekdayFromIso(date);
-
-      const recurringForDate = recurringBlocks
-        .filter((b) => b.enabled && b.weekday === weekday)
-        .map((b) => ({
-          id: `r-${date}-${b.id}`,
-          date,
-          startMin: b.startMin,
-          endMin: b.endMin,
-          reason: b.reason,
-          kind: "recurring" as const,
-        }));
-
-      const oneTimeForDate = (timeBlocksByDate[date] ?? []).map((b) => ({
-        id: `t-${date}-${b.id}`,
-        date: normalizeDateLike(b.date),
-        startMin: b.startMin,
-        endMin: b.endMin,
-        reason: b.reason,
-        kind: "timeblock" as const,
-      }));
-
-      result[date] = [...recurringForDate, ...oneTimeForDate].sort(
-        (a, b) => a.startMin - b.startMin
-      );
-    }
-
-    return result;
-  }, [view, anchorDate, recurringBlocks, timeBlocksByDate]);
-
-  const stats = useMemo(() => {
-    const allBookings =
-      view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
-
-    const total = allBookings.length;
-    const confirmed = allBookings.filter((b) => b.status === "CONFIRMED").length;
-    const completed = allBookings.filter((b) => b.status === "COMPLETED").length;
-    const noShow = allBookings.filter((b) => b.status === "NO_SHOW").length;
-    const cancelled = allBookings.filter((b) => b.status === "CANCELLED").length;
-
-    return { total, confirmed, completed, noShow, cancelled };
-  }, [view, dayData, weekData]);
+  const dayBookings = useMemo(() => dayData?.bookings ?? [], [dayData]);
 
   const commonWindow = useMemo(() => {
     const bookingList =
       view === "day" ? dayData?.bookings ?? [] : weekData.flatMap((d) => d.bookings);
 
-    const pauseList = Object.values(pauseBlocksByDate).flat();
-    const bookingWindow = getDayWindow(bookingList);
+    const blockList =
+      view === "day" ? dayData?.blocks ?? [] : weekData.flatMap((d) => d.blocks ?? []);
 
-    if (pauseList.length === 0) return bookingWindow;
-
-    const pauseStart = Math.min(...pauseList.map((p) => p.startMin));
-    const pauseEnd = Math.max(...pauseList.map((p) => p.endMin));
-
-    return {
-      start: Math.max(6 * 60, Math.min(bookingWindow.start, Math.floor(pauseStart / 60) * 60)),
-      end: Math.min(22 * 60, Math.max(bookingWindow.end, Math.ceil(pauseEnd / 60) * 60)),
-    };
-  }, [view, dayData, weekData, pauseBlocksByDate]);
+    return getWindowFromRanges(bookingList, blockList);
+  }, [view, dayData, weekData]);
 
   const hours = useMemo(() => {
     const arr: number[] = [];
@@ -1108,242 +932,470 @@ export default function AdminPage() {
     return arr;
   }, [commonWindow]);
 
-  const calendarCells = useMemo(() => getCalendarDays(pickerMonth), [pickerMonth]);
-  const todayIso = todayIsoLocal();
+  const daySummary = useMemo(() => {
+    const bookings = dayData?.bookings ?? [];
+    const active = bookings.filter((b) => b.status !== "CANCELLED").length;
+    return {
+      total: bookings.length,
+      active,
+    };
+  }, [dayData]);
+
+  if ((loading || checkingSubscription) && !dayData && weekData.length === 0) {
+    return (
+      <div
+        style={{
+          minHeight: "60vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#666",
+          fontWeight: 800,
+        }}
+      >
+        Lade Dashboard...
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 16, maxWidth: 1180, margin: "0 auto" }}>
-      <div style={{ display: "grid", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1, fontWeight: 1000, color: "#111" }}>
-            Dashboard
-          </h1>
-          <div style={{ marginTop: 8, color: "#666", fontSize: 15, fontWeight: 500 }}>
-            {view === "day"
-              ? `Tagesansicht · ${formatDayHeadline(anchorDate)}`
-              : `Wochenansicht · ${formatWeekRange(anchorDate)}`}
-          </div>
-        </div>
+    <div style={{ paddingBottom: 10 }}>
+      <style jsx>{`
+        .topGrid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
 
-        <div className="topGrid">
-          <TopButton active={view === "day"} onClick={() => setView("day")}>
-            Tag
-          </TopButton>
-          <TopButton active={view === "week"} onClick={() => setView("week")}>
-            Woche
-          </TopButton>
-          <TopButton onClick={goToday}>Heute</TopButton>
-          <TopButton onClick={loadCurrentView} disabled={calendarLoading}>
-            {calendarLoading ? "Lade..." : "Neu laden"}
-          </TopButton>
-        </div>
+        .controlCard {
+          margin-bottom: 16px;
+          border: 1px solid #e6e6e8;
+          border-radius: 24px;
+          background: #fff;
+          padding: 12px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+        }
 
-        {message ? (
-          <div
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid #d9f0dd",
-              background: "#f3fbf4",
-              color: "#187a2f",
-              fontSize: 14,
-              fontWeight: 800,
-            }}
-          >
-            {message}
-          </div>
-        ) : null}
+        .segmentedWrap {
+          display: flex;
+          background: #f0f0f2;
+          border-radius: 18px;
+          padding: 5px;
+          gap: 5px;
+          margin-bottom: 10px;
+        }
 
-        {error ? (
-          <div
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid #f3d3da",
-              background: "#fff5f7",
-              color: "#b00020",
-              fontSize: 14,
-              fontWeight: 800,
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
+        .segmentBtn {
+          flex: 1;
+          min-height: 44px;
+          border-radius: 14px;
+          border: none;
+          background: transparent;
+          color: #111;
+          font-weight: 900;
+          font-size: 15px;
+          cursor: pointer;
+        }
 
-        <div className="statsGrid">
-          <StatCard title="Termine" value={String(stats.total)} sub={`${stats.confirmed} bestätigt`} />
-          <StatCard title="Erledigt" value={String(stats.completed)} sub={`${stats.noShow} nicht erschienen`} />
-          <StatCard title="Storniert" value={String(stats.cancelled)} sub={view === "day" ? "Heute" : "Woche"} />
+        .segmentBtnActive {
+          background: #111;
+          color: #fff;
+        }
+
+        .navRow {
+          display: grid;
+          grid-template-columns: 1fr 1.8fr 1fr auto;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .mobileHint {
+          margin-top: 14px;
+          padding: 13px 14px;
+          border-radius: 16px;
+          border: 1px solid #e7e7ea;
+          background: #fbfbfc;
+          color: #666;
+          font-size: 13px;
+          line-height: 18px;
+        }
+
+        .modalOverlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.35);
+          z-index: 220;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px;
+          box-sizing: border-box;
+        }
+
+        .modalCard {
+          width: 100%;
+          max-width: 560px;
+          max-height: calc(100vh - 24px);
+          overflow-y: auto;
+          background: #fff;
+          border-radius: 20px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+          border: 1px solid #eee;
+          padding: 18px;
+          box-sizing: border-box;
+        }
+
+        .modalHead {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+        }
+
+        .closeBtn {
+          width: 40px;
+          height: 40px;
+          border-radius: 999px;
+          border: 1px solid #ddd;
+          background: #fff;
+          color: #111;
+          font-size: 22px;
+          font-weight: 700;
+          cursor: pointer;
+          line-height: 1;
+          flex-shrink: 0;
+        }
+
+        .createActions {
+          margin-top: 18px;
+          display: flex;
+          gap: 8px;
+        }
+
+        .serviceList {
+          display: grid;
+          gap: 8px;
+        }
+
+        .serviceBtn {
+          min-height: 48px;
+          border-radius: 12px;
+          border: 1px solid #ddd;
+          background: #fff;
+          justify-content: center;
+          padding: 0 14px;
+          cursor: pointer;
+          font-weight: 900;
+          text-align: left;
+          color: #111;
+        }
+
+        .serviceBtnActive {
+          border-color: #111;
+          background: #111;
+          color: #fff;
+        }
+
+        .dateRow {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .dateChip {
+          padding: 10px 12px;
+          border-radius: 12px;
+          border: 1px solid #ddd;
+          background: #fff;
+          color: #111;
+          cursor: pointer;
+          font-weight: 900;
+          font-size: 12px;
+        }
+
+        .dateChipActive {
+          border-color: #111;
+          background: #111;
+          color: #fff;
+        }
+
+        .slotWrap {
+          border: 1px solid #ddd;
+          border-radius: 12px;
+          padding: 10px;
+          background: #fff;
+          min-height: 48px;
+        }
+
+        .slotRow {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .slotChip {
+          padding: 8px 10px;
+          border-radius: 10px;
+          border: 1px solid #ddd;
+          background: #fff;
+          color: #111;
+          font-weight: 900;
+          font-size: 13px;
+          cursor: pointer;
+        }
+
+        .slotChipActive {
+          border-color: #111;
+          background: #111;
+          color: #fff;
+        }
+
+        .fieldInput,
+        .fieldTextarea {
+          width: 100%;
+          padding: 12px 14px;
+          border-radius: 12px;
+          border: 1px solid #ddd;
+          font-size: 14px;
+          box-sizing: border-box;
+          background: #fff;
+          color: #111;
+        }
+
+        .fieldTextarea {
+          min-height: 110px;
+          padding-top: 14px;
+          resize: vertical;
+        }
+
+        @media (max-width: 768px) {
+          .navRow {
+            grid-template-columns: 1fr 1.6fr 1fr auto;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .navRow {
+            grid-template-columns: 1fr;
+          }
+
+          .createActions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+      `}</style>
+
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 34, lineHeight: 1.1, fontWeight: 900, color: "#111" }}>
+          Dashboard
         </div>
 
         <div
           style={{
-            border: "1px solid #eee",
-            borderRadius: 18,
-            background: "#fff",
-            padding: 12,
+            marginTop: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
           }}
         >
-          <div className="calendarHeader">
-            <SmallNavButton onClick={goPrev}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <ChevronLeft size={16} />
-                {view === "day" ? "Zurück" : "Vorherige"}
-              </span>
-            </SmallNavButton>
-
-            <div
-              style={{
-                minWidth: 0,
-                textAlign: "center",
-                fontWeight: 900,
-                fontSize: 18,
-                lineHeight: 1.2,
-              }}
-            >
-              {view === "day" ? formatDayHeadline(anchorDate) : formatWeekRange(anchorDate)}
-            </div>
-
-            <div className="calendarHeaderRight">
-              <button
-                type="button"
-                onClick={openCreateModal}
-                aria-label="Termin hinzufügen"
-                title="Termin hinzufügen"
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 12,
-                  border: "1px solid #111",
-                  background: "#111",
-                  color: "#fff",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Plus size={20} />
-              </button>
-
-              <SmallNavButton onClick={goNext}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  {view === "day" ? "Weiter" : "Nächste"}
-                  <ChevronRight size={16} />
-                </span>
-              </SmallNavButton>
-            </div>
-          </div>
-
           <div
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
             style={{
-              overflowX: view === "day" ? "hidden" : "auto",
-              overflowY: "hidden",
-              width: "100%",
-              WebkitOverflowScrolling: "touch",
+              padding: "7px 10px",
+              borderRadius: 999,
+              background: "#111",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 900,
             }}
           >
-            {calendarLoading ? (
-              <div style={{ padding: 30, color: "#666" }}>Lade Kalender...</div>
-            ) : view === "day" ? (
-              <DayCalendar
-                date={anchorDate}
-                bookings={dayData?.bookings ?? []}
-                pauseBlocks={pauseBlocksByDate[anchorDate] ?? []}
-                hours={hours}
-                windowStart={commonWindow.start}
-                windowEnd={commonWindow.end}
-                selectedBookingId={selectedBookingId}
-                onSelectBooking={(id) => setSelectedBookingId(id)}
-                showNowLine={isSameLocalDate(anchorDate)}
-              />
-            ) : (
-              <WeekCalendar
-                days={weekData}
-                pauseBlocksByDate={pauseBlocksByDate}
-                selectedBookingId={selectedBookingId}
-                onSelectBooking={(id) => setSelectedBookingId(id)}
-                windowStart={commonWindow.start}
-                windowEnd={commonWindow.end}
-                hours={hours}
-                isMobile={isMobile}
-              />
-            )}
+            {view === "day" ? "Tagesansicht" : "Wochenansicht"}
           </div>
-        </div>
 
-        <div style={{ color: "#666", fontSize: 12 }}>
-          {view === "day"
-            ? "Tipp: In der Tagesansicht kannst du auf dem Handy nach links oder rechts swipen."
-            : "Die Wochenansicht ist auf dem Handy bewusst als übersichtliche Liste aufgebaut."}
+          {view === "day" ? (
+            <div
+              style={{
+                padding: "7px 10px",
+                borderRadius: 999,
+                background: "#ececef",
+                color: "#444",
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              {daySummary.active} aktive Termine
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {selectedBooking ? (
-        <div
-          onClick={closeBookingModal}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 12,
-            boxSizing: "border-box",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
+      <div className="controlCard">
+        <div className="segmentedWrap">
+          <button
+            type="button"
+            onClick={() => setView("day")}
+            className={`segmentBtn ${view === "day" ? "segmentBtnActive" : ""}`}
+          >
+            Tag
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setView("week")}
+            className={`segmentBtn ${view === "week" ? "segmentBtnActive" : ""}`}
+          >
+            Woche
+          </button>
+        </div>
+
+        <div className="navRow">
+          <SmallNavButton onClick={goPrev}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <ChevronLeft size={16} />
+            </span>
+          </SmallNavButton>
+
+          <TopButton onClick={goToday}>Heute</TopButton>
+
+          <SmallNavButton onClick={goNext}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <ChevronRight size={16} />
+            </span>
+          </SmallNavButton>
+
+          <button
+            type="button"
+            onClick={openCreateModal}
+            aria-label="Termin hinzufügen"
+            title="Termin hinzufügen"
             style={{
-              width: "100%",
-              maxWidth: 520,
-              maxHeight: "calc(100vh - 24px)",
-              overflowY: "auto",
-              background: "#fff",
-              borderRadius: 20,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
-              border: "1px solid #eee",
-              padding: 18,
-              boxSizing: "border-box",
+              width: 50,
+              minHeight: 44,
+              borderRadius: 14,
+              border: "1px solid #111",
+              background: "#111",
+              color: "#fff",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: 12,
-              }}
-            >
-              <div>
+            <Plus size={20} />
+          </button>
+        </div>
+      </div>
+
+      {message ? (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "14px 16px",
+            borderRadius: 16,
+            border: "1px solid #cfe7d1",
+            background: "#f4fbf4",
+            color: "#17663a",
+            fontWeight: 700,
+          }}
+        >
+          {message}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "14px 16px",
+            borderRadius: 16,
+            border: "1px solid #f1c7c7",
+            background: "#fff5f5",
+            color: "#b42318",
+            fontWeight: 700,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          overflowX: view === "day" ? "hidden" : "auto",
+          width: "100%",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {calendarLoading ? (
+          <div
+            style={{
+              minHeight: 240,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#666",
+              fontWeight: 800,
+            }}
+          >
+            Lade Kalender...
+          </div>
+        ) : view === "day" ? (
+          <DayCalendar
+            scrollRef={scrollRef}
+            date={anchorDate}
+            bookings={dayBookings}
+            blocks={dayData?.blocks ?? []}
+            hours={hours}
+            windowStart={commonWindow.start}
+            windowEnd={commonWindow.end}
+            selectedBookingId={selectedBooking?.id ?? null}
+            onSelectBooking={(booking) => setSelectedBooking(booking)}
+            showNowLine={isSameLocalDate(anchorDate)}
+          />
+        ) : (
+          <WeekCalendar
+            days={weekData}
+            onSelectBooking={(booking) => setSelectedBooking(booking)}
+            weekLabel={formatWeekRange(anchorDate)}
+            isMobile={isMobile}
+            hours={hours}
+            windowStart={commonWindow.start}
+            windowEnd={commonWindow.end}
+          />
+        )}
+      </div>
+
+      <div className="mobileHint">
+        In der Tagesansicht kannst du im Kalender nach links oder rechts wischen.
+      </div>
+
+      {selectedBooking ? (
+        <div className="modalOverlay" onClick={() => setSelectedBooking(null)}>
+          <div className="modalCard" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHead">
+              <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
                   TERMIN #{selectedBooking.id}
                 </div>
-                <h3 style={{ margin: "6px 0 0 0", fontSize: 24, lineHeight: 1.1 }}>
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 24,
+                    lineHeight: 1.15,
+                    fontWeight: 900,
+                    color: "#111",
+                  }}
+                >
                   {selectedBooking.customer?.name || "Ohne Namen"}
-                </h3>
+                </div>
               </div>
 
               <button
                 type="button"
-                onClick={closeBookingModal}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 999,
-                  border: "1px solid #ddd",
-                  background: "#fff",
-                  color: "#111",
-                  fontSize: 22,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  lineHeight: 1,
-                  flexShrink: 0,
-                }}
+                className="closeBtn"
+                onClick={() => setSelectedBooking(null)}
                 aria-label="Schließen"
               >
                 ×
@@ -1351,9 +1403,10 @@ export default function AdminPage() {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <span
+              <div
                 style={{
                   display: "inline-flex",
+                  alignSelf: "flex-start",
                   padding: "7px 12px",
                   borderRadius: 999,
                   background: statusColors(selectedBooking.status).bg,
@@ -1363,7 +1416,7 @@ export default function AdminPage() {
                 }}
               >
                 {statusLabel(selectedBooking.status)}
-              </span>
+              </div>
             </div>
 
             <div style={{ marginTop: 18, display: "grid", gap: 10 }}>
@@ -1371,7 +1424,9 @@ export default function AdminPage() {
               <InfoCard
                 label="Service"
                 value={`${selectedBooking.service?.name || selectedBooking.service?.key || "—"}${
-                  selectedBooking.service?.durationMin ? ` (${selectedBooking.service.durationMin} min)` : ""
+                  selectedBooking.service?.durationMin
+                    ? ` (${selectedBooking.service.durationMin} min)`
+                    : ""
                 }`}
               />
               <InfoCard
@@ -1382,8 +1437,29 @@ export default function AdminPage() {
               {selectedBooking.note ? <InfoCard label="Notiz" value={selectedBooking.note} /> : null}
             </div>
 
+            {selectedBooking.customer?.phone ? (
+              <a
+                href={`tel:${selectedBooking.customer.phone}`}
+                style={{
+                  marginTop: 14,
+                  minHeight: 48,
+                  borderRadius: 12,
+                  border: "1px solid #111",
+                  background: "#111",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontWeight: 900,
+                  fontSize: 15,
+                  textDecoration: "none",
+                }}
+              >
+                Kunde anrufen
+              </a>
+            ) : null}
+
             <div
-              className="statusRow"
               style={{
                 marginTop: 18,
                 display: "flex",
@@ -1421,71 +1497,33 @@ export default function AdminPage() {
       ) : null}
 
       {showCreateModal ? (
-        <div
-          onClick={closeCreateModal}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            zIndex: 220,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 12,
-            boxSizing: "border-box",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 560,
-              maxHeight: "calc(100vh - 24px)",
-              overflowY: "auto",
-              background: "#fff",
-              borderRadius: 20,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
-              border: "1px solid #eee",
-              padding: 18,
-              boxSizing: "border-box",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: 12,
-              }}
-            >
-              <div>
+        <div className="modalOverlay" onClick={() => !creatingBooking && setShowCreateModal(false)}>
+          <div className="modalCard" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHead">
+              <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, color: "#666", fontWeight: 900 }}>
                   MANUELLER TERMIN
                 </div>
-                <h3 style={{ margin: "6px 0 0 0", fontSize: 24, lineHeight: 1.1 }}>
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 24,
+                    lineHeight: 1.15,
+                    fontWeight: 900,
+                    color: "#111",
+                  }}
+                >
                   Termin hinzufügen
-                </h3>
+                </div>
               </div>
 
               <button
                 type="button"
-                onClick={closeCreateModal}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 999,
-                  border: "1px solid #ddd",
-                  background: "#fff",
-                  color: "#111",
-                  fontSize: 22,
-                  fontWeight: 700,
-                  cursor: creatingBooking ? "not-allowed" : "pointer",
-                  lineHeight: 1,
-                  flexShrink: 0,
-                  opacity: creatingBooking ? 0.6 : 1,
-                }}
-                aria-label="Schließen"
+                className="closeBtn"
+                onClick={() => setShowCreateModal(false)}
                 disabled={creatingBooking}
+                aria-label="Schließen"
+                style={{ opacity: creatingBooking ? 0.65 : 1 }}
               >
                 ×
               </button>
@@ -1497,7 +1535,7 @@ export default function AdminPage() {
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   placeholder="z.B. Max Mustermann"
-                  style={fieldInputStyle}
+                  className="fieldInput"
                 />
               </Field>
 
@@ -1506,217 +1544,78 @@ export default function AdminPage() {
                   value={newCustomerPhone}
                   onChange={(e) => setNewCustomerPhone(e.target.value)}
                   placeholder="z.B. 0176..."
-                  style={fieldInputStyle}
+                  className="fieldInput"
                 />
               </Field>
 
-              <div className="createGrid2" style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
-                <Field label="Datum">
-                  <button
-                    type="button"
-                    onClick={() => setShowDatePicker((v) => !v)}
-                    style={{
-                      ...fieldInputStyle,
-                      textAlign: "left",
-                      background: "#fff",
-                      cursor: "pointer",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {formatPickerDate(newBookingDate)}
-                  </button>
-
-                  {showDatePicker ? (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        border: "1px solid #e5e5e5",
-                        borderRadius: 16,
-                        background: "#fff",
-                        padding: 12,
-                        boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 8,
-                          marginBottom: 10,
-                        }}
+              <Field label="Datum">
+                <div className="dateRow">
+                  {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
+                    const iso = addDays(anchorDate, offset);
+                    const active = newBookingDate === iso;
+                    return (
+                      <button
+                        key={iso}
+                        type="button"
+                        onClick={() => setNewBookingDate(iso)}
+                        className={`dateChip ${active ? "dateChipActive" : ""}`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => setPickerMonth((m) => addMonths(m, -1))}
-                          style={miniCalendarNavButton}
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-
-                        <div style={{ fontWeight: 900, fontSize: 15, textTransform: "capitalize" }}>
-                          {formatMonthYear(pickerMonth)}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setPickerMonth((m) => addMonths(m, 1))}
-                          style={miniCalendarNavButton}
-                        >
-                          <ChevronRight size={16} />
-                        </button>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(7, 1fr)",
-                          gap: 6,
-                          marginBottom: 8,
-                        }}
-                      >
-                        {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((d) => (
-                          <div
-                            key={d}
-                            style={{
-                              textAlign: "center",
-                              fontSize: 12,
-                              color: "#666",
-                              fontWeight: 800,
-                              padding: "4px 0",
-                            }}
-                          >
-                            {d}
-                          </div>
-                        ))}
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(7, 1fr)",
-                          gap: 6,
-                        }}
-                      >
-                        {calendarCells.map((cell) => {
-                          const isPast = cell.iso < todayIso;
-                          const isSelected = cell.iso === newBookingDate;
-                          const isToday = cell.iso === todayIso;
-
-                          return (
-                            <button
-                              key={cell.iso}
-                              type="button"
-                              disabled={isPast}
-                              onClick={() => {
-                                setNewBookingDate(cell.iso);
-                                setShowDatePicker(false);
-                              }}
-                              style={{
-                                height: 40,
-                                borderRadius: 10,
-                                border: isSelected
-                                  ? "1px solid #111"
-                                  : isToday
-                                  ? "1px solid #999"
-                                  : "1px solid #e5e5e5",
-                                background: isSelected ? "#111" : "#fff",
-                                color: isSelected
-                                  ? "#fff"
-                                  : isPast
-                                  ? "#bbb"
-                                  : cell.inMonth
-                                  ? "#111"
-                                  : "#888",
-                                fontWeight: isSelected || cell.inMonth ? 800 : 700,
-                                cursor: isPast ? "not-allowed" : "pointer",
-                                opacity: isPast ? 0.5 : 1,
-                              }}
-                            >
-                              {cell.day}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-                </Field>
-
-                <Field label="Freier Slot">
-                  <div
-                    style={{
-                      ...fieldInputStyle,
-                      minHeight: 48,
-                      height: "auto",
-                      padding: 10,
-                      background: "#fff",
-                    }}
-                  >
-                    {manualTimesLoading ? (
-                      <div style={{ fontSize: 13, color: "#666", fontWeight: 700 }}>
-                        Lade freie Zeiten...
-                      </div>
-                    ) : manualAvailableTimes.length === 0 ? (
-                      <div style={{ fontSize: 13, color: "#888", fontWeight: 700 }}>
-                        Keine freien Zeiten verfügbar
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {manualAvailableTimes.map((time) => {
-                          const active = newBookingTime === time;
-                          return (
-                            <button
-                              key={time}
-                              type="button"
-                              onClick={() => setNewBookingTime(time)}
-                              style={{
-                                padding: "8px 10px",
-                                borderRadius: 10,
-                                border: active ? "1px solid #111" : "1px solid #ddd",
-                                background: active ? "#111" : "#fff",
-                                color: active ? "#fff" : "#111",
-                                fontWeight: 900,
-                                fontSize: 13,
-                                cursor: "pointer",
-                              }}
-                            >
-                              {time}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {manualTimesError ? (
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#b00020" }}>
-                      {manualTimesError}
-                    </div>
-                  ) : null}
-                </Field>
-              </div>
+                        {formatShortDay(iso)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
 
               <Field label="Service">
-                <select
-                  value={newServiceKey}
-                  onChange={(e) => {
-                    setNewServiceKey(e.target.value);
-                    setNewBookingTime("");
-                  }}
-                  style={{ ...fieldInputStyle, background: "#fff" }}
-                >
-                  <option value="">Bitte wählen</option>
-                  {services.map((s) => (
-                    <option key={s.key} value={s.key}>
-                      {s.name} ({s.durationMin} min)
-                    </option>
-                  ))}
-                </select>
-                {services.length === 0 ? (
-                  <div style={{ marginTop: 6, fontSize: 12, color: "#b00020" }}>
-                    Keine Services geladen.
-                  </div>
-                ) : null}
+                <div className="serviceList">
+                  {services.map((s) => {
+                    const active = newServiceKey === s.key;
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => {
+                          setNewServiceKey(s.key);
+                          setNewBookingTime("");
+                        }}
+                        className={`serviceBtn ${active ? "serviceBtnActive" : ""}`}
+                      >
+                        {s.name} ({s.durationMin} min)
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              <Field label="Freier Slot">
+                <div className="slotWrap">
+                  {manualTimesLoading ? (
+                    <div style={{ fontSize: 13, color: "#666", fontWeight: 700 }}>
+                      Lade freie Zeiten...
+                    </div>
+                  ) : manualAvailableTimes.length === 0 ? (
+                    <div style={{ fontSize: 13, color: "#888", fontWeight: 700 }}>
+                      Keine freien Zeiten verfügbar
+                    </div>
+                  ) : (
+                    <div className="slotRow">
+                      {manualAvailableTimes.map((time) => {
+                        const active = newBookingTime === time;
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => setNewBookingTime(time)}
+                            className={`slotChip ${active ? "slotChipActive" : ""}`}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </Field>
 
               <Field label="Notiz (optional)">
@@ -1724,16 +1623,16 @@ export default function AdminPage() {
                   value={newBookingNote}
                   onChange={(e) => setNewBookingNote(e.target.value)}
                   placeholder="z.B. telefonisch vereinbart"
-                  rows={4}
-                  style={{ ...fieldInputStyle, resize: "vertical" as const }}
+                  className="fieldTextarea"
                 />
               </Field>
             </div>
 
-            <div className="createActions" style={{ marginTop: 18, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <TopButton onClick={closeCreateModal} disabled={creatingBooking}>
+            <div className="createActions">
+              <TopButton onClick={() => setShowCreateModal(false)} disabled={creatingBooking}>
                 Abbrechen
               </TopButton>
+
               <TopButton
                 onClick={createManualBooking}
                 disabled={creatingBooking || !newBookingTime}
@@ -1745,65 +1644,6 @@ export default function AdminPage() {
           </div>
         </div>
       ) : null}
-
-      <style jsx>{`
-        .topGrid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 8px;
-        }
-
-        .statsGrid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 8px;
-        }
-
-        .calendarHeader {
-          display: grid;
-          grid-template-columns: auto 1fr auto;
-          gap: 8px;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .calendarHeaderRight {
-          display: grid;
-          grid-template-columns: 42px auto;
-          gap: 8px;
-          align-items: center;
-        }
-
-        @media (max-width: 760px) {
-          .statusRow {
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .topGrid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .calendarHeader {
-            grid-template-columns: 1fr;
-          }
-
-          .calendarHeader > :nth-child(2) {
-            order: -1;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .createGrid2 {
-            grid-template-columns: 1fr !important;
-          }
-
-          .createActions {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-      `}</style>
     </div>
   );
 }
@@ -1819,7 +1659,7 @@ function InfoCard(props: { label: string; value: string; sub?: string }) {
       }}
     >
       <div style={{ fontSize: 12, color: "#666", fontWeight: 800 }}>{props.label}</div>
-      <div style={{ marginTop: 4, fontWeight: 900 }}>{props.value}</div>
+      <div style={{ marginTop: 4, fontWeight: 900, color: "#111" }}>{props.value}</div>
       {props.sub ? <div style={{ marginTop: 4, color: "#555" }}>{props.sub}</div> : null}
     </div>
   );
@@ -1828,43 +1668,51 @@ function InfoCard(props: { label: string; value: string; sub?: string }) {
 function Field(props: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>{props.label}</div>
+      <div style={{ fontSize: 12, color: "#666", fontWeight: 800, marginBottom: 6 }}>
+        {props.label}
+      </div>
       {props.children}
     </div>
   );
 }
 
-const fieldInputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: 12,
-  border: "1px solid #ddd",
-  fontSize: 14,
-  boxSizing: "border-box",
-};
-
-const miniCalendarNavButton: React.CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: 10,
-  border: "1px solid #ddd",
-  background: "#fff",
-  color: "#111",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-};
+function StatusButton(props: {
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      disabled={props.disabled}
+      onClick={props.onClick}
+      style={{
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: props.active ? "1px solid #111" : "1px solid #ddd",
+        background: props.active ? "#111" : "#fff",
+        color: props.active ? "#fff" : "#111",
+        cursor: props.disabled ? "not-allowed" : "pointer",
+        fontWeight: 900,
+        fontSize: 12,
+        opacity: props.disabled ? 0.75 : 1,
+      }}
+    >
+      {props.label}
+    </button>
+  );
+}
 
 function DayCalendar(props: {
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   date: string;
   bookings: ApiBooking[];
-  pauseBlocks: CalendarPauseBlock[];
+  blocks: ApiBlock[];
   hours: number[];
   windowStart: number;
   windowEnd: number;
   selectedBookingId: number | null;
-  onSelectBooking: (id: number) => void;
+  onSelectBooking: (booking: ApiBooking) => void;
   showNowLine: boolean;
 }) {
   const totalMin = props.windowEnd - props.windowStart;
@@ -1872,36 +1720,91 @@ function DayCalendar(props: {
   const gridHeight = Math.max(720, totalMin * pxPerMin);
 
   const laidOut = layoutOverlappingBookings(props.bookings);
-
   const nowMin = getNowMinutes();
   const nowTop = (nowMin - props.windowStart) * pxPerMin;
   const shouldShowNowLine =
     props.showNowLine && nowMin >= props.windowStart && nowMin <= props.windowEnd;
 
   return (
-    <div style={{ width: "100%" }}>
+    <div
+      style={{
+        border: "1px solid #e6e6e8",
+        borderRadius: 24,
+        background: "#fff",
+        padding: 14,
+        boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "0 4px 14px",
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              fontSize: 22,
+              lineHeight: 1.2,
+              fontWeight: 900,
+              color: "#111",
+              textTransform: "capitalize",
+            }}
+          >
+            {formatDayHeadline(props.date)}
+          </div>
+          <div
+            style={{
+              marginTop: 5,
+              fontSize: 13,
+              color: "#6b6b70",
+              fontWeight: 700,
+            }}
+          >
+            {props.bookings.length} {props.bookings.length === 1 ? "Termin" : "Termine"}
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "7px 10px",
+            borderRadius: 999,
+            background: "#f0f0f2",
+            fontSize: 12,
+            color: "#444",
+            fontWeight: 800,
+          }}
+        >
+          Swipe
+        </div>
+      </div>
+
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "64px minmax(0, 1fr)",
-          border: "1px solid #eee",
-          borderRadius: 14,
+          gridTemplateColumns: "56px minmax(0, 1fr)",
+          border: "1px solid #e8e8eb",
+          borderRadius: 20,
           overflow: "hidden",
           background: "#fff",
-          width: "100%",
         }}
       >
-        <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 38, borderBottom: "1px solid #eee" }} />
+        <div style={{ background: "#fafafb" }}>
+          <div style={{ height: 42, borderBottom: "1px solid #ececef" }} />
           {props.hours.map((h) => (
             <div
               key={h}
               style={{
                 height: 129,
-                padding: "10px 8px",
-                borderBottom: "1px solid #f0f0f0",
+                paddingTop: 10,
+                paddingLeft: 8,
+                paddingRight: 8,
+                borderBottom: "1px solid #f1f1f3",
                 fontSize: 12,
-                color: "#666",
+                color: "#6f6f75",
                 fontWeight: 800,
                 boxSizing: "border-box",
               }}
@@ -1911,227 +1814,246 @@ function DayCalendar(props: {
           ))}
         </div>
 
-        <div style={{ position: "relative", background: "#fff", minWidth: 0 }}>
+        <div style={{ minWidth: 0, background: "#fff" }}>
           <div
             style={{
-              height: 38,
-              borderBottom: "1px solid #eee",
+              height: 42,
+              borderBottom: "1px solid #ececef",
               display: "flex",
               alignItems: "center",
-              padding: "0 12px",
-              fontWeight: 800,
-              fontSize: 13,
-              color: "#444",
+              padding: "0 14px",
+              background: "#fcfcfd",
+              fontWeight: 900,
+              fontSize: 15,
+              color: "#222",
             }}
           >
             Termine
           </div>
 
-          <div style={{ position: "relative", height: gridHeight }}>
-            {props.hours.slice(0, -1).map((h) => {
-              const top = (h - props.windowStart) * pxPerMin;
-              return (
-                <div
-                  key={h}
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    top,
-                    borderTop: "1px solid #f0f0f0",
-                  }}
-                />
-              );
-            })}
-
-            {props.pauseBlocks.map((p) => {
-              const top = (p.startMin - props.windowStart) * pxPerMin + 2;
-              const height = Math.max(16, (p.endMin - p.startMin) * pxPerMin - 4);
-
-              return (
-                <div
-                  key={p.id}
-                  title={p.reason || "Blockiert"}
-                  style={{
-                    position: "absolute",
-                    left: 6,
-                    right: 6,
-                    top,
-                    height,
-                    borderRadius: 12,
-                    background:
-                      p.kind === "recurring"
-                        ? "repeating-linear-gradient(-45deg, #f4f4f5, #f4f4f5 8px, #ececef 8px, #ececef 16px)"
-                        : "repeating-linear-gradient(-45deg, #f8f1f1, #f8f1f1 8px, #f1e4e4 8px, #f1e4e4 16px)",
-                    border: "1px dashed #b8b8be",
-                    zIndex: 4,
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "flex-start",
-                    padding: "6px 8px",
-                    overflow: "hidden",
-                    boxSizing: "border-box",
-                  }}
-                >
+          <div
+            ref={props.scrollRef}
+            style={{
+              position: "relative",
+              height: Math.min(gridHeight, 980),
+              overflowY: "auto",
+              background: "#fff",
+            }}
+          >
+            <div style={{ position: "relative", height: gridHeight }}>
+              {props.hours.slice(0, -1).map((h) => {
+                const top = (h - props.windowStart) * pxPerMin;
+                return (
                   <div
+                    key={h}
                     style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: "#555",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top,
+                      borderTop: "1px solid #f0f0f2",
+                    }}
+                  />
+                );
+              })}
+
+              {props.blocks.map((block) => {
+                const top = (block.startMin - props.windowStart) * pxPerMin;
+                const height = Math.max(28, (block.endMin - block.startMin) * pxPerMin);
+
+                return (
+                  <div
+                    key={`${block.source}-${block.id}`}
+                    style={{
+                      position: "absolute",
+                      left: 6,
+                      right: 6,
+                      top,
+                      height,
+                      borderRadius: 16,
+                      background: "#f2f2f4",
+                      border: "1px dashed #d8d8dd",
+                      padding: "0 10px",
+                      justifyContent: "center",
+                      display: "flex",
+                      zIndex: 2,
+                      boxSizing: "border-box",
                     }}
                   >
-                    {p.reason || "Blockiert"}
-                  </div>
-                </div>
-              );
-            })}
-
-            {shouldShowNowLine ? (
-              <>
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    top: nowTop,
-                    borderTop: "2px solid #e11d48",
-                    zIndex: 20,
-                  }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 8,
-                    top: nowTop - 6,
-                    width: 12,
-                    height: 12,
-                    borderRadius: 999,
-                    background: "#e11d48",
-                    zIndex: 21,
-                    boxShadow: "0 0 0 2px #fff",
-                  }}
-                />
-              </>
-            ) : null}
-
-            {laidOut.length === 0 && props.pauseBlocks.length === 0 ? (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#888",
-                  fontStyle: "italic",
-                }}
-              >
-                Keine Termine
-              </div>
-            ) : null}
-
-            {laidOut.map((b) => {
-              const colors = statusColors(b.status);
-              const top = (b.startMin - props.windowStart) * pxPerMin + 4;
-              const rawHeight = (b.endMin - b.startMin) * pxPerMin - 8;
-              const height = Math.max(40, rawHeight);
-              const compact = height < 82;
-              const selected = props.selectedBookingId === b.id;
-
-              const gap = 6;
-              const colWidth = 100 / b.laneCount;
-              const left = `calc(${b.lane * colWidth}% + ${gap / 2}px)`;
-              const width = `calc(${colWidth}% - ${gap}px)`;
-
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => props.onSelectBooking(b.id)}
-                  title={`${b.customer?.name || "Ohne Name"} · ${b.timeHHMM || ""}`}
-                  style={{
-                    position: "absolute",
-                    left,
-                    width,
-                    top,
-                    height,
-                    zIndex: selected ? 11 : 10,
-                    borderRadius: 14,
-                    border: selected ? "2px solid #111" : "1px solid #e5e5e5",
-                    background: colors.soft,
-                    padding: compact ? "6px 8px" : "9px 11px",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    overflow: "hidden",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 900,
-                      fontSize: compact ? 11 : 13,
-                      lineHeight: 1.1,
-                      color: "#111",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
-                  </div>
-
-                  {compact ? (
                     <div
                       style={{
-                        marginTop: 2,
+                        fontSize: 12,
                         fontWeight: 800,
-                        fontSize: 11,
-                        lineHeight: 1.1,
-                        color: "#111",
+                        color: "#666",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        alignSelf: "center",
                       }}
                     >
-                      {b.customer?.name || "Ohne Name"} · {b.service?.name || b.service?.key || "Service"}
+                      Pause / blockiert {block.reason ? `• ${block.reason}` : ""}
                     </div>
-                  ) : (
-                    <>
+                  </div>
+                );
+              })}
+
+              {shouldShowNowLine ? (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top: nowTop,
+                      borderTop: "2px solid #e11d48",
+                      zIndex: 20,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 8,
+                      top: nowTop - 6,
+                      width: 12,
+                      height: 12,
+                      borderRadius: 999,
+                      background: "#e11d48",
+                      zIndex: 21,
+                    }}
+                  />
+                </>
+              ) : null}
+
+              {laidOut.length === 0 ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#888",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Keine Termine
+                </div>
+              ) : null}
+
+              {laidOut.map((b) => {
+                const colors = statusColors(b.status);
+                const top = (b.startMin - props.windowStart) * pxPerMin + 4;
+                const rawHeight = (b.endMin - b.startMin) * pxPerMin - 8;
+                const height = Math.max(52, rawHeight);
+                const compact = height < 88;
+                const ultraCompact = height < 66;
+                const selected = props.selectedBookingId === b.id;
+
+                let left: string | number = 6;
+                let width: string | number = "auto";
+                let right: string | number = 6;
+
+                if (b.laneCount > 1) {
+                  const gapPx = 4;
+                  const colWidth = 100 / b.laneCount;
+                  left = `calc(${b.lane * colWidth}% + ${gapPx / 2}px)`;
+                  width = `calc(${colWidth}% - ${gapPx}px)`;
+                  right = "auto";
+                }
+
+                return (
+                  <button
+                    key={b.id}
+                    onClick={() => props.onSelectBooking(b)}
+                    style={{
+                      position: "absolute",
+                      left: left as any,
+                      width: width as any,
+                      right: right as any,
+                      top,
+                      height,
+                      zIndex: selected ? 11 : 10,
+                      borderRadius: 18,
+                      border: selected ? "2px solid #111" : `1px solid ${colors.border}`,
+                      background: colors.soft,
+                      overflow: "hidden",
+                      display: "flex",
+                      flexDirection: "row",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 6,
+                        background: colors.accent,
+                        flexShrink: 0,
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        flex: 1,
+                        paddingTop: ultraCompact ? 6 : compact ? 8 : 10,
+                        paddingBottom: ultraCompact ? 6 : compact ? 8 : 10,
+                        paddingLeft: ultraCompact ? 8 : compact ? 10 : 12,
+                        paddingRight: ultraCompact ? 8 : compact ? 10 : 12,
+                        justifyContent: "center",
+                        display: "flex",
+                        flexDirection: "column",
+                        boxSizing: "border-box",
+                        minWidth: 0,
+                      }}
+                    >
                       <div
                         style={{
-                          marginTop: 2,
-                          fontWeight: 800,
-                          fontSize: 13,
-                          lineHeight: 1.1,
+                          fontWeight: 900,
+                          fontSize: ultraCompact ? 11 : compact ? 12 : 13,
+                          lineHeight: 1.15,
+                          color: "#111",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
+                        }}
+                      >
+                        {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: ultraCompact ? 1 : 2,
+                          fontWeight: 900,
+                          fontSize: ultraCompact ? 11 : compact ? 12 : 14,
+                          lineHeight: 1.15,
                           color: "#111",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
                         }}
                       >
                         {b.customer?.name || "Ohne Name"}
                       </div>
 
-                      <div
-                        style={{
-                          marginTop: 2,
-                          fontSize: 11,
-                          color: "#555",
-                          lineHeight: 1.1,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {b.service?.name || b.service?.key || "Service"}
-                      </div>
-                    </>
-                  )}
-                </button>
-              );
-            })}
+                      {!ultraCompact ? (
+                        <div
+                          style={{
+                            marginTop: 3,
+                            fontSize: 12,
+                            color: "#5f5f64",
+                            lineHeight: 1.15,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {b.service?.name || b.service?.key || "Service"}
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -2141,104 +2063,185 @@ function DayCalendar(props: {
 
 function WeekCalendar(props: {
   days: DayData[];
-  pauseBlocksByDate: Record<string, CalendarPauseBlock[]>;
+  onSelectBooking: (booking: ApiBooking) => void;
+  weekLabel: string;
+  isMobile: boolean;
   hours: number[];
   windowStart: number;
   windowEnd: number;
-  selectedBookingId: number | null;
-  onSelectBooking: (id: number) => void;
-  isMobile: boolean;
 }) {
   if (props.isMobile) {
     return (
-      <div style={{ display: "grid", gap: 10 }}>
-        {props.days.map((day) => {
-          const pauses = props.pauseBlocksByDate[day.date] ?? [];
-          const bookings = day.bookings
-            .slice()
-            .sort((a, b) => {
-              const sa = parseStartEndFromTimeHHMM(a.timeHHMM)?.startMin ?? 0;
-              const sb = parseStartEndFromTimeHHMM(b.timeHHMM)?.startMin ?? 0;
-              return sa - sb;
-            });
-
-          return (
+      <div
+        style={{
+          border: "1px solid #e6e6e8",
+          borderRadius: 24,
+          background: "#fff",
+          padding: 14,
+          boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "0 4px 14px",
+          }}
+        >
+          <div style={{ flex: 1 }}>
             <div
-              key={day.date}
               style={{
-                border: "1px solid #eee",
-                borderRadius: 16,
-                background: "#fff",
-                overflow: "hidden",
+                fontSize: 22,
+                lineHeight: 1.2,
+                fontWeight: 900,
+                color: "#111",
               }}
             >
+              {props.weekLabel}
+            </div>
+            <div
+              style={{
+                marginTop: 5,
+                fontSize: 13,
+                color: "#6b6b70",
+                fontWeight: 700,
+              }}
+            >
+              Wochenübersicht
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {props.days.map((day) => {
+            const bookings = day.bookings
+              .slice()
+              .sort((a, b) => {
+                const sa = parseStartEndFromTimeHHMM(a.timeHHMM)?.startMin ?? 0;
+                const sb = parseStartEndFromTimeHHMM(b.timeHHMM)?.startMin ?? 0;
+                return sa - sb;
+              });
+
+            return (
               <div
+                key={day.date}
                 style={{
-                  padding: "12px 14px",
-                  borderBottom: "1px solid #eee",
-                  fontWeight: 900,
-                  fontSize: 16,
+                  border: "1px solid #e8e8eb",
+                  borderRadius: 18,
+                  background: "#fff",
+                  overflow: "hidden",
                 }}
               >
-                {formatDayHeadline(day.date)}
-              </div>
-
-              <div style={{ padding: 12, display: "grid", gap: 8 }}>
-                {pauses.map((p) => (
+                <div
+                  style={{
+                    padding: "12px 14px",
+                    borderBottom: "1px solid #eee",
+                    background: "#fcfcfd",
+                  }}
+                >
                   <div
-                    key={p.id}
                     style={{
-                      borderRadius: 12,
-                      padding: "10px 12px",
-                      fontSize: 12,
-                      fontWeight: 800,
-                      color: "#555",
-                      background:
-                        p.kind === "recurring"
-                          ? "repeating-linear-gradient(-45deg, #f4f4f5, #f4f4f5 8px, #ececef 8px, #ececef 16px)"
-                          : "repeating-linear-gradient(-45deg, #f8f1f1, #f8f1f1 8px, #f1e4e4 8px, #f1e4e4 16px)",
-                      border: "1px dashed #b8b8be",
+                      fontWeight: 900,
+                      fontSize: 16,
+                      color: "#111",
                     }}
                   >
-                    {minToHHMM(p.startMin)} – {minToHHMM(p.endMin)} · {p.reason || "Blockiert"}
+                    {formatDayHeadline(day.date)}
                   </div>
-                ))}
-
-                {bookings.length === 0 && pauses.length === 0 ? (
-                  <div style={{ color: "#888", fontStyle: "italic", padding: "6px 2px" }}>
-                    Keine Termine
+                  <div
+                    style={{
+                      marginTop: 4,
+                      fontSize: 12,
+                      color: "#666",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {bookings.length} {bookings.length === 1 ? "Termin" : "Termine"}
                   </div>
-                ) : null}
+                </div>
 
-                {bookings.map((b) => {
-                  const colors = statusColors(b.status);
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => props.onSelectBooking(b.id)}
+                <div style={{ padding: 12, display: "grid", gap: 8 }}>
+                  {day.blocks.map((block) => (
+                    <div
+                      key={`${block.source}-${block.id}`}
                       style={{
-                        border: "1px solid #e8e8e8",
-                        borderRadius: 14,
-                        background: colors.soft,
-                        padding: 12,
-                        textAlign: "left",
-                        cursor: "pointer",
+                        borderRadius: 12,
+                        padding: "10px 12px",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: "#666",
+                        background: "#f2f2f4",
+                        border: "1px dashed #d8d8dd",
                       }}
                     >
-                      <div style={{ fontWeight: 900, fontSize: 13 }}>{b.timeHHMM || "—"}</div>
-                      <div style={{ marginTop: 4, fontWeight: 800 }}>
-                        {b.customer?.name || "Ohne Name"}
-                      </div>
-                      <div style={{ marginTop: 3, fontSize: 12, color: "#555" }}>
-                        {b.service?.name || b.service?.key || "Service"}
-                      </div>
-                    </button>
-                  );
-                })}
+                      {minToHHMM(block.startMin)} – {minToHHMM(block.endMin)} ·{" "}
+                      {block.reason || "Pause / blockiert"}
+                    </div>
+                  ))}
+
+                  {bookings.length === 0 && day.blocks.length === 0 ? (
+                    <div style={{ color: "#888", fontStyle: "italic", padding: "6px 2px" }}>
+                      Keine Termine
+                    </div>
+                  ) : null}
+
+                  {bookings.map((b) => {
+                    const colors = statusColors(b.status);
+                    return (
+                      <button
+                        key={b.id}
+                        onClick={() => props.onSelectBooking(b)}
+                        style={{
+                          border: `1px solid ${colors.border}`,
+                          borderRadius: 16,
+                          background: colors.soft,
+                          overflow: "hidden",
+                          display: "flex",
+                          flexDirection: "row",
+                          textAlign: "left",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ width: 6, background: colors.accent, flexShrink: 0 }} />
+                        <div style={{ flex: 1, padding: 12, minWidth: 0 }}>
+                          <div style={{ fontWeight: 900, fontSize: 13, color: "#111" }}>
+                            {b.timeHHMM || "—"}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontWeight: 900,
+                              color: "#111",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {b.customer?.name || "Ohne Namen"}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 3,
+                              fontSize: 12,
+                              color: "#555",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {b.service?.name || b.service?.key || "Service"}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -2248,173 +2251,225 @@ function WeekCalendar(props: {
   const gridHeight = Math.max(640, totalMin * pxPerMin);
 
   return (
-    <div style={{ minWidth: 1100 }}>
+    <div
+      style={{
+        border: "1px solid #e6e6e8",
+        borderRadius: 24,
+        background: "#fff",
+        padding: 14,
+        boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
+      }}
+    >
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "76px repeat(7, minmax(145px, 1fr))",
-          border: "1px solid #eee",
-          borderRadius: 14,
-          overflow: "hidden",
-          background: "#fff",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "0 4px 14px",
         }}
       >
-        <div style={{ background: "#fafafa" }}>
-          <div style={{ height: 48, borderBottom: "1px solid #eee" }} />
-          {props.hours.map((h) => (
-            <div
-              key={h}
-              style={{
-                height: 74,
-                padding: "8px 10px",
-                borderBottom: "1px solid #f0f0f0",
-                fontSize: 13,
-                color: "#666",
-                fontWeight: 800,
-              }}
-            >
-              {minToHHMM(h)}
-            </div>
-          ))}
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              fontSize: 22,
+              lineHeight: 1.2,
+              fontWeight: 900,
+              color: "#111",
+            }}
+          >
+            {props.weekLabel}
+          </div>
+          <div
+            style={{
+              marginTop: 5,
+              fontSize: 13,
+              color: "#6b6b70",
+              fontWeight: 700,
+            }}
+          >
+            Wochenübersicht
+          </div>
         </div>
+      </div>
 
-        {props.days.map((day) => {
-          const laidOut = layoutOverlappingBookings(day.bookings);
-          const pauses = props.pauseBlocksByDate[day.date] ?? [];
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: 1100 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "76px repeat(7, minmax(145px, 1fr))",
+              border: "1px solid #e8e8eb",
+              borderRadius: 20,
+              overflow: "hidden",
+              background: "#fff",
+            }}
+          >
+            <div style={{ background: "#fafafb" }}>
+              <div style={{ height: 48, borderBottom: "1px solid #ececef" }} />
+              {props.hours.map((h) => (
+                <div
+                  key={h}
+                  style={{
+                    height: 74,
+                    padding: "8px 10px",
+                    borderBottom: "1px solid #f1f1f3",
+                    fontSize: 13,
+                    color: "#6f6f75",
+                    fontWeight: 800,
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {minToHHMM(h)}
+                </div>
+              ))}
+            </div>
 
-          return (
-            <div key={day.date} style={{ position: "relative", borderLeft: "1px solid #f0f0f0" }}>
-              <div
-                style={{
-                  height: 48,
-                  borderBottom: "1px solid #eee",
-                  padding: 8,
-                  textAlign: "center",
-                  fontWeight: 900,
-                  background: "#fafafa",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 14,
-                }}
-              >
-                {formatShortDay(day.date)}
-              </div>
+            {props.days.map((day) => {
+              const laidOut = layoutOverlappingBookings(day.bookings);
 
-              <div style={{ position: "relative", height: gridHeight }}>
-                {props.hours.slice(0, -1).map((h) => {
-                  const top = (h - props.windowStart) * 1.05;
-                  return (
-                    <div
-                      key={h}
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        top,
-                        borderTop: "1px solid #f0f0f0",
-                      }}
-                    />
-                  );
-                })}
+              return (
+                <div key={day.date} style={{ position: "relative", borderLeft: "1px solid #f0f0f0" }}>
+                  <div
+                    style={{
+                      height: 48,
+                      borderBottom: "1px solid #ececef",
+                      padding: 8,
+                      textAlign: "center",
+                      fontWeight: 900,
+                      background: "#fcfcfd",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 14,
+                    }}
+                  >
+                    {formatShortDay(day.date)}
+                  </div>
 
-                {pauses.map((p) => {
-                  const top = (p.startMin - props.windowStart) * 1.05 + 2;
-                  const height = Math.max(12, (p.endMin - p.startMin) * 1.05 - 4);
-
-                  return (
-                    <div
-                      key={p.id}
-                      title={p.reason || "Blockiert"}
-                      style={{
-                        position: "absolute",
-                        left: 4,
-                        right: 4,
-                        top,
-                        height,
-                        borderRadius: 8,
-                        background:
-                          p.kind === "recurring"
-                            ? "repeating-linear-gradient(-45deg, #f4f4f5, #f4f4f5 8px, #ececef 8px, #ececef 16px)"
-                            : "repeating-linear-gradient(-45deg, #f8f1f1, #f8f1f1 8px, #f1e4e4 8px, #f1e4e4 16px)",
-                        border: "1px dashed #b8b8be",
-                        zIndex: 4,
-                      }}
-                    />
-                  );
-                })}
-
-                {laidOut.map((b) => {
-                  const colors = statusColors(b.status);
-                  const top = (b.startMin - props.windowStart) * 1.05 + 4;
-                  const rawHeight = (b.endMin - b.startMin) * 1.05 - 4;
-                  const height = Math.max(22, rawHeight);
-                  const compact = height < 40;
-                  const veryCompact = height < 28;
-                  const selected = props.selectedBookingId === b.id;
-
-                  const gap = 4;
-                  const colWidth = 100 / b.laneCount;
-                  const left = `calc(${b.lane * colWidth}% + ${gap / 2}px)`;
-                  const width = `calc(${colWidth}% - ${gap}px)`;
-
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => props.onSelectBooking(b.id)}
-                      title={`${b.customer?.name || "Ohne Name"} · ${b.timeHHMM || ""}`}
-                      style={{
-                        position: "absolute",
-                        left,
-                        width,
-                        top,
-                        height,
-                        borderRadius: 10,
-                        border: selected ? "2px solid #111" : "1px solid #e5e5e5",
-                        background: colors.soft,
-                        padding: compact ? "3px 5px" : "6px 8px",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        overflow: "hidden",
-                        fontSize: 11,
-                        zIndex: selected ? 11 : 10,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontWeight: 900,
-                          fontSize: compact ? 10 : 11,
-                          lineHeight: 1.1,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {b.customer?.name || "Ohne Name"}
-                      </div>
-
-                      {veryCompact ? null : (
+                  <div style={{ position: "relative", height: gridHeight }}>
+                    {props.hours.slice(0, -1).map((h) => {
+                      const top = (h - props.windowStart) * pxPerMin;
+                      return (
                         <div
+                          key={h}
                           style={{
-                            marginTop: 2,
-                            color: "#555",
-                            fontSize: compact ? 9 : 10,
-                            lineHeight: 1.1,
-                            whiteSpace: "nowrap",
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top,
+                            borderTop: "1px solid #f0f0f2",
+                          }}
+                        />
+                      );
+                    })}
+
+                    {day.blocks.map((block) => {
+                      const top = (block.startMin - props.windowStart) * pxPerMin + 2;
+                      const height = Math.max(12, (block.endMin - block.startMin) * pxPerMin - 4);
+
+                      return (
+                        <div
+                          key={`${block.source}-${block.id}`}
+                          title={block.reason || "Pause / blockiert"}
+                          style={{
+                            position: "absolute",
+                            left: 4,
+                            right: 4,
+                            top,
+                            height,
+                            borderRadius: 8,
+                            background: "#f2f2f4",
+                            border: "1px dashed #d8d8dd",
+                            zIndex: 4,
+                          }}
+                        />
+                      );
+                    })}
+
+                    {laidOut.map((b) => {
+                      const colors = statusColors(b.status);
+                      const top = (b.startMin - props.windowStart) * pxPerMin + 4;
+                      const rawHeight = (b.endMin - b.startMin) * pxPerMin - 4;
+                      const height = Math.max(22, rawHeight);
+                      const compact = height < 40;
+                      const veryCompact = height < 28;
+
+                      const gap = 4;
+                      const colWidth = 100 / b.laneCount;
+                      const left = `calc(${b.lane * colWidth}% + ${gap / 2}px)`;
+                      const width = `calc(${colWidth}% - ${gap}px)`;
+
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => props.onSelectBooking(b)}
+                          title={`${b.customer?.name || "Ohne Name"} · ${b.timeHHMM || ""}`}
+                          style={{
+                            position: "absolute",
+                            left,
+                            width,
+                            top,
+                            height,
+                            borderRadius: 10,
+                            border: `1px solid ${colors.border}`,
+                            background: colors.soft,
                             overflow: "hidden",
-                            textOverflow: "ellipsis",
+                            display: "flex",
+                            flexDirection: "row",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            zIndex: 10,
                           }}
                         >
-                          {b.timeHHMM || ""}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+                          <div style={{ width: 4, background: colors.accent, flexShrink: 0 }} />
+                          <div
+                            style={{
+                              flex: 1,
+                              padding: compact ? "3px 5px" : "6px 8px",
+                              minWidth: 0,
+                              boxSizing: "border-box",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontWeight: 900,
+                                fontSize: compact ? 10 : 11,
+                                lineHeight: 1.1,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                color: "#111",
+                              }}
+                            >
+                              {b.customer?.name || "Ohne Name"}
+                            </div>
+
+                            {veryCompact ? null : (
+                              <div
+                                style={{
+                                  marginTop: 2,
+                                  color: "#555",
+                                  fontSize: compact ? 9 : 10,
+                                  lineHeight: 1.1,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {b.timeHHMM || ""}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

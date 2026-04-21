@@ -3,38 +3,78 @@
 import { usePathname } from "next/navigation";
 import Brand from "@/components/Brand";
 import AdminBottomNav from "./admin/AdminBottomNav";
+import AdminNav from "./admin/AdminNav";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isDashboard = pathname === "/admin";
 
   return (
-    <div
-      style={{
-        padding: 16,
-        paddingBottom: 90,
-        maxWidth: 1180,
-        margin: "0 auto",
-      }}
-    >
-      <div
-        style={{
-          marginBottom: isDashboard ? 8 : 14,
-        }}
-      >
-        <Brand href="/admin" />
+    <>
+      <style jsx>{`
+        .adminShell {
+          padding: 16px;
+          padding-bottom: 92px;
+          max-width: 1180px;
+          margin: 0 auto;
+        }
+
+        .brandWrap {
+          margin-bottom: 12px;
+        }
+
+        .desktopNavWrap {
+          display: none;
+          margin-bottom: 14px;
+        }
+
+        .pageIntro {
+          margin-bottom: 12px;
+        }
+
+        .pageTitle {
+          font-size: 28px;
+          font-weight: 900;
+          color: #111;
+        }
+
+        .pageSub {
+          margin-top: 4px;
+          color: #666;
+          word-break: break-word;
+        }
+
+        @media (min-width: 769px) {
+          .adminShell {
+            padding-bottom: 28px;
+          }
+
+          .desktopNavWrap {
+            display: block;
+          }
+        }
+      `}</style>
+
+      <div className="adminShell">
+        <div className="brandWrap">
+          <Brand href="/admin" />
+        </div>
+
+        <div className="desktopNavWrap">
+          <AdminNav />
+        </div>
+
+        {isDashboard ? null : (
+          <div className="pageIntro">
+            <div className="pageTitle">Admin</div>
+            <div className="pageSub">{pathname}</div>
+          </div>
+        )}
+
+        <div>{children}</div>
       </div>
 
-      {isDashboard ? null : (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 28, fontWeight: 900, color: "#111" }}>Admin</div>
-          <div style={{ marginTop: 4, color: "#666", wordBreak: "break-word" }}>{pathname}</div>
-        </div>
-      )}
-
-      <div>{children}</div>
-
       <AdminBottomNav />
-    </div>
+    </>
   );
 }

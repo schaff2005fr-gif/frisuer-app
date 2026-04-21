@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Clock3, User } from "lucide-react";
+import { CalendarDays, Clock3, Settings } from "lucide-react";
 
 function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
@@ -13,9 +13,9 @@ export default function AdminBottomNav() {
   const pathname = usePathname();
 
   const items = [
-    { href: "/admin", icon: Home, key: "home" },
+    { href: "/admin", icon: CalendarDays, key: "dashboard" },
     { href: "/admin/pausen", icon: Clock3, key: "pausen" },
-    { href: "/admin/einstellungen", icon: User, key: "settings" },
+    { href: "/admin/einstellungen", icon: Settings, key: "settings" },
   ];
 
   return (
@@ -74,7 +74,7 @@ export default function AdminBottomNav() {
           place-items: center;
         }
 
-        @media (max-width: 520px) {
+        @media (max-width: 768px) {
           .cbn_wrap {
             display: block;
           }
@@ -93,7 +93,7 @@ export default function AdminBottomNav() {
               className={`cbn_item ${active ? "cbn_active" : ""}`}
             >
               <span className="cbn_iconWrap" aria-hidden="true">
-                <Icon size={32} strokeWidth={2.2} />
+                <Icon size={30} strokeWidth={2.25} />
               </span>
             </Link>
           );

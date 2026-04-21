@@ -9,20 +9,23 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-  "supportsTablet": false,
-  "bundleIdentifier": "com.schafik.salora",
-  "associatedDomains": ["applinks:salora-booking.de"],
-  "infoPlist": {
-    "ITSAppUsesNonExemptEncryption": false
-  }
-},
+      "supportsTablet": false,
+      "bundleIdentifier": "com.schafik.salora",
+      "associatedDomains": [
+        "applinks:salora-booking.de"
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/images/app-icon.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.schafik.salora"
     },
     "web": {
       "output": "static",
