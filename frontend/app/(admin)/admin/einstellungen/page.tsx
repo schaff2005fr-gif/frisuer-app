@@ -25,6 +25,13 @@ type BarberProfile = {
   instagram: string | null;
   website: string | null;
   imageUrl: string | null;
+  subscriptionStatus?: string | null;
+  subscriptionPlan?: string | null;
+  subscriptionSource?: string | null;
+  subscriptionExpiresAt?: string | null;
+  trialEndsAt?: string | null;
+  revenueCatAppUserId?: string | null;
+  subscriptionUpdatedAt?: string | null;
 };
 
 type Service = {
@@ -170,6 +177,11 @@ function getUser() {
   }
 }
 
+function setUser(nextUser: any) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("user", JSON.stringify(nextUser));
+}
+
 export default function AdminSettingsPage() {
   const router = useRouter();
 
@@ -259,7 +271,8 @@ export default function AdminSettingsPage() {
         apiFetch("/admin/settings", { method: "GET" }),
       ]);
 
-      setProfile((profileRes.barber ?? profileRes.data?.barber ?? null) as BarberProfile | null);
+      const nextProfile = (profileRes.barber ?? profileRes.data?.barber ?? null) as BarberProfile | null;
+      setProfile(nextProfile);
 
       setServices(
         Array.isArray(servicesRes.services)
@@ -290,6 +303,17 @@ export default function AdminSettingsPage() {
       } else {
         setSettings(null);
       }
+
+      const localUser = getUser();
+      if (localUser?.role === "BARBER" && nextProfile) {
+        setUser({
+          ...localUser,
+          barber: {
+            ...localUser.barber,
+            ...nextProfile,
+          },
+        });
+      }
     } catch (e: any) {
       setError(e?.message || "Einstellungen konnten nicht geladen werden.");
     } finally {
@@ -301,14 +325,38 @@ export default function AdminSettingsPage() {
     try {
       setCheckingSubscription(true);
 
-      await apiFetch("/admin/subscription/sync", {
+      const syncData = await apiFetch("/admin/subscription/sync", {
         method: "POST",
         body: JSON.stringify({}),
       });
 
-      const data = await apiFetch("/admin/subscription-status", { method: "GET" });
-      const subscription = data?.subscription ?? {};
+      const subData = await apiFetch("/admin/subscription-status", { method: "GET" });
+      const subscription = subData?.subscription ?? {};
+
       setHasActivePro(!!subscription?.isPro);
+
+      const localUser = getUser();
+      if (localUser?.role === "BARBER") {
+        const nextUser = {
+          ...localUser,
+          barber: {
+            ...localUser.barber,
+            ...(syncData?.barber ?? {}),
+            subscriptionStatus: subscription?.status ?? localUser?.barber?.subscriptionStatus ?? null,
+            subscriptionPlan: subscription?.plan ?? localUser?.barber?.subscriptionPlan ?? null,
+            subscriptionSource: subscription?.source ?? localUser?.barber?.subscriptionSource ?? null,
+            subscriptionExpiresAt: subscription?.expiresAt ?? localUser?.barber?.subscriptionExpiresAt ?? null,
+            trialEndsAt: subscription?.trialEndsAt ?? localUser?.barber?.trialEndsAt ?? null,
+            revenueCatAppUserId:
+              subscription?.revenueCatAppUserId ??
+              syncData?.revenueCatAppUserId ??
+              localUser?.barber?.revenueCatAppUserId ??
+              null,
+            subscriptionUpdatedAt: subscription?.updatedAt ?? localUser?.barber?.subscriptionUpdatedAt ?? null,
+          },
+        };
+        setUser(nextUser);
+      }
     } catch (e) {
       console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
       setHasActivePro(false);
@@ -339,7 +387,20 @@ export default function AdminSettingsPage() {
         }),
       });
 
-      setProfile((data?.barber ?? data?.data?.barber ?? profile) as BarberProfile);
+      const nextProfile = (data?.barber ?? data?.data?.barber ?? profile) as BarberProfile;
+      setProfile(nextProfile);
+
+      const localUser = getUser();
+      if (localUser?.role === "BARBER") {
+        setUser({
+          ...localUser,
+          barber: {
+            ...localUser.barber,
+            ...nextProfile,
+          },
+        });
+      }
+
       setMessage("Profil gespeichert.");
     } catch (e: any) {
       setError(e?.message || "Profil konnte nicht gespeichert werden.");
@@ -380,6 +441,17 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({ imageUrl: uploadedUrl }),
       });
 
+      const localUser = getUser();
+      if (localUser?.role === "BARBER") {
+        setUser({
+          ...localUser,
+          barber: {
+            ...localUser.barber,
+            imageUrl: uploadedUrl,
+          },
+        });
+      }
+
       setMessage("Profilbild gespeichert.");
     } catch (e: any) {
       setError(e?.message || "Profilbild konnte nicht hochgeladen werden.");
@@ -402,6 +474,17 @@ export default function AdminSettingsPage() {
         method: "PUT",
         body: JSON.stringify({ imageUrl: null }),
       });
+
+      const localUser = getUser();
+      if (localUser?.role === "BARBER") {
+        setUser({
+          ...localUser,
+          barber: {
+            ...localUser.barber,
+            imageUrl: null,
+          },
+        });
+      }
 
       setLocalPreview("");
       setMessage("Profilbild entfernt.");
@@ -549,41 +632,41 @@ export default function AdminSettingsPage() {
   }
 
   async function openSubscriptionManagement() {
-  try {
-    setError("");
-    const token = getToken();
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
-    const res = await fetch(`${API_BASE}/admin/subscription/portal`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    });
-
-    const raw = await res.text();
-    let data: any = {};
-
     try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      data = { raw };
-    }
+      setError("");
+      const token = getToken();
+      if (!token) {
+        router.push("/login");
+        return;
+      }
 
-    if (!res.ok || !data?.url) {
-      setError(data?.error || "Abo-Verwaltung konnte nicht geöffnet werden.");
-      return;
-    }
+      const res = await fetch(`${API_BASE}/admin/subscription/portal`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
 
-    window.open(data.url, "_blank", "noopener,noreferrer");
-  } catch (e: any) {
-    setError(e?.message || "Abo-Verwaltung konnte nicht geöffnet werden.");
+      const raw = await res.text();
+      let data: any = {};
+
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      if (!res.ok || !data?.url) {
+        setError(data?.error || "Abo-Verwaltung konnte nicht geöffnet werden.");
+        return;
+      }
+
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      setError(e?.message || "Abo-Verwaltung konnte nicht geöffnet werden.");
+    }
   }
-}
 
   async function copyToClipboard(value: string, label: string) {
     try {
@@ -825,7 +908,6 @@ export default function AdminSettingsPage() {
             >
               <div style={avatarWrap}>
                 {previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={previewUrl} alt="Profilbild" style={avatarImg} />
                 ) : (
                   <div style={avatarFallback}>{profile.name?.trim()?.[0]?.toUpperCase() || "B"}</div>
@@ -969,7 +1051,10 @@ export default function AdminSettingsPage() {
                         </span>
                       </button>
 
-                      <button onClick={() => shareLink(profileUrl, "Profil-Link")} style={primaryBtnSmall}>
+                      <button
+                        onClick={() => shareLink(profileUrl, "Profil-Link")}
+                        style={primaryBtnSmall}
+                      >
                         <span style={primaryBtnSmallText}>Teilen</span>
                       </button>
                     </div>
@@ -991,7 +1076,10 @@ export default function AdminSettingsPage() {
                         </span>
                       </button>
 
-                      <button onClick={() => shareLink(bookingUrl, "Buchungs-Link")} style={primaryBtnSmall}>
+                      <button
+                        onClick={() => shareLink(bookingUrl, "Buchungs-Link")}
+                        style={primaryBtnSmall}
+                      >
                         <span style={primaryBtnSmallText}>Teilen</span>
                       </button>
                     </div>
@@ -1013,8 +1101,12 @@ export default function AdminSettingsPage() {
             <div className="accountButtons" style={{ marginTop: 16 }}>
               <button
                 onClick={openSubscriptionManagement}
-                disabled={checkingSubscription}
-                style={{ ...secondaryBtn, ...(checkingSubscription ? disabledBtn : {}) }}
+                disabled={checkingSubscription || !hasActivePro}
+                style={{
+                  ...secondaryBtn,
+                  ...((checkingSubscription || !hasActivePro) ? disabledBtn : {}),
+                }}
+                title={!hasActivePro ? "Nur bei aktivem Abo verfügbar" : ""}
               >
                 <span style={secondaryBtnText}>
                   {checkingSubscription ? "Lädt..." : "Abo verwalten"}
