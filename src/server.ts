@@ -33,7 +33,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET missing (set it in Render env vars)");
 }
-const REVENUECAT_SECRET_API_KEY = process.env.sk_PuRktmEmPBBragcuGnEQhwtnCnbrJ;
+const REVENUECAT_SECRET_API_KEY = process.env.REVENUECAT_SECRET_API_KEY;
 type Role = "CUSTOMER" | "BARBER";
 type JwtPayload = { userId: number; role: Role };
 
