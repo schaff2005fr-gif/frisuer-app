@@ -61,7 +61,7 @@ function buildCheckoutUrl() {
 
   if (!appUserId) return "";
 
-  const cleanBase = WEB_CHECKOUT_URL.replace(/\/+$/, "");
+  const cleanBase = WEB_CHECKOUT_URL.trim().replace(/\/+$/, "");
   return `${cleanBase}/${encodeURIComponent(appUserId)}`;
 }
 function SubscriptionInner() {
