@@ -1997,11 +1997,14 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
     const revenueCatAppUserId = barber.revenueCatAppUserId || `barber-${userId}`;
     const subscriber = await fetchRevenueCatSubscriber(revenueCatAppUserId);
 
-    const entitlement = subscriber?.entitlements?.pro ?? null;
     const managementUrl = subscriber?.management_url ?? null;
 
-    const isActive = !!entitlement;
-    const expiresAt = entitlement?.expires_date ? new Date(entitlement.expires_date) : null;
+    const entitlement = subscriber?.entitlements?.pro ?? null;
+const expiresAt = entitlement?.expires_date ? new Date(entitlement.expires_date) : null;
+
+const isActive =
+  !!entitlement &&
+  (!expiresAt || expiresAt.getTime() > Date.now());
 
     const updated = await prisma.barber.update({
       where: { id: barberId },
@@ -2058,6 +2061,13 @@ app.get("/admin/subscription/portal", requireAuth, requireRole("BARBER"), async 
 
     const revenueCatAppUserId = barber.revenueCatAppUserId || `barber-${userId}`;
     const subscriber = await fetchRevenueCatSubscriber(revenueCatAppUserId);
+
+    console.log("RC SYNC DEBUG:", {
+  revenueCatAppUserId,
+  entitlements: subscriber?.entitlements ?? null,
+  subscriptions: subscriber?.subscriptions ?? null,
+  managementUrl: subscriber?.management_url ?? null,
+});
 
     const managementUrl = subscriber?.management_url ?? null;
 

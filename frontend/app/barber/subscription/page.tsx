@@ -55,10 +55,14 @@ function buildCheckoutUrl() {
   if (!WEB_CHECKOUT_URL) return "";
 
   const user = getUser();
-  const barberAppUserId = user?.id ? `barber-${user.id}` : "barber-test";
+  if (!user?.id) return "";
 
-  const base = WEB_CHECKOUT_URL.split("?")[0];
-  return `${base}?app_user_id=${encodeURIComponent(barberAppUserId)}`;
+  const barberAppUserId = `barber-${user.id}`;
+
+  const url = new URL(WEB_CHECKOUT_URL);
+  url.searchParams.set("app_user_id", barberAppUserId);
+
+  return url.toString();
 }
 
 function SubscriptionInner() {
