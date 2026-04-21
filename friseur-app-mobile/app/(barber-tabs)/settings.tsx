@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
   Linking,
+  Share,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -180,8 +181,9 @@ export default function BarberSettingsScreen() {
 
   const [tab, setTab] = useState<TabKey>("PROFILE");
   const [hasActivePro, setHasActivePro] = useState(false);
-const [subscriptionManagementUrl, setSubscriptionManagementUrl] = useState("");
-const [checkingSubscription, setCheckingSubscription] = useState(true);
+  const [subscriptionManagementUrl, setSubscriptionManagementUrl] = useState("");
+  const [checkingSubscription, setCheckingSubscription] = useState(true);
+
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
@@ -238,23 +240,23 @@ const [checkingSubscription, setCheckingSubscription] = useState(true);
       const rawSettings = (settingsRes.data?.settings ?? null) as AppSettings | null;
 
       if (rawSettings) {
-  setSettings({
-    ...rawSettings,
-    displayStartMin: Number.isFinite((rawSettings as any).displayStartMin)
-      ? Number((rawSettings as any).displayStartMin)
-      : Number.isFinite((rawSettings as any).earliestLimitMin)
-      ? Number((rawSettings as any).earliestLimitMin)
-      : 12 * 60,
-    displayEndMin: Number.isFinite((rawSettings as any).displayEndMin)
-      ? Number((rawSettings as any).displayEndMin)
-      : 17 * 60,
-    minDaysBetweenBookings: Number.isFinite((rawSettings as any).minDaysBetweenBookings)
-      ? Number((rawSettings as any).minDaysBetweenBookings)
-      : 0,
-  });
-} else {
-  setSettings(null);
-}
+        setSettings({
+          ...rawSettings,
+          displayStartMin: Number.isFinite((rawSettings as any).displayStartMin)
+            ? Number((rawSettings as any).displayStartMin)
+            : Number.isFinite((rawSettings as any).earliestLimitMin)
+            ? Number((rawSettings as any).earliestLimitMin)
+            : 12 * 60,
+          displayEndMin: Number.isFinite((rawSettings as any).displayEndMin)
+            ? Number((rawSettings as any).displayEndMin)
+            : 17 * 60,
+          minDaysBetweenBookings: Number.isFinite((rawSettings as any).minDaysBetweenBookings)
+            ? Number((rawSettings as any).minDaysBetweenBookings)
+            : 0,
+        });
+      } else {
+        setSettings(null);
+      }
     } catch (e: any) {
       setError(e?.response?.data?.error || "Einstellungen konnten nicht geladen werden.");
     } finally {
@@ -263,24 +265,24 @@ const [checkingSubscription, setCheckingSubscription] = useState(true);
   }
 
   async function loadSubscriptionStatus() {
-  try {
-    setCheckingSubscription(true);
+    try {
+      setCheckingSubscription(true);
 
-    const info = await getCustomerInfo();
+      const info = await getCustomerInfo();
 
-    const hasPro = !!info.entitlements.active["pro"];
-    const managementUrl = info.managementURL ?? "";
+      const hasPro = !!info.entitlements.active["pro"];
+      const managementUrl = info.managementURL ?? "";
 
-    setHasActivePro(hasPro);
-    setSubscriptionManagementUrl(managementUrl);
-  } catch (e) {
-    console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
-    setHasActivePro(false);
-    setSubscriptionManagementUrl("");
-  } finally {
-    setCheckingSubscription(false);
+      setHasActivePro(hasPro);
+      setSubscriptionManagementUrl(managementUrl);
+    } catch (e) {
+      console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
+      setHasActivePro(false);
+      setSubscriptionManagementUrl("");
+    } finally {
+      setCheckingSubscription(false);
+    }
   }
-}
 
   async function saveProfile() {
     if (!profile) return;
@@ -547,30 +549,47 @@ const [checkingSubscription, setCheckingSubscription] = useState(true);
   }
 
   async function openSubscriptionManagement() {
-  try {
-    if (!subscriptionManagementUrl) {
-      Alert.alert(
-        "Info",
-        "Die Verwaltungsseite für dein Abo konnte gerade nicht geladen werden."
-      );
-      return;
-    }
+    try {
+      const fallbackUrl = "https://apps.apple.com/account/subscriptions";
+      const targetUrl = subscriptionManagementUrl || fallbackUrl;
 
-    const supported = await Linking.canOpenURL(subscriptionManagementUrl);
-    if (!supported) {
-      Alert.alert(
-        "Fehler",
-        "Die Abo-Verwaltung konnte nicht geöffnet werden."
-      );
-      return;
-    }
+      const supported = await Linking.canOpenURL(targetUrl);
+      if (!supported) {
+        Alert.alert("Fehler", "Die Abo-Verwaltung konnte nicht geöffnet werden.");
+        return;
+      }
 
-    await Linking.openURL(subscriptionManagementUrl);
-  } catch (e) {
-    console.log("OPEN SUBSCRIPTION MANAGEMENT ERROR:", e);
-    Alert.alert("Fehler", "Die Abo-Verwaltung konnte nicht geöffnet werden.");
+      await Linking.openURL(targetUrl);
+    } catch (e) {
+      console.log("OPEN SUBSCRIPTION MANAGEMENT ERROR:", e);
+      Alert.alert("Fehler", "Die Abo-Verwaltung konnte nicht geöffnet werden.");
+    }
   }
-}
+
+  async function copyToClipboard(value: string, label: string) {
+    try {
+      const Clipboard = await import("expo-clipboard");
+      await Clipboard.setStringAsync(value);
+      setMessage(`${label} kopiert.`);
+      setError("");
+    } catch (e) {
+      console.log("COPY ERROR:", e);
+      Alert.alert("Fehler", "Link konnte nicht kopiert werden.");
+    }
+  }
+
+  async function shareLink(value: string, title: string) {
+    try {
+      await Share.share({
+        message: value,
+        url: value,
+        title,
+      });
+    } catch (e) {
+      console.log("SHARE ERROR:", e);
+      Alert.alert("Fehler", "Link konnte nicht geteilt werden.");
+    }
+  }
 
   function confirmLogout() {
     Alert.alert("Ausloggen", "Willst du dich wirklich ausloggen?", [
@@ -580,51 +599,51 @@ const [checkingSubscription, setCheckingSubscription] = useState(true);
   }
 
   async function deleteAccount() {
-  try {
-    setError("");
-    setMessage("");
+    try {
+      setError("");
+      setMessage("");
 
-    if (hasActivePro) {
-      Alert.alert(
-        "Aktives Abo vorhanden",
-        "Dein Salora Pro Abo wird über Apple verwaltet und nicht automatisch beendet, wenn du deinen Account löschst. Kündige dein Abo zuerst in den Apple-Abonnements oder lösche deinen Account nur, wenn du weißt, dass das Abo bis zur Kündigung weiterlaufen kann.",
-        [
-          { text: "Abbrechen", style: "cancel" },
-          {
-            text: "Abo verwalten",
-            onPress: openSubscriptionManagement,
-          },
-          {
-            text: "Trotzdem löschen",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await api.delete("/me", {
-                  headers: { Authorization: `Bearer ${token}` },
-                });
-
-                await signOut();
-                router.replace("/login");
-              } catch (e: any) {
-                setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
-              }
+      if (hasActivePro) {
+        Alert.alert(
+          "Aktives Abo vorhanden",
+          "Dein Salora Pro Abo wird über Apple verwaltet und nicht automatisch beendet, wenn du deinen Account löschst. Kündige dein Abo zuerst in den Apple-Abonnements oder lösche deinen Account nur, wenn du weißt, dass das Abo bis zur Kündigung weiterlaufen kann.",
+          [
+            { text: "Abbrechen", style: "cancel" },
+            {
+              text: "Abo verwalten",
+              onPress: openSubscriptionManagement,
             },
-          },
-        ]
-      );
-      return;
+            {
+              text: "Trotzdem löschen",
+              style: "destructive",
+              onPress: async () => {
+                try {
+                  await api.delete("/me", {
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+
+                  await signOut();
+                  router.replace("/login");
+                } catch (e: any) {
+                  setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      await api.delete("/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      await signOut();
+      router.replace("/login");
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
     }
-
-    await api.delete("/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    await signOut();
-    router.replace("/login");
-  } catch (e: any) {
-    setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
   }
-}
 
   function confirmDeleteAccount() {
     Alert.alert(
@@ -859,13 +878,29 @@ const [checkingSubscription, setCheckingSubscription] = useState(true);
             {(profileUrl || bookingUrl) && (
               <View style={[card, { marginTop: 16 }]}>
                 <Text style={sectionTitle}>Deine Links</Text>
-                <Text style={sectionSub}>Diese Links kannst du an Kunden schicken.</Text>
+                <Text style={sectionSub}>Diese Links kannst du direkt an Kunden schicken oder teilen.</Text>
 
                 <View style={fieldGap}>
                   {profileUrl ? (
                     <View style={linkCard}>
                       <Text style={linkLabel}>Profil-Link</Text>
                       <Text style={linkValue}>{profileUrl}</Text>
+
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                        <Pressable
+                          onPress={() => copyToClipboard(profileUrl, "Profil-Link")}
+                          style={[secondaryBtnSmall, { flex: 1 }]}
+                        >
+                          <Text style={secondaryBtnSmallText}>Kopieren</Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => shareLink(profileUrl, "Profil-Link teilen")}
+                          style={[primaryBtnSmall, { flex: 1 }]}
+                        >
+                          <Text style={primaryBtnSmallText}>Teilen</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ) : null}
 
@@ -873,6 +908,22 @@ const [checkingSubscription, setCheckingSubscription] = useState(true);
                     <View style={linkCard}>
                       <Text style={linkLabel}>Buchungs-Link</Text>
                       <Text style={linkValue}>{bookingUrl}</Text>
+
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                        <Pressable
+                          onPress={() => copyToClipboard(bookingUrl, "Buchungs-Link")}
+                          style={[secondaryBtnSmall, { flex: 1 }]}
+                        >
+                          <Text style={secondaryBtnSmallText}>Kopieren</Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => shareLink(bookingUrl, "Buchungs-Link teilen")}
+                          style={[primaryBtnSmall, { flex: 1 }]}
+                        >
+                          <Text style={primaryBtnSmallText}>Teilen</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ) : null}
                 </View>
@@ -882,32 +933,29 @@ const [checkingSubscription, setCheckingSubscription] = useState(true);
             <View style={[card, { marginTop: 16 }]}>
               <Text style={sectionTitle}>Konto</Text>
               <Text style={sectionSub}>Sichere Aktionen für deinen Account.</Text>
-              {hasActivePro ? (
-  <Text style={[sectionSub, { marginTop: 10 }]}>
-    Für dein Konto ist aktuell ein aktives Pro-Abo hinterlegt. Die Kündigung erfolgt über Apple.
-  </Text>
-) : null}
+              <Text style={[sectionSub, { marginTop: 10 }]}>
+                Abonnements werden über Apple verwaltet. Kündigung und Verwaltung erfolgen in deinen Apple-Abonnements.
+              </Text>
+
               <View style={{ gap: 10, marginTop: 16 }}>
-  {hasActivePro ? (
-    <Pressable
-      onPress={openSubscriptionManagement}
-      disabled={checkingSubscription}
-      style={[secondaryBtn, checkingSubscription ? disabledBtn : null]}
-    >
-      <Text style={secondaryBtnText}>
-        {checkingSubscription ? "Lädt..." : "Abo verwalten"}
-      </Text>
-    </Pressable>
-  ) : null}
+                <Pressable
+                  onPress={openSubscriptionManagement}
+                  disabled={checkingSubscription}
+                  style={[secondaryBtn, checkingSubscription ? disabledBtn : null]}
+                >
+                  <Text style={secondaryBtnText}>
+                    {checkingSubscription ? "Lädt..." : "Abo verwalten"}
+                  </Text>
+                </Pressable>
 
-  <Pressable onPress={confirmLogout} style={secondaryBtn}>
-    <Text style={secondaryBtnText}>Ausloggen</Text>
-  </Pressable>
+                <Pressable onPress={confirmLogout} style={secondaryBtn}>
+                  <Text style={secondaryBtnText}>Ausloggen</Text>
+                </Pressable>
 
-  <Pressable onPress={confirmDeleteAccount} style={dangerBtn}>
-    <Text style={dangerBtnText}>Account löschen</Text>
-  </Pressable>
-</View>
+                <Pressable onPress={confirmDeleteAccount} style={dangerBtn}>
+                  <Text style={dangerBtnText}>Account löschen</Text>
+                </Pressable>
+              </View>
             </View>
           </>
         ) : tab === "SERVICES" ? (
@@ -1125,114 +1173,110 @@ const [checkingSubscription, setCheckingSubscription] = useState(true);
           </View>
         ) : (
           <View style={card}>
-  <Text style={sectionTitle}>Buchungsregeln</Text>
-  <Text style={sectionSub}>Hier legst du fest, was Kunden zuerst sehen.</Text>
+            <Text style={sectionTitle}>Buchungsregeln</Text>
+            <Text style={sectionSub}>Hier legst du fest, was Kunden zuerst sehen.</Text>
 
-  <View style={fieldGap}>
-    <SelectField
-      label="Schrittweite"
-      helperText="Legt fest, in welchen Minutenabständen freie Termine angezeigt werden."
-      value={settings.stepMin}
-      options={STEP_MIN_OPTIONS.map((value) => ({
-        label: `${value} min`,
-        value,
-      }))}
-      onChange={(value) => setSettings({ ...settings, stepMin: value })}
-    />
+            <View style={fieldGap}>
+              <SelectField
+                label="Schrittweite"
+                helperText="Legt fest, in welchen Minutenabständen freie Termine angezeigt werden."
+                value={settings.stepMin}
+                options={STEP_MIN_OPTIONS.map((value) => ({
+                  label: `${value} min`,
+                  value,
+                }))}
+                onChange={(value) => setSettings({ ...settings, stepMin: value })}
+              />
 
-    <SelectField
-      label="Zuerst sichtbarer Start"
-      helperText="Ab dieser Uhrzeit werden freie Slots Kunden anfangs angezeigt."
-      value={settings.displayStartMin}
-      options={DISPLAY_TIME_OPTIONS.map((value) => ({
-        label: minToHHMM(value),
-        value,
-      }))}
-      onChange={(value) => {
-        const nextStart = value;
-        const nextEnd =
-          settings.displayEndMin <= nextStart ? Math.min(1440, nextStart + 60) : settings.displayEndMin;
+              <SelectField
+                label="Zuerst sichtbarer Start"
+                helperText="Ab dieser Uhrzeit werden freie Slots Kunden anfangs angezeigt."
+                value={settings.displayStartMin}
+                options={DISPLAY_TIME_OPTIONS.map((value) => ({
+                  label: minToHHMM(value),
+                  value,
+                }))}
+                onChange={(value) => {
+                  const nextStart = value;
+                  const nextEnd =
+                    settings.displayEndMin <= nextStart ? Math.min(1440, nextStart + 60) : settings.displayEndMin;
 
-        setSettings({
-          ...settings,
-          displayStartMin: nextStart,
-          displayEndMin: nextEnd,
-        });
-      }}
-    />
+                  setSettings({
+                    ...settings,
+                    displayStartMin: nextStart,
+                    displayEndMin: nextEnd,
+                  });
+                }}
+              />
 
-    <SelectField
-      label="Zuerst sichtbares Ende"
-      helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
-      value={settings.displayEndMin}
-      options={DISPLAY_TIME_OPTIONS.filter((value) => value > settings.displayStartMin).map((value) => ({
-        label: minToHHMM(value),
-        value,
-      }))}
-      onChange={(value) =>
-        setSettings({
-          ...settings,
-          displayEndMin: value,
-        })
-      }
-    />
+              <SelectField
+                label="Zuerst sichtbares Ende"
+                helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
+                value={settings.displayEndMin}
+                options={DISPLAY_TIME_OPTIONS.filter((value) => value > settings.displayStartMin).map((value) => ({
+                  label: minToHHMM(value),
+                  value,
+                }))}
+                onChange={(value) =>
+                  setSettings({
+                    ...settings,
+                    displayEndMin: value,
+                  })
+                }
+              />
 
-    <Field
-      label="Automatische Vorverlagerung"
-      helperText="Wenn die erste sichtbare Stunde voll ist, können automatisch frühere Slots geöffnet werden – aber nur innerhalb deiner echten Arbeitszeit."
-    >
-      <Pressable
-        onPress={() =>
-          setSettings({
-            ...settings,
-            extendIfFirstHourFull: !settings.extendIfFirstHourFull,
-          })
-        }
-        style={[settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall]}
-      >
-        <Text
-          style={
-            settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText
-          }
-        >
-          {settings.extendIfFirstHourFull ? "AN" : "AUS"}
-        </Text>
-      </Pressable>
-    </Field>
+              <Field
+                label="Automatische Vorverlagerung"
+                helperText="Wenn die erste sichtbare Stunde voll ist, können automatisch frühere Slots geöffnet werden – aber nur innerhalb deiner echten Arbeitszeit."
+              >
+                <Pressable
+                  onPress={() =>
+                    setSettings({
+                      ...settings,
+                      extendIfFirstHourFull: !settings.extendIfFirstHourFull,
+                    })
+                  }
+                  style={[settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall]}
+                >
+                  <Text style={settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText}>
+                    {settings.extendIfFirstHourFull ? "AN" : "AUS"}
+                  </Text>
+                </Pressable>
+              </Field>
 
-    <SelectField
-      label="Erweiterungsschritt"
-      helperText="Bestimmt, in welchen Schritten früher geöffnet wird, z. B. 15 oder 30 Minuten."
-      value={settings.extendStepMin}
-      options={EXTEND_STEP_OPTIONS.map((value) => ({
-        label: `${value} min`,
-        value,
-      }))}
-      onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
-    />
+              <SelectField
+                label="Erweiterungsschritt"
+                helperText="Bestimmt, in welchen Schritten früher geöffnet wird, z. B. 15 oder 30 Minuten."
+                value={settings.extendStepMin}
+                options={EXTEND_STEP_OPTIONS.map((value) => ({
+                  label: `${value} min`,
+                  value,
+                }))}
+                onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
+              />
 
-    <SelectField
-      label="Mindestabstand pro Kunde"
-      helperText="Legt fest, wie viele Tage ein Kunde nach einer Buchung mindestens warten muss, bis erneut gebucht werden kann."
-      value={settings.minDaysBetweenBookings ?? 0}
-      options={MIN_DAYS_OPTIONS.map((value) => ({
-        label: `${value} Tag${value === 1 ? "" : "e"}`,
-        value,
-      }))}
-      onChange={(value) => setSettings({ ...settings, minDaysBetweenBookings: value })}
-    />
-  </View>
+              <SelectField
+                label="Mindestabstand pro Kunde"
+                helperText="Legt fest, wie viele Tage ein Kunde nach einer Buchung mindestens warten muss, bis erneut gebucht werden kann."
+                value={settings.minDaysBetweenBookings ?? 0}
+                options={MIN_DAYS_OPTIONS.map((value) => ({
+                  label: `${value} Tag${value === 1 ? "" : "e"}`,
+                  value,
+                }))}
+                onChange={(value) => setSettings({ ...settings, minDaysBetweenBookings: value })}
+              />
+            </View>
 
-  <Pressable
-    onPress={saveRules}
-    disabled={savingRules}
-    style={[primaryBtn, { marginTop: 16 }, savingRules ? disabledBtn : null]}
-  >
-    <Text style={primaryBtnText}>
-      {savingRules ? "Speichert..." : "Buchungsregeln speichern"}
-    </Text>
-  </Pressable>
-</View>
+            <Pressable
+              onPress={saveRules}
+              disabled={savingRules}
+              style={[primaryBtn, { marginTop: 16 }, savingRules ? disabledBtn : null]}
+            >
+              <Text style={primaryBtnText}>
+                {savingRules ? "Speichert..." : "Buchungsregeln speichern"}
+              </Text>
+            </Pressable>
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
