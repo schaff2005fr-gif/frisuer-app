@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,13 +20,22 @@ import {
   restorePurchases,
 } from "../../lib/purchases";
 
+type PlanKey = "basic" | "pro";
+
+const BASIC_PRODUCT_IDS = ["salora.basic.monthly", "salora_basic_monthly"];
+const PRO_PRODUCT_IDS = ["salora.pro.monthly", "salora_pro_monthly"];
+
 export default function BarberSubscriptionScreen() {
   const { signOut, user, token } = useAuth();
 
   const [loading, setLoading] = useState(true);
-  const [buying, setBuying] = useState(false);
+  const [buyingPlan, setBuyingPlan] = useState<PlanKey | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [monthlyPackage, setMonthlyPackage] = useState<PurchasesPackage | null>(null);
+
+  const [basicPackage, setBasicPackage] = useState<PurchasesPackage | null>(null);
+  const [proPackage, setProPackage] = useState<PurchasesPackage | null>(null);
+
+  const isBuying = buyingPlan !== null;
 
   useEffect(() => {
     if (!user?.id) {
@@ -44,6 +53,7 @@ export default function BarberSubscriptionScreen() {
       await configurePurchases(`barber-${userId}`);
 
       let offering = null;
+
       try {
         offering = await getCurrentOffering();
         console.log("CURRENT OFFERING:", offering);
@@ -52,19 +62,32 @@ export default function BarberSubscriptionScreen() {
         console.log("GET OFFERING FULL:", e);
       }
 
-      const pkg =
-        offering?.monthly ||
-        offering?.availablePackages?.find((p: PurchasesPackage) => p.identifier === "$rc_monthly") ||
+      const packages = offering?.availablePackages ?? [];
+
+      const basicPkg =
+        packages.find((p: PurchasesPackage) =>
+          BASIC_PRODUCT_IDS.includes(p.product.identifier)
+        ) ?? null;
+
+      const proPkg =
+        packages.find((p: PurchasesPackage) =>
+          PRO_PRODUCT_IDS.includes(p.product.identifier)
+        ) ??
+        offering?.monthly ??
         null;
 
-      setMonthlyPackage(pkg ?? null);
+      setBasicPackage(basicPkg);
+      setProPackage(proPkg);
 
       try {
         const info = await getCustomerInfo();
         console.log("CUSTOMER INFO:", info);
 
         const hasPro = !!info.entitlements.active["pro"];
-        if (hasPro) {
+        const hasBasic = !!info.entitlements.active["basic"];
+
+        if (hasPro || hasBasic) {
+          await syncSubscriptionToBackend();
           router.replace("/(barber-tabs)");
           return;
         }
@@ -81,39 +104,52 @@ export default function BarberSubscriptionScreen() {
   }
 
   async function syncSubscriptionToBackend() {
-  if (!token) return;
+    if (!token) return;
 
-  await api.post(
-    "/admin/subscription/sync",
-    {},
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
-}
+    await api.post(
+      "/admin/subscription/sync",
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  }
 
-  async function handleSubscribe() {
+  async function handleSubscribe(plan: PlanKey) {
     try {
-      if (!monthlyPackage) {
-        Alert.alert("Info", "Das Abo ist aktuell noch nicht verfügbar.");
+      const selectedPackage = plan === "pro" ? proPackage : basicPackage;
+
+      if (!selectedPackage) {
+        Alert.alert(
+          "Info",
+          plan === "basic"
+            ? "Salora Basic ist aktuell noch nicht verfügbar."
+            : "Salora Pro ist aktuell noch nicht verfügbar."
+        );
         return;
       }
 
-      setBuying(true);
+      setBuyingPlan(plan);
 
-      const result = await Purchases.purchasePackage(monthlyPackage);
+      const result = await Purchases.purchasePackage(selectedPackage);
+
       const hasPro = !!result.customerInfo.entitlements.active["pro"];
+      const hasBasic = !!result.customerInfo.entitlements.active["basic"];
 
-      if (!hasPro) {
+      if (!hasPro && !hasBasic) {
         Alert.alert("Fehler", "Abo wurde nicht aktiviert.");
         return;
       }
 
       await syncSubscriptionToBackend();
 
-      Alert.alert("Erfolg", "Dein Pro-Abo ist jetzt aktiv.");
+      Alert.alert(
+        "Erfolg",
+        hasPro ? "Dein Pro-Abo ist jetzt aktiv." : "Dein Basic-Abo ist jetzt aktiv."
+      );
+
       router.replace("/(barber-tabs)");
     } catch (e: any) {
       if (e?.userCancelled) return;
@@ -123,7 +159,7 @@ export default function BarberSubscriptionScreen() {
 
       Alert.alert("Fehler", e?.message || "Kauf fehlgeschlagen.");
     } finally {
-      setBuying(false);
+      setBuyingPlan(null);
     }
   }
 
@@ -132,12 +168,16 @@ export default function BarberSubscriptionScreen() {
       setRestoring(true);
 
       const info = await restorePurchases();
-      const hasPro = !!info.entitlements.active["pro"];
 
-      if (!hasPro) {
+      const hasPro = !!info.entitlements.active["pro"];
+      const hasBasic = !!info.entitlements.active["basic"];
+
+      if (!hasPro && !hasBasic) {
         Alert.alert("Info", "Kein aktives Abo gefunden.");
         return;
       }
+
+      await syncSubscriptionToBackend();
 
       Alert.alert("Erfolg", "Käufe wurden erfolgreich wiederhergestellt.");
       router.replace("/(barber-tabs)");
@@ -153,28 +193,28 @@ export default function BarberSubscriptionScreen() {
 
   async function handleBackToLogin() {
     await signOut();
-    router.replace("/login");
+    router.replace("/");
   }
 
-  async function handleOpenPrivacy() {
-  router.push("/datenschutz");
-}
+  function handleOpenPrivacy() {
+    router.push("/datenschutz");
+  }
 
-async function handleOpenTerms() {
-  const url = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
+  async function handleOpenTerms() {
+    const url = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 
-  try {
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert("Fehler", "Der Link zu den Nutzungsbedingungen konnte nicht geöffnet werden.");
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch {
       Alert.alert("Fehler", "Der Link zu den Nutzungsbedingungen konnte nicht geöffnet werden.");
-      return;
     }
-
-    await Linking.openURL(url);
-  } catch {
-    Alert.alert("Fehler", "Der Link zu den Nutzungsbedingungen konnte nicht geöffnet werden.");
   }
-}
 
   if (loading) {
     return (
@@ -190,84 +230,64 @@ async function handleOpenTerms() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f6f6f7" }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 32 }}>
         <View style={{ marginBottom: 18 }}>
-          <Text
-            style={{
-              fontSize: 34,
-              lineHeight: 38,
-              fontWeight: "900",
-              color: "#111",
-            }}
-          >
-            Salora Pro
+          <Text style={{ fontSize: 34, lineHeight: 38, fontWeight: "900", color: "#111" }}>
+            Wähle dein Salora Abo
           </Text>
 
-          <Text
-            style={{
-              marginTop: 10,
-              fontSize: 16,
-              lineHeight: 24,
-              color: "#666",
-            }}
-          >
-            Schalte den Barber-Bereich frei und verwalte deine Termine direkt in der App.
+          <Text style={{ marginTop: 10, fontSize: 16, lineHeight: 24, color: "#666" }}>
+            Starte mit einem eigenen Buchungslink oder schalte mit Pro alle Funktionen frei.
           </Text>
         </View>
 
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: "#e8e8eb",
-            borderRadius: 28,
-            backgroundColor: "#111",
-            padding: 22,
-            marginBottom: 16,
-          }}
-        >
-          <Text
-            style={{
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: "800",
-            }}
-          >
-            PRO ABO
-          </Text>
+        <PlanCard
+          label="BASIC"
+          title="Salora Basic"
+          price="29,99 €"
+          subtitle="pro Monat"
+          description="Für Friseure, die nur ihren eigenen Buchungslink nutzen möchten."
+          benefits={[
+            "Eigener Buchungslink für deine Kunden",
+            "Barber-Dashboard mit Tages- und Wochenansicht",
+            "Termine, Services, Pausen und Profil verwalten",
+            "Nicht öffentlich in der Salora-Kundensuche sichtbar",
+            "Kein intelligentes Zeitfenster",
+          ]}
+          buttonText={
+            buyingPlan === "basic"
+              ? "Wird geladen..."
+              : basicPackage
+              ? "Basic abonnieren"
+              : "Basic aktuell nicht verfügbar"
+          }
+          disabled={isBuying || !basicPackage}
+          onPress={() => handleSubscribe("basic")}
+          dark={false}
+        />
 
-          <Text
-            style={{
-              marginTop: 10,
-              color: "#fff",
-              fontSize: 34,
-              lineHeight: 38,
-              fontWeight: "900",
-            }}
-          >
-            39,99 €
-          </Text>
-
-          <Text
-            style={{
-              marginTop: 4,
-              color: "#d7d7d9",
-              fontSize: 15,
-              lineHeight: 20,
-              fontWeight: "700",
-            }}
-          >
-            pro Monat
-          </Text>
-
-          <Text
-            style={{
-              marginTop: 14,
-              color: "#d7d7d9",
-              fontSize: 14,
-              lineHeight: 22,
-            }}
-          >
-            Monatlich kündbar. Die Abrechnung erfolgt über deinen Apple Account.
-          </Text>
-        </View>
+        <PlanCard
+          label="PRO"
+          title="Salora Pro"
+          price="49,99 €"
+          subtitle="pro Monat"
+          description="Für Friseure, die zusätzlich neue Kunden über Salora erreichen möchten."
+          benefits={[
+            "Alles aus Basic enthalten",
+            "Öffentliche Sichtbarkeit in der Salora-Kundensuche",
+            "Kunden können dich direkt in der App finden",
+            "Intelligente Zeitfenster automatisch erweitern",
+            "Maximale Funktionen für mehr Buchungen",
+          ]}
+          buttonText={
+            buyingPlan === "pro"
+              ? "Wird geladen..."
+              : proPackage
+              ? "Pro abonnieren"
+              : "Pro aktuell nicht verfügbar"
+          }
+          disabled={isBuying || !proPackage}
+          onPress={() => handleSubscribe("pro")}
+          dark
+        />
 
         <View
           style={{
@@ -279,93 +299,19 @@ async function handleOpenTerms() {
             marginBottom: 16,
           }}
         >
-          <Text
-            style={{
-              fontSize: 24,
-              lineHeight: 28,
-              fontWeight: "900",
-              color: "#111",
-            }}
-          >
-            Was ist enthalten?
+          <Text style={{ fontSize: 22, lineHeight: 26, fontWeight: "900", color: "#111" }}>
+            Käufe wiederherstellen
           </Text>
 
-          <View style={{ marginTop: 16, gap: 12 }}>
-            <Benefit text="Barber-Dashboard mit Tages- und Wochenansicht" />
-            <Benefit text="Termine verwalten und Status aktualisieren" />
-            <Benefit text="Pausen und Blockzeiten festlegen" />
-            <Benefit text="Services und öffentliches Profil bearbeiten" />
-            <Benefit text="Benachrichtigungen und Kundenbuchungen mobil im Blick" />
-          </View>
-        </View>
-
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: "#e8e8eb",
-            borderRadius: 24,
-            backgroundColor: "#fff",
-            padding: 20,
-            marginBottom: 16,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 22,
-              lineHeight: 26,
-              fontWeight: "900",
-              color: "#111",
-            }}
-          >
-            Barber-Bereich freischalten
+          <Text style={{ marginTop: 10, fontSize: 15, lineHeight: 22, color: "#666" }}>
+            Falls du bereits ein aktives Abo hast, kannst du es hier wiederherstellen.
           </Text>
-
-          <Text
-            style={{
-              marginTop: 10,
-              fontSize: 15,
-              lineHeight: 22,
-              color: "#666",
-            }}
-          >
-            Aktuell ist für deinen Account kein aktives Pro-Abo hinterlegt.
-          </Text>
-
-          <Pressable
-            onPress={handleSubscribe}
-            disabled={buying || !monthlyPackage}
-            style={{
-              marginTop: 18,
-              minHeight: 56,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: "#111",
-              backgroundColor: "#111",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: buying || !monthlyPackage ? 0.7 : 1,
-            }}
-          >
-            <Text
-              style={{
-                color: "#fff",
-                fontWeight: "900",
-                fontSize: 15,
-              }}
-            >
-              {buying
-                ? "Wird geladen..."
-                : monthlyPackage
-                ? "Monatlich abonnieren"
-                : "Abo aktuell nicht verfügbar"}
-            </Text>
-          </Pressable>
 
           <Pressable
             onPress={handleRestore}
             disabled={restoring}
             style={{
-              marginTop: 10,
+              marginTop: 18,
               minHeight: 54,
               borderRadius: 16,
               borderWidth: 1,
@@ -376,13 +322,7 @@ async function handleOpenTerms() {
               opacity: restoring ? 0.7 : 1,
             }}
           >
-            <Text
-              style={{
-                color: "#111",
-                fontWeight: "900",
-                fontSize: 15,
-              }}
-            >
+            <Text style={{ color: "#111", fontWeight: "900", fontSize: 15 }}>
               {restoring ? "Wird wiederhergestellt..." : "Käufe wiederherstellen"}
             </Text>
           </Pressable>
@@ -398,88 +338,30 @@ async function handleOpenTerms() {
             marginBottom: 16,
           }}
         >
-          <Text
-            style={{
-              color: "#444",
-              fontSize: 13,
-              lineHeight: 21,
-            }}
-          >
+          <Text style={{ color: "#444", fontSize: 13, lineHeight: 21 }}>
             Das Abo verlängert sich automatisch monatlich, wenn es nicht mindestens 24 Stunden vor Ablauf des aktuellen Zeitraums gekündigt wird. Die Verwaltung und Kündigung erfolgt in deinen Apple Account Einstellungen.
           </Text>
         </View>
 
         <View
-  style={{
-    borderWidth: 1,
-    borderColor: "#ececef",
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    padding: 16,
-    marginBottom: 16,
-  }}
->
-  <Text
-    style={{
-      color: "#444",
-      fontSize: 13,
-      lineHeight: 21,
-      marginBottom: 12,
-    }}
-  >
-    Mit dem Abschluss des Abos gelten unsere Datenschutzinformationen und die Nutzungsbedingungen.
-  </Text>
+          style={{
+            borderWidth: 1,
+            borderColor: "#ececef",
+            borderRadius: 20,
+            backgroundColor: "#fff",
+            padding: 16,
+            marginBottom: 16,
+          }}
+        >
+          <Text style={{ color: "#444", fontSize: 13, lineHeight: 21, marginBottom: 12 }}>
+            Mit dem Abschluss des Abos gelten unsere Datenschutzinformationen und die Nutzungsbedingungen.
+          </Text>
 
-  <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
-    <Pressable
-      onPress={handleOpenPrivacy}
-      style={{
-        minHeight: 44,
-        paddingHorizontal: 14,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#ddd",
-        backgroundColor: "#fff",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Text
-        style={{
-          color: "#111",
-          fontWeight: "900",
-          fontSize: 13,
-        }}
-      >
-        Datenschutz
-      </Text>
-    </Pressable>
-
-    <Pressable
-      onPress={handleOpenTerms}
-      style={{
-        minHeight: 44,
-        paddingHorizontal: 14,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#ddd",
-        backgroundColor: "#fff",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Text
-        style={{
-          color: "#111",
-          fontWeight: "900",
-          fontSize: 13,
-        }}
-      >
-        Nutzungsbedingungen (EULA)
-      </Text>
-    </Pressable>
-  </View>
-</View>
+          <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+            <SmallButton text="Datenschutz" onPress={handleOpenPrivacy} />
+            <SmallButton text="Nutzungsbedingungen (EULA)" onPress={handleOpenTerms} />
+          </View>
+        </View>
 
         <Pressable
           onPress={handleBackToLogin}
@@ -493,13 +375,7 @@ async function handleOpenTerms() {
             justifyContent: "center",
           }}
         >
-          <Text
-            style={{
-              color: "#111",
-              fontWeight: "900",
-              fontSize: 15,
-            }}
-          >
+          <Text style={{ color: "#111", fontWeight: "900", fontSize: 15 }}>
             Zurück zum Login
           </Text>
         </Pressable>
@@ -508,33 +384,113 @@ async function handleOpenTerms() {
   );
 }
 
-function Benefit({ text }: { text: string }) {
+function PlanCard({
+  label,
+  title,
+  price,
+  subtitle,
+  description,
+  benefits,
+  buttonText,
+  disabled,
+  onPress,
+  dark,
+}: {
+  label: string;
+  title: string;
+  price: string;
+  subtitle: string;
+  description: string;
+  benefits: string[];
+  buttonText: string;
+  disabled: boolean;
+  onPress: () => void;
+  dark: boolean;
+}) {
+  const bg = dark ? "#111" : "#fff";
+  const fg = dark ? "#fff" : "#111";
+  const muted = dark ? "#d7d7d9" : "#666";
+  const border = dark ? "#111" : "#e8e8eb";
+
   return (
     <View
       style={{
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: 10,
+        borderWidth: 1,
+        borderColor: border,
+        borderRadius: 28,
+        backgroundColor: bg,
+        padding: 22,
+        marginBottom: 16,
       }}
     >
+      <Text style={{ color: fg, fontSize: 14, fontWeight: "900" }}>{label}</Text>
+
+      <Text style={{ marginTop: 10, color: fg, fontSize: 24, lineHeight: 28, fontWeight: "900" }}>
+        {title}
+      </Text>
+
+      <Text style={{ marginTop: 10, color: fg, fontSize: 34, lineHeight: 38, fontWeight: "900" }}>
+        {price}
+      </Text>
+
+      <Text style={{ marginTop: 4, color: muted, fontSize: 15, lineHeight: 20, fontWeight: "700" }}>
+        {subtitle}
+      </Text>
+
+      <Text style={{ marginTop: 14, color: muted, fontSize: 14, lineHeight: 22 }}>
+        {description}
+      </Text>
+
+      <View style={{ marginTop: 18, gap: 12 }}>
+        {benefits.map((b) => (
+          <Benefit key={b} text={b} dark={dark} />
+        ))}
+      </View>
+
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        style={{
+          marginTop: 20,
+          minHeight: 56,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: dark ? "#fff" : "#111",
+          backgroundColor: dark ? "#fff" : "#111",
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: disabled ? 0.7 : 1,
+        }}
+      >
+        <Text
+          style={{
+            color: dark ? "#111" : "#fff",
+            fontWeight: "900",
+            fontSize: 15,
+          }}
+        >
+          {buttonText}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function Benefit({ text, dark }: { text: string; dark: boolean }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
       <View
         style={{
           width: 22,
           height: 22,
           borderRadius: 999,
-          backgroundColor: "#111",
+          backgroundColor: dark ? "#fff" : "#111",
           alignItems: "center",
           justifyContent: "center",
           marginTop: 1,
         }}
       >
-        <Text
-          style={{
-            color: "#fff",
-            fontSize: 12,
-            fontWeight: "900",
-          }}
-        >
+        <Text style={{ color: dark ? "#111" : "#fff", fontSize: 12, fontWeight: "900" }}>
           ✓
         </Text>
       </View>
@@ -542,7 +498,7 @@ function Benefit({ text }: { text: string }) {
       <Text
         style={{
           flex: 1,
-          color: "#111",
+          color: dark ? "#fff" : "#111",
           fontSize: 15,
           lineHeight: 22,
           fontWeight: "700",
@@ -551,5 +507,25 @@ function Benefit({ text }: { text: string }) {
         {text}
       </Text>
     </View>
+  );
+}
+
+function SmallButton({ text, onPress }: { text: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        minHeight: 44,
+        paddingHorizontal: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#ddd",
+        backgroundColor: "#fff",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={{ color: "#111", fontWeight: "900", fontSize: 13 }}>{text}</Text>
+    </Pressable>
   );
 }
