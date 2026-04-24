@@ -82,7 +82,7 @@ export default function MyBookingsScreen() {
 
   useEffect(() => {
     if (!token || !user) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 

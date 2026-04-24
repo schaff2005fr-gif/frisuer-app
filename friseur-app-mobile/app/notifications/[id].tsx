@@ -70,7 +70,7 @@ export default function NotificationDetailScreen() {
       setError("");
 
       if (!token) {
-        router.replace("/login");
+        router.replace("/");
         return;
       }
 

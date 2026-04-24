@@ -84,7 +84,7 @@ export default function NotificationsScreen() {
 
   useEffect(() => {
     if (!token || !user) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 
@@ -189,7 +189,7 @@ await loadUnreadCount();
   async function openNotification(n: NotificationItem) {
     try {
       if (!token) {
-        router.replace("/login");
+        router.replace("/");
         return;
       }
 

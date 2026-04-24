@@ -67,7 +67,7 @@ export default function CustomerSearchScreen() {
     if (loading) return;
 
     if (!user || !token) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 

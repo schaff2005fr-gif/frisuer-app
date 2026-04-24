@@ -39,7 +39,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     if (!token || !user) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 
@@ -58,7 +58,7 @@ export default function SettingsScreen() {
       setMessage("");
 
       if (!token) {
-        router.replace("/login");
+        router.replace("/");
         return;
       }
 
@@ -92,7 +92,7 @@ export default function SettingsScreen() {
       setMessage("");
 
       if (!token) {
-        router.replace("/login");
+        router.replace("/");
         return;
       }
 
@@ -154,7 +154,7 @@ export default function SettingsScreen() {
       setMessage("");
 
       if (!token) {
-        router.replace("/login");
+        router.replace("/");
         return;
       }
 
@@ -167,7 +167,7 @@ export default function SettingsScreen() {
       }
 
       await signOut();
-      router.replace("/login");
+      router.replace("/");
     } catch (e: any) {
       console.log("DELETE ACCOUNT ERROR:", e?.message);
       console.log("DELETE ACCOUNT RESPONSE:", e?.response?.data);
@@ -179,7 +179,7 @@ export default function SettingsScreen() {
 
   async function handleLogout() {
     await signOut();
-    router.replace("/login");
+    router.replace("/");
   }
 
   if (loading) {

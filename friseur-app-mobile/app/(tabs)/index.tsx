@@ -71,7 +71,7 @@ export default function CustomerHomeScreen() {
     if (loading) return;
 
     if (!user || !token) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 

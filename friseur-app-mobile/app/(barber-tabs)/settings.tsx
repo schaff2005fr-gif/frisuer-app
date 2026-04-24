@@ -204,7 +204,7 @@ export default function BarberSettingsScreen() {
 
   useEffect(() => {
     if (!token || !user) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 
@@ -545,7 +545,7 @@ export default function BarberSettingsScreen() {
 
   async function logout() {
     await signOut();
-    router.replace("/login");
+    router.replace("/");
   }
 
   async function openSubscriptionManagement() {
@@ -623,7 +623,7 @@ export default function BarberSettingsScreen() {
                   });
 
                   await signOut();
-                  router.replace("/login");
+                  router.replace("/");
                 } catch (e: any) {
                   setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
                 }
@@ -639,7 +639,7 @@ export default function BarberSettingsScreen() {
       });
 
       await signOut();
-      router.replace("/login");
+      router.replace("/");
     } catch (e: any) {
       setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
     }

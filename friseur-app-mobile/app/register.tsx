@@ -225,7 +225,7 @@ export default function RegisterScreen() {
             <Text style={styles.footerText}>Schon ein Konto?</Text>
 
             <Pressable
-              onPress={() => router.push("/login")}
+              onPress={() => router.push("/")}
               style={styles.secondaryButton}
             >
               <Text style={styles.secondaryButtonText}>Zum Login</Text>

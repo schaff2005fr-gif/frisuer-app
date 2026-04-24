@@ -11,7 +11,7 @@ export default function IndexPage() {
     if (loading) return;
 
     if (!user) {
-      router.replace("/login" as any);
+      router.replace("/" as any);
       return;
     }
 

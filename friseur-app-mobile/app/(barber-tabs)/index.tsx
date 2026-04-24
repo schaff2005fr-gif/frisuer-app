@@ -333,7 +333,7 @@ export default function BarberDashboardScreen() {
   useEffect(() => {
   async function init() {
     if (!token || !user) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 
