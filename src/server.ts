@@ -129,6 +129,40 @@ function hasActiveSubscription(barber: {
   return false;
 }
 
+type SubscriptionPlan = "basic_monthly" | "pro_monthly" | null;
+
+function getActivePlan(barber: {
+  subscriptionStatus?: string | null;
+  subscriptionPlan?: string | null;
+  subscriptionExpiresAt?: Date | string | null;
+  trialEndsAt?: Date | string | null;
+}): SubscriptionPlan {
+  if (!hasActiveSubscription(barber)) return null;
+
+  if (barber.subscriptionPlan === "pro_monthly") return "pro_monthly";
+  if (barber.subscriptionPlan === "basic_monthly") return "basic_monthly";
+
+  return null;
+}
+
+function isProPlan(barber: {
+  subscriptionStatus?: string | null;
+  subscriptionPlan?: string | null;
+  subscriptionExpiresAt?: Date | string | null;
+  trialEndsAt?: Date | string | null;
+}) {
+  return getActivePlan(barber) === "pro_monthly";
+}
+
+function isBasicOrPro(barber: {
+  subscriptionStatus?: string | null;
+  subscriptionPlan?: string | null;
+  subscriptionExpiresAt?: Date | string | null;
+  trialEndsAt?: Date | string | null;
+}) {
+  return getActivePlan(barber) === "basic_monthly" || getActivePlan(barber) === "pro_monthly";
+}
+
 function stripInternalFields(msg: string) {
   return String(msg ?? "")
     .replace(/\n?BarberSlug:\s*[a-z0-9-]+\s*\n?/gi, "\n")
@@ -620,7 +654,24 @@ async function getBlocksForDay(barberId: number, dateStr: string) {
 
 async function computeAvailableTimes(opts: { barberId: number; dateStr: string; serviceDurationMin: number }) {
   const { barberId, dateStr, serviceDurationMin } = opts;
-  const settings = await getSettings(barberId);
+  const settingsRaw = await getSettings(barberId);
+
+const barberPlan = await prisma.barber.findUnique({
+  where: { id: barberId },
+  select: {
+    subscriptionStatus: true,
+    subscriptionPlan: true,
+    subscriptionExpiresAt: true,
+    trialEndsAt: true,
+  },
+});
+
+const allowSmartScheduling = barberPlan ? isProPlan(barberPlan) : false;
+
+const settings = {
+  ...settingsRaw,
+  extendIfFirstHourFull: allowSmartScheduling ? settingsRaw.extendIfFirstHourFull : false,
+};
 
   const wd = weekdayFromDateStr(dateStr);
   const dayCfg = settings.workingHours.find((x) => x.day === wd) ?? DEFAULT_SETTINGS.workingHours[wd];
@@ -765,7 +816,11 @@ app.get("/barbers", async (req, res) => {
     }
 
     const barbers = await prisma.barber.findMany({
-      where: { isActive: true },
+      where: {
+  isActive: true,
+  subscriptionStatus: { in: ["active", "trialing"] },
+  subscriptionPlan: "pro_monthly",
+},
       orderBy: [{ createdAt: "asc" }],
       select: {
         id: true,
@@ -841,6 +896,10 @@ app.get("/barbers/:slug", async (req, res) => {
         instagram: true,
         website: true,
         imageUrl: true,
+        subscriptionStatus: true,
+subscriptionPlan: true,
+subscriptionExpiresAt: true,
+trialEndsAt: true,
         favoredBy: customerId
           ? {
               where: { customerId },
@@ -851,6 +910,9 @@ app.get("/barbers/:slug", async (req, res) => {
     });
 
     if (!barber || !barber.isActive) return res.status(404).json({ error: "Barber not found" });
+    if (!isBasicOrPro(barber)) {
+  return res.status(403).json({ error: "Dieser Friseur hat aktuell kein aktives Abo." });
+}
 
     const services = await prisma.service.findMany({
       where: { barberId: barber.id, isActive: true },
@@ -1884,7 +1946,26 @@ app.get("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
     const barberId = await getBarberIdFromUser(userId);
 
     const settings = await getSettings(barberId);
-    res.json({ ok: true, settings });
+    const barber = await prisma.barber.findUnique({
+  where: { id: barberId },
+  select: {
+    subscriptionStatus: true,
+    subscriptionPlan: true,
+    subscriptionExpiresAt: true,
+    trialEndsAt: true,
+  },
+});
+
+const allowSmartScheduling = barber ? isProPlan(barber) : false;
+
+res.json({
+  ok: true,
+  settings,
+  features: {
+    publicDiscovery: allowSmartScheduling,
+    smartScheduling: allowSmartScheduling,
+  },
+});
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
   }
@@ -1894,9 +1975,26 @@ app.put("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
   try {
     const { userId } = (req as any).user as JwtPayload;
     const barberId = await getBarberIdFromUser(userId);
+    const barber = await prisma.barber.findUnique({
+  where: { id: barberId },
+  select: {
+    subscriptionStatus: true,
+    subscriptionPlan: true,
+    subscriptionExpiresAt: true,
+    trialEndsAt: true,
+  },
+});
 
+const allowSmartScheduling = barber ? isProPlan(barber) : false;
     const current = await getSettings(barberId);
-    const merged = { ...current, ...(req.body ?? {}) };
+    const body = req.body ?? {};
+
+if (!allowSmartScheduling) {
+  delete body.extendIfFirstHourFull;
+  delete body.extendStepMin;
+}
+
+const merged = { ...current, ...body };
     const normalized = normalizeSettings(merged);
 
     await saveSettings(barberId, normalized);
@@ -1968,7 +2066,9 @@ app.get("/admin/subscription-status", requireAuth, requireRole("BARBER"), async 
       return res.status(404).json({ error: "Barber not found" });
     }
 
-    const isPro = hasActiveSubscription(barber);
+    const activePlan = getActivePlan(barber);
+const isPro = activePlan === "pro_monthly";
+const isBasic = activePlan === "basic_monthly";
 
     console.log("SUBSCRIPTION STATUS DEBUG:", {
       barberId: barber.id,
@@ -1994,6 +2094,12 @@ app.get("/admin/subscription-status", requireAuth, requireRole("BARBER"), async 
         revenueCatAppUserId: barber.revenueCatAppUserId,
         updatedAt: barber.subscriptionUpdatedAt,
         isPro,
+        isBasic,
+activePlan,
+features: {
+  publicDiscovery: isPro,
+  smartScheduling: isPro,
+},
       },
     });
   } catch (e: any) {
@@ -2021,20 +2127,26 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
     const revenueCatAppUserId = barber.revenueCatAppUserId || `barber-${userId}`;
     const subscriber = await fetchRevenueCatSubscriber(revenueCatAppUserId);
 
-    const entitlement = subscriber?.entitlements?.pro ?? null;
-    const managementUrl = subscriber?.management_url ?? null;
-    const expiresAt = entitlement?.expires_date ? new Date(entitlement.expires_date) : null;
+   const proEntitlement = subscriber?.entitlements?.pro ?? null;
+const basicEntitlement = subscriber?.entitlements?.basic ?? null;
 
-    const isActive =
-      !!entitlement &&
-      (!expiresAt || expiresAt.getTime() > Date.now());
+const activeEntitlement = proEntitlement ?? basicEntitlement ?? null;
+
+const managementUrl = subscriber?.management_url ?? null;
+const expiresAt = activeEntitlement?.expires_date ? new Date(activeEntitlement.expires_date) : null;
+
+const isActive =
+  !!activeEntitlement &&
+  (!expiresAt || expiresAt.getTime() > Date.now());
+
+const plan = proEntitlement ? "pro_monthly" : basicEntitlement ? "basic_monthly" : null;
 
     const updated = await prisma.barber.update({
       where: { id: barberId },
       data: {
         revenueCatAppUserId,
         subscriptionStatus: isActive ? "active" : "inactive",
-        subscriptionPlan: isActive ? "pro_monthly" : null,
+        subscriptionPlan: isActive ? plan : null,
         subscriptionSource: isActive ? "revenuecat" : null,
         subscriptionExpiresAt: isActive ? expiresAt : null,
         trialEndsAt: null,
@@ -2058,7 +2170,9 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
     return res.json({
       ok: true,
       barber: updated,
-      isPro: isActive,
+      isPro: isActive && plan === "pro_monthly",
+isBasic: isActive && plan === "basic_monthly",
+plan,
       managementUrl,
       revenueCatAppUserId,
     });
