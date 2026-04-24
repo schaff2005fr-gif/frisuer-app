@@ -117,8 +117,7 @@ function hasActiveSubscription(barber: {
   const now = Date.now();
 
   if (barber.subscriptionStatus === "active") {
-    if (!barber.subscriptionExpiresAt) return true;
-    return new Date(barber.subscriptionExpiresAt).getTime() > now;
+    return true;
   }
 
   if (barber.subscriptionStatus === "trialing") {
