@@ -38,70 +38,70 @@ export default function BarberSubscriptionScreen() {
   const isBuying = buyingPlan !== null;
 
   useEffect(() => {
-    if (!user?.id) {
-      setLoading(false);
+  const appUserId = (user as any)?.barber?.revenueCatAppUserId;
+
+  if (!appUserId) {
+    setLoading(false);
+    return;
+  }
+
+  init(appUserId);
+}, [(user as any)?.barber?.revenueCatAppUserId]);
+
+async function init(appUserId: string) {
+  try {
+    setLoading(true);
+
+    await configurePurchases(appUserId);
+    console.log("RC APP USER ID USED:", appUserId);
+
+    const info = await getCustomerInfo();
+    console.log("RC CUSTOMER INFO FULL:", info);
+    console.log("RC ACTIVE ENTITLEMENTS:", info.entitlements.active);
+    console.log("RC ORIGINAL APP USER ID:", info.originalAppUserId);
+
+    let offering = null;
+
+    try {
+      offering = await getCurrentOffering();
+      console.log("CURRENT OFFERING:", offering);
+    } catch (e: any) {
+      console.log("GET OFFERING ERROR:", e?.message);
+      console.log("GET OFFERING FULL:", e);
+    }
+
+    const packages = offering?.availablePackages ?? [];
+
+    const basicPkg =
+      packages.find((p: PurchasesPackage) =>
+        BASIC_PRODUCT_IDS.includes(p.product.identifier)
+      ) ?? null;
+
+    const proPkg =
+      packages.find((p: PurchasesPackage) =>
+        PRO_PRODUCT_IDS.includes(p.product.identifier)
+      ) ??
+      offering?.monthly ??
+      null;
+
+    setBasicPackage(basicPkg);
+    setProPackage(proPkg);
+
+    const hasPro = !!info.entitlements.active["pro"];
+    const hasBasic = !!info.entitlements.active["basic"];
+
+    if (hasPro || hasBasic) {
+      await syncSubscriptionToBackend();
+      router.replace("/(barber-tabs)");
       return;
     }
-
-    init(user.id);
-  }, [user?.id]);
-
-  async function init(userId: number | string) {
-    try {
-      setLoading(true);
-
-      await configurePurchases(`barber-${userId}`);
-
-      let offering = null;
-
-      try {
-        offering = await getCurrentOffering();
-        console.log("CURRENT OFFERING:", offering);
-      } catch (e: any) {
-        console.log("GET OFFERING ERROR:", e?.message);
-        console.log("GET OFFERING FULL:", e);
-      }
-
-      const packages = offering?.availablePackages ?? [];
-
-      const basicPkg =
-        packages.find((p: PurchasesPackage) =>
-          BASIC_PRODUCT_IDS.includes(p.product.identifier)
-        ) ?? null;
-
-      const proPkg =
-        packages.find((p: PurchasesPackage) =>
-          PRO_PRODUCT_IDS.includes(p.product.identifier)
-        ) ??
-        offering?.monthly ??
-        null;
-
-      setBasicPackage(basicPkg);
-      setProPackage(proPkg);
-
-      try {
-        const info = await getCustomerInfo();
-        console.log("CUSTOMER INFO:", info);
-
-        const hasPro = !!info.entitlements.active["pro"];
-        const hasBasic = !!info.entitlements.active["basic"];
-
-        if (hasPro || hasBasic) {
-          await syncSubscriptionToBackend();
-          router.replace("/(barber-tabs)");
-          return;
-        }
-      } catch (e: any) {
-        console.log("GET CUSTOMER INFO ERROR:", e?.message);
-        console.log("GET CUSTOMER INFO FULL:", e);
-      }
-    } catch (e: any) {
-      console.log("SUBSCRIPTION INIT ERROR:", e?.message);
-      console.log("SUBSCRIPTION INIT FULL:", e);
-    } finally {
-      setLoading(false);
-    }
+  } catch (e: any) {
+    console.log("SUBSCRIPTION INIT ERROR:", e?.message);
+    console.log("SUBSCRIPTION INIT FULL:", e);
+  } finally {
+    setLoading(false);
   }
+}
 
   async function syncSubscriptionToBackend() {
     if (!token) return;
@@ -118,50 +118,54 @@ export default function BarberSubscriptionScreen() {
   }
 
   async function handleSubscribe(plan: PlanKey) {
-    try {
-      const selectedPackage = plan === "pro" ? proPackage : basicPackage;
+  try {
+    const selectedPackage = plan === "pro" ? proPackage : basicPackage;
 
-      if (!selectedPackage) {
-        Alert.alert(
-          "Info",
-          plan === "basic"
-            ? "Salora Basic ist aktuell noch nicht verfügbar."
-            : "Salora Pro ist aktuell noch nicht verfügbar."
-        );
-        return;
-      }
-
-      setBuyingPlan(plan);
-
-      const result = await Purchases.purchasePackage(selectedPackage);
-
-      const hasPro = !!result.customerInfo.entitlements.active["pro"];
-      const hasBasic = !!result.customerInfo.entitlements.active["basic"];
-
-      if (!hasPro && !hasBasic) {
-        Alert.alert("Fehler", "Abo wurde nicht aktiviert.");
-        return;
-      }
-
-      await syncSubscriptionToBackend();
-
+    if (!selectedPackage) {
       Alert.alert(
-        "Erfolg",
-        hasPro ? "Dein Pro-Abo ist jetzt aktiv." : "Dein Basic-Abo ist jetzt aktiv."
+        "Info",
+        plan === "basic"
+          ? "Salora Basic ist aktuell noch nicht verfügbar."
+          : "Salora Pro ist aktuell noch nicht verfügbar."
       );
-
-      router.replace("/(barber-tabs)");
-    } catch (e: any) {
-      if (e?.userCancelled) return;
-
-      console.log("PURCHASE ERROR:", e?.message);
-      console.log("PURCHASE ERROR FULL:", e);
-
-      Alert.alert("Fehler", e?.message || "Kauf fehlgeschlagen.");
-    } finally {
-      setBuyingPlan(null);
+      return;
     }
+
+    setBuyingPlan(plan);
+
+    const result = await Purchases.purchasePackage(selectedPackage);
+
+    console.log("PURCHASE CUSTOMER INFO:", result.customerInfo);
+    console.log("PURCHASE ACTIVE ENTITLEMENTS:", result.customerInfo.entitlements.active);
+    console.log("PURCHASE ORIGINAL APP USER ID:", result.customerInfo.originalAppUserId);
+
+    const hasPro = !!result.customerInfo.entitlements.active["pro"];
+    const hasBasic = !!result.customerInfo.entitlements.active["basic"];
+
+    if (!hasPro && !hasBasic) {
+      Alert.alert("Fehler", "Abo wurde nicht aktiviert.");
+      return;
+    }
+
+    await syncSubscriptionToBackend();
+
+    Alert.alert(
+      "Erfolg",
+      hasPro ? "Dein Pro-Abo ist jetzt aktiv." : "Dein Basic-Abo ist jetzt aktiv."
+    );
+
+    router.replace("/(barber-tabs)");
+  } catch (e: any) {
+    if (e?.userCancelled) return;
+
+    console.log("PURCHASE ERROR:", e?.message);
+    console.log("PURCHASE ERROR FULL:", e);
+
+    Alert.alert("Fehler", e?.message || "Kauf fehlgeschlagen.");
+  } finally {
+    setBuyingPlan(null);
   }
+}
 
   async function handleRestore() {
     try {
