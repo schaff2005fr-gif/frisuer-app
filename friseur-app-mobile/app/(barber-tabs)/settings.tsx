@@ -751,7 +751,7 @@ const isBasic = activePlan === "basic_monthly";
     </Text>
 
     <Pressable
-      onPress={() => router.push("/barber/subscription" as any)}
+      onPress={() => router.push("/barber/subscription?mode=upgrade" as any)}
       style={[primaryBtn, { marginTop: 14 }]}
     >
       <Text style={primaryBtnText}>Auf Pro upgraden</Text>

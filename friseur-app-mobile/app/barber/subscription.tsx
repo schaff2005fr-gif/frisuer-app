@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Purchases, { PurchasesPackage } from "react-native-purchases";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
@@ -27,7 +27,11 @@ const PRO_PRODUCT_IDS = ["salora.pro.monthly", "salora_pro_monthly"];
 
 export default function BarberSubscriptionScreen() {
   const { signOut, user, token } = useAuth();
+  const params = useLocalSearchParams();
+const isUpgradeMode = params.mode === "upgrade";
 
+const [hasBasicActive, setHasBasicActive] = useState(false);
+const [hasProActive, setHasProActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [buyingPlan, setBuyingPlan] = useState<PlanKey | null>(null);
   const [restoring, setRestoring] = useState(false);
@@ -90,10 +94,22 @@ async function init(appUserId: string) {
     const hasPro = !!info.entitlements.active["pro"];
     const hasBasic = !!info.entitlements.active["basic"];
 
-    if (hasPro || hasBasic) {
+    setHasProActive(hasPro);
+    setHasBasicActive(hasBasic);
+
+    if (hasPro) {
       await syncSubscriptionToBackend();
       router.replace("/(barber-tabs)");
       return;
+    }
+
+    if (hasBasic) {
+      await syncSubscriptionToBackend();
+
+      if (!isUpgradeMode) {
+        router.replace("/(barber-tabs)");
+        return;
+      }
     }
   } catch (e: any) {
     console.log("SUBSCRIPTION INIT ERROR:", e?.message);
@@ -102,7 +118,6 @@ async function init(appUserId: string) {
     setLoading(false);
   }
 }
-
   async function syncSubscriptionToBackend() {
     if (!token) return;
 
@@ -270,13 +285,15 @@ async function init(appUserId: string) {
   "cross:Kein intelligentes Zeitfenster",
 ]}
       buttonText={
-        buyingPlan === "basic"
-          ? "Wird geladen..."
-          : basicPackage
-          ? "Basic abonnieren"
-          : "Basic aktuell nicht verfügbar"
-      }
-      disabled={isBuying || !basicPackage}
+  hasBasicActive
+    ? "Aktuelles Abo"
+    : buyingPlan === "basic"
+    ? "Wird geladen..."
+    : basicPackage
+    ? "Basic abonnieren"
+    : "Basic aktuell nicht verfügbar"
+}
+disabled={isBuying || !basicPackage || hasBasicActive}
       onPress={() => handleSubscribe("basic")}
       dark={false}
     />
@@ -297,13 +314,15 @@ async function init(appUserId: string) {
         "Maximale Funktionen für mehr Buchungen",
       ]}
       buttonText={
-        buyingPlan === "pro"
-          ? "Wird geladen..."
-          : proPackage
-          ? "Pro abonnieren"
-          : "Pro aktuell nicht verfügbar"
-      }
-      disabled={isBuying || !proPackage}
+  buyingPlan === "pro"
+    ? "Wird geladen..."
+    : proPackage
+    ? hasBasicActive
+      ? "Auf Pro upgraden"
+      : "Pro abonnieren"
+    : "Pro aktuell nicht verfügbar"
+}
+disabled={isBuying || !proPackage || hasProActive}
       onPress={() => handleSubscribe("pro")}
       dark
     />
