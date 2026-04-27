@@ -146,7 +146,7 @@ async function uploadToCloudinary(uri: string): Promise<string> {
     throw new Error("Cloudinary ENV fehlt.");
   }
 
-  const filename = uri.split("/").pop() || `barber_${Date.now()}.jpg`;
+  const filename = uri.split("/login").pop() || `barber_${Date.now()}.jpg`;
   const match = /\.(\w+)$/.exec(filename);
   const ext = match?.[1]?.toLowerCase() || "jpg";
   const mimeType = ext === "png" ? "image/png" : "image/jpeg";
@@ -180,7 +180,9 @@ export default function BarberSettingsScreen() {
   const { token, user, signOut } = useAuth();
 
   const [tab, setTab] = useState<TabKey>("PROFILE");
-  const [hasActivePro, setHasActivePro] = useState(false);
+  const [activePlan, setActivePlan] = useState<"basic_monthly" | "pro_monthly" | null>(null);
+const isPro = activePlan === "pro_monthly";
+const isBasic = activePlan === "basic_monthly";
   const [subscriptionManagementUrl, setSubscriptionManagementUrl] = useState("");
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
@@ -204,12 +206,12 @@ export default function BarberSettingsScreen() {
 
   useEffect(() => {
     if (!token || !user) {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
 
     if (user.role !== "BARBER") {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
 
@@ -265,24 +267,25 @@ export default function BarberSettingsScreen() {
   }
 
   async function loadSubscriptionStatus() {
-    try {
-      setCheckingSubscription(true);
+  try {
+    setCheckingSubscription(true);
 
-      const info = await getCustomerInfo();
+    const res = await api.get("/admin/subscription-status", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      const hasPro = !!info.entitlements.active["pro"];
-      const managementUrl = info.managementURL ?? "";
+    const sub = res.data?.subscription;
 
-      setHasActivePro(hasPro);
-      setSubscriptionManagementUrl(managementUrl);
-    } catch (e) {
-      console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
-      setHasActivePro(false);
-      setSubscriptionManagementUrl("");
-    } finally {
-      setCheckingSubscription(false);
-    }
+    setActivePlan(sub?.activePlan ?? null);
+    setSubscriptionManagementUrl("");
+  } catch (e) {
+    console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
+    setActivePlan(null);
+    setSubscriptionManagementUrl("");
+  } finally {
+    setCheckingSubscription(false);
   }
+}
 
   async function saveProfile() {
     if (!profile) return;
@@ -545,7 +548,7 @@ export default function BarberSettingsScreen() {
 
   async function logout() {
     await signOut();
-    router.replace("/");
+    router.replace("/login");
   }
 
   async function openSubscriptionManagement() {
@@ -603,10 +606,10 @@ export default function BarberSettingsScreen() {
       setError("");
       setMessage("");
 
-      if (hasActivePro) {
+      if (isPro || isBasic) {
         Alert.alert(
           "Aktives Abo vorhanden",
-          "Dein Salora Pro Abo wird über Apple verwaltet und nicht automatisch beendet, wenn du deinen Account löschst. Kündige dein Abo zuerst in den Apple-Abonnements oder lösche deinen Account nur, wenn du weißt, dass das Abo bis zur Kündigung weiterlaufen kann.",
+          "Dein Salora Abo wird über Apple verwaltet und nicht automatisch beendet, wenn du deinen Account löschst. Kündige dein Abo zuerst in den Apple-Abonnements oder lösche deinen Account nur, wenn du weißt, dass das Abo bis zur Kündigung weiterlaufen kann.",
           [
             { text: "Abbrechen", style: "cancel" },
             {
@@ -623,7 +626,7 @@ export default function BarberSettingsScreen() {
                   });
 
                   await signOut();
-                  router.replace("/");
+                  router.replace("/login");
                 } catch (e: any) {
                   setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
                 }
@@ -639,7 +642,7 @@ export default function BarberSettingsScreen() {
       });
 
       await signOut();
-      router.replace("/");
+      router.replace("/login");
     } catch (e: any) {
       setError(e?.response?.data?.error || "Account konnte nicht gelöscht werden.");
     }
@@ -739,6 +742,31 @@ export default function BarberSettingsScreen() {
             <Text style={[tabBtnText, tab === "RULES" ? tabBtnTextActive : null]}>Regeln</Text>
           </Pressable>
         </View>
+
+        {isBasic ? (
+  <View style={[card, { marginBottom: 16, backgroundColor: "#fffaf0", borderColor: "#f0d6a6" }]}>
+    <Text style={sectionTitle}>Salora Basic aktiv</Text>
+    <Text style={sectionSub}>
+      Du bist aktuell nur über deinen eigenen Buchungslink erreichbar. Öffentliche Sichtbarkeit und intelligente Zeitfenster sind nur in Salora Pro enthalten.
+    </Text>
+
+    <Pressable
+      onPress={() => router.push("/barber/subscription" as any)}
+      style={[primaryBtn, { marginTop: 14 }]}
+    >
+      <Text style={primaryBtnText}>Auf Pro upgraden</Text>
+    </Pressable>
+  </View>
+) : null}
+
+{isPro ? (
+  <View style={[card, { marginBottom: 16, backgroundColor: "#f4fbf4", borderColor: "#cfe7d1" }]}>
+    <Text style={sectionTitle}>Salora Pro aktiv</Text>
+    <Text style={sectionSub}>
+      Du bist öffentlich sichtbar und kannst alle Pro-Funktionen nutzen.
+    </Text>
+  </View>
+) : null}
 
         {tab === "PROFILE" ? (
           <>
@@ -1188,72 +1216,123 @@ export default function BarberSettingsScreen() {
                 onChange={(value) => setSettings({ ...settings, stepMin: value })}
               />
 
-              <SelectField
-                label="Zuerst sichtbarer Start"
-                helperText="Ab dieser Uhrzeit werden freie Slots Kunden anfangs angezeigt."
-                value={settings.displayStartMin}
-                options={DISPLAY_TIME_OPTIONS.map((value) => ({
-                  label: minToHHMM(value),
-                  value,
-                }))}
-                onChange={(value) => {
-                  const nextStart = value;
-                  const nextEnd =
-                    settings.displayEndMin <= nextStart ? Math.min(1440, nextStart + 60) : settings.displayEndMin;
-
-                  setSettings({
-                    ...settings,
-                    displayStartMin: nextStart,
-                    displayEndMin: nextEnd,
-                  });
-                }}
-              />
-
-              <SelectField
-                label="Zuerst sichtbares Ende"
-                helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
-                value={settings.displayEndMin}
-                options={DISPLAY_TIME_OPTIONS.filter((value) => value > settings.displayStartMin).map((value) => ({
-                  label: minToHHMM(value),
-                  value,
-                }))}
-                onChange={(value) =>
-                  setSettings({
-                    ...settings,
-                    displayEndMin: value,
-                  })
-                }
-              />
+              
 
               <Field
-                label="Automatische Vorverlagerung"
-                helperText="Wenn die erste sichtbare Stunde voll ist, können automatisch frühere Slots geöffnet werden – aber nur innerhalb deiner echten Arbeitszeit."
-              >
-                <Pressable
-                  onPress={() =>
-                    setSettings({
-                      ...settings,
-                      extendIfFirstHourFull: !settings.extendIfFirstHourFull,
-                    })
-                  }
-                  style={[settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall]}
-                >
-                  <Text style={settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText}>
-                    {settings.extendIfFirstHourFull ? "AN" : "AUS"}
-                  </Text>
-                </Pressable>
-              </Field>
+  label="Automatische Vorverlagerung"
+  helperText={
+  isPro
+    ? "Aktiviere diese Funktion, wenn Salora automatisch zusätzliche frühere Slots freigeben soll."
+    : "Diese Funktion ist in Basic gesperrt. Deine Kunden sehen feste Zeiten über deinen Buchungslink."
+}
+>
+  <Pressable
+    onPress={() => {
+      if (!isPro) {
+        Alert.alert("Nur mit Pro", "Diese Funktion ist nur in Salora Pro verfügbar.");
+        return;
+      }
 
-              <SelectField
-                label="Erweiterungsschritt"
-                helperText="Bestimmt, in welchen Schritten früher geöffnet wird, z. B. 15 oder 30 Minuten."
-                value={settings.extendStepMin}
-                options={EXTEND_STEP_OPTIONS.map((value) => ({
-                  label: `${value} min`,
-                  value,
-                }))}
-                onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
-              />
+      setSettings({
+        ...settings,
+        extendIfFirstHourFull: !settings.extendIfFirstHourFull,
+      });
+    }}
+    style={[
+      isPro && settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall,
+      !isPro ? disabledBtn : null,
+    ]}
+  >
+    <Text style={isPro && settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText}>
+      {isPro ? (settings.extendIfFirstHourFull ? "AN" : "AUS") : "PRO"}
+    </Text>
+  </Pressable>
+</Field>
+
+{isPro && settings.extendIfFirstHourFull ? (
+  <View
+    style={{
+      borderWidth: 1,
+      borderColor: "#ececef",
+      borderRadius: 18,
+      backgroundColor: "#fbfbfc",
+      padding: 14,
+      gap: 14,
+    }}
+  >
+    <Text
+      style={{
+        fontSize: 16,
+        fontWeight: "900",
+        color: "#111",
+      }}
+    >
+      Intelligentes Zeitfenster
+    </Text>
+
+    <Text
+      style={{
+        color: "#666",
+        fontSize: 13,
+        lineHeight: 18,
+      }}
+    >
+      Diese Werte nutzt Salora nur, wenn deine erste sichtbare Stunde voll ist.
+    </Text>
+
+    <SelectField
+      label="Zuerst sichtbarer Start"
+      helperText="Ab dieser Uhrzeit werden freie Slots Kunden zuerst angezeigt."
+      value={settings.displayStartMin}
+      options={DISPLAY_TIME_OPTIONS.map((value) => ({
+        label: minToHHMM(value),
+        value,
+      }))}
+      onChange={(value) => {
+        const nextStart = value;
+        const nextEnd =
+          settings.displayEndMin <= nextStart
+            ? Math.min(1440, nextStart + 60)
+            : settings.displayEndMin;
+
+        setSettings({
+          ...settings,
+          displayStartMin: nextStart,
+          displayEndMin: nextEnd,
+        });
+      }}
+    />
+
+    <SelectField
+      label="Zuerst sichtbares Ende"
+      helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
+      value={settings.displayEndMin}
+      options={DISPLAY_TIME_OPTIONS.filter((value) => value > settings.displayStartMin).map(
+        (value) => ({
+          label: minToHHMM(value),
+          value,
+        })
+      )}
+      onChange={(value) =>
+        setSettings({
+          ...settings,
+          displayEndMin: value,
+        })
+      }
+    />
+
+    <SelectField
+      label="Erweiterungsschritt"
+      helperText="Bestimmt, in welchen Schritten früher geöffnet wird."
+      value={settings.extendStepMin}
+      options={EXTEND_STEP_OPTIONS.map((value) => ({
+        label: `${value} min`,
+        value,
+      }))}
+      onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
+    />
+  </View>
+) : null}
 
               <SelectField
                 label="Mindestabstand pro Kunde"

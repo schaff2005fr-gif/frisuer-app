@@ -70,7 +70,7 @@ function stripDetailsFromBody(body: string) {
 }
 
 export default function NotificationsScreen() {
-  const { token, user } = useAuth();
+  const { token, user, loading: authLoading } = useAuth();
 
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,18 +83,22 @@ export default function NotificationsScreen() {
   const unread = useMemo(() => items.filter((n) => !n.isRead), [items]);
 
   useEffect(() => {
-    if (!token || !user) {
-      router.replace("/");
-      return;
-    }
+  if (authLoading) return;
 
-    if (user.role !== "CUSTOMER") {
-      router.replace("/(barber-tabs)");
-      return;
-    }
+  if (!user) {
+    router.replace("/login" as any);
+    return;
+  }
 
-    loadNotifications();
-  }, [token, user]);
+  if (!token) return;
+
+  if (user.role !== "CUSTOMER") {
+    router.replace("/(barber-tabs)" as any);
+    return;
+  }
+
+  loadNotifications();
+}, [token, user, authLoading]);
 
   async function loadUnreadCount() {
     try {
@@ -189,7 +193,7 @@ await loadUnreadCount();
   async function openNotification(n: NotificationItem) {
     try {
       if (!token) {
-        router.replace("/");
+        router.replace("/login");
         return;
       }
 

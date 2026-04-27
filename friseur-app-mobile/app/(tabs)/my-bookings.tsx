@@ -67,10 +67,10 @@ function isValidYYYYMMDD(s: string) {
 }
 
 export default function MyBookingsScreen() {
-  const { token, user } = useAuth();
+  const { token, user, loading: authLoading } = useAuth();
 
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+const [bookings, setBookings] = useState<Booking[]>([]);
+const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
 
@@ -81,18 +81,22 @@ export default function MyBookingsScreen() {
   const [showPast, setShowPast] = useState(false);
 
   useEffect(() => {
-    if (!token || !user) {
-      router.replace("/");
-      return;
-    }
+  if (authLoading) return;
 
-    if (user.role !== "CUSTOMER") {
-      router.replace("/(barber-tabs)");
-      return;
-    }
+  if (!user) {
+    router.replace("/login" as any);
+    return;
+  }
 
-    loadBookings();
-  }, [token, user]);
+  if (!token) return;
+
+  if (user.role !== "CUSTOMER") {
+    router.replace("/(barber-tabs)" as any);
+    return;
+  }
+
+  loadBookings();
+}, [token, user, authLoading]);
 
   async function loadBookings(isRefresh = false) {
     try {
@@ -309,7 +313,7 @@ export default function MyBookingsScreen() {
             </Text>
 
             <Pressable
-              onPress={() => router.push("/")}
+              onPress={() => router.push("/login")}
               style={{
                 marginTop: 12,
                 borderWidth: 1,

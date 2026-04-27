@@ -23,7 +23,7 @@ type Me = {
 };
 
 export default function SettingsScreen() {
-  const { token, user, signIn, signOut } = useAuth();
+  const { token, user, loading: authLoading, signIn, signOut } = useAuth();
 
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,19 +37,23 @@ export default function SettingsScreen() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    if (!token || !user) {
-      router.replace("/");
-      return;
-    }
+ useEffect(() => {
+  if (authLoading) return;
 
-    if (user.role !== "CUSTOMER") {
-      router.replace("/(barber-tabs)");
-      return;
-    }
+  if (!user) {
+    router.replace("/login" as any);
+    return;
+  }
 
-    loadMe();
-  }, [token, user]);
+  if (!token) return;
+
+  if (user.role !== "CUSTOMER") {
+    router.replace("/(barber-tabs)" as any);
+    return;
+  }
+
+  loadMe();
+}, [token, user, authLoading]);
 
   async function loadMe() {
     try {
@@ -58,7 +62,7 @@ export default function SettingsScreen() {
       setMessage("");
 
       if (!token) {
-        router.replace("/");
+        router.replace("/login");
         return;
       }
 
@@ -69,7 +73,7 @@ export default function SettingsScreen() {
       const m = res.data as Me;
 
       if (m.role !== "CUSTOMER") {
-        router.replace("/");
+        router.replace("/login");
         return;
       }
 
@@ -92,7 +96,7 @@ export default function SettingsScreen() {
       setMessage("");
 
       if (!token) {
-        router.replace("/");
+        router.replace("/login");
         return;
       }
 
@@ -154,7 +158,7 @@ export default function SettingsScreen() {
       setMessage("");
 
       if (!token) {
-        router.replace("/");
+        router.replace("/login");
         return;
       }
 
@@ -167,7 +171,7 @@ export default function SettingsScreen() {
       }
 
       await signOut();
-      router.replace("/");
+      router.replace("/login");
     } catch (e: any) {
       console.log("DELETE ACCOUNT ERROR:", e?.message);
       console.log("DELETE ACCOUNT RESPONSE:", e?.response?.data);
@@ -179,10 +183,10 @@ export default function SettingsScreen() {
 
   async function handleLogout() {
     await signOut();
-    router.replace("/");
+    router.replace("/login");
   }
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator />

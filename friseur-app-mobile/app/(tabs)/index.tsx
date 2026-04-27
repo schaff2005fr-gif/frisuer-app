@@ -70,13 +70,17 @@ export default function CustomerHomeScreen() {
   useEffect(() => {
     if (loading) return;
 
-    if (!user || !token) {
-      router.replace("/");
-      return;
-    }
+    if (!user) {
+  router.replace("/login" as any);
+  return;
+}
+
+if (!token) {
+  return;
+}
 
     if (user.role !== "CUSTOMER") {
-      router.replace("/(barber-tabs)");
+      router.replace("/(barber-tabs)" as any);
       return;
     }
 

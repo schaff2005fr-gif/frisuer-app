@@ -2129,16 +2129,37 @@ app.post("/admin/subscription/sync", requireAuth, requireRole("BARBER"), async (
    const proEntitlement = subscriber?.entitlements?.pro ?? null;
 const basicEntitlement = subscriber?.entitlements?.basic ?? null;
 
-const activeEntitlement = proEntitlement ?? basicEntitlement ?? null;
+const now = Date.now();
+
+const proExpiresAt = proEntitlement?.expires_date
+  ? new Date(proEntitlement.expires_date)
+  : null;
+
+const basicExpiresAt = basicEntitlement?.expires_date
+  ? new Date(basicEntitlement.expires_date)
+  : null;
+
+const hasActivePro =
+  !!proEntitlement && (!proExpiresAt || proExpiresAt.getTime() > now);
+
+const hasActiveBasic =
+  !!basicEntitlement && (!basicExpiresAt || basicExpiresAt.getTime() > now);
 
 const managementUrl = subscriber?.management_url ?? null;
-const expiresAt = activeEntitlement?.expires_date ? new Date(activeEntitlement.expires_date) : null;
 
-const isActive =
-  !!activeEntitlement &&
-  (!expiresAt || expiresAt.getTime() > Date.now());
+let isActive = false;
+let plan: "pro_monthly" | "basic_monthly" | null = null;
+let expiresAt: Date | null = null;
 
-const plan = proEntitlement ? "pro_monthly" : basicEntitlement ? "basic_monthly" : null;
+if (hasActivePro) {
+  isActive = true;
+  plan = "pro_monthly";
+  expiresAt = proExpiresAt;
+} else if (hasActiveBasic) {
+  isActive = true;
+  plan = "basic_monthly";
+  expiresAt = basicExpiresAt;
+}
 
     const updated = await prisma.barber.update({
       where: { id: barberId },

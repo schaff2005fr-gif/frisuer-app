@@ -333,12 +333,12 @@ export default function BarberDashboardScreen() {
   useEffect(() => {
   async function init() {
     if (!token || !user) {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
 
     if (user.role !== "BARBER") {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
 
@@ -444,10 +444,12 @@ async function fetchTimeBlocks(date: string) {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    const isPro = !!res.data?.subscription?.isPro;
+    const sub = res.data?.subscription;
+    const isPro = !!sub?.isPro;
+    const isBasic = !!sub?.isBasic;
 
-    if (!isPro) {
-      router.replace("/barber/subscription");
+    if (!isPro && !isBasic) {
+      router.replace("/barber/subscription" as any);
       return false;
     }
 

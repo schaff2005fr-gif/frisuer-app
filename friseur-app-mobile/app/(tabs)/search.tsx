@@ -66,10 +66,16 @@ export default function CustomerSearchScreen() {
   useEffect(() => {
     if (loading) return;
 
-    if (!user || !token) {
-      router.replace("/");
-      return;
-    }
+    if (loading) return;
+
+if (!user) {
+  router.replace("/login" as any);
+  return;
+}
+
+if (!token) {
+  return;
+}
 
     if (user.role !== "CUSTOMER") {
       router.replace("/(barber-tabs)");

@@ -193,7 +193,7 @@ export default function BarberSubscriptionScreen() {
 
   async function handleBackToLogin() {
     await signOut();
-    router.replace("/");
+    router.replace("/login");
   }
 
   function handleOpenPrivacy() {
@@ -239,55 +239,72 @@ export default function BarberSubscriptionScreen() {
           </Text>
         </View>
 
-        <PlanCard
-          label="BASIC"
-          title="Salora Basic"
-          price="29,99 €"
-          subtitle="pro Monat"
-          description="Für Friseure, die nur ihren eigenen Buchungslink nutzen möchten."
-          benefits={[
-            "Eigener Buchungslink für deine Kunden",
-            "Barber-Dashboard mit Tages- und Wochenansicht",
-            "Termine, Services, Pausen und Profil verwalten",
-            "Nicht öffentlich in der Salora-Kundensuche sichtbar",
-            "Kein intelligentes Zeitfenster",
-          ]}
-          buttonText={
-            buyingPlan === "basic"
-              ? "Wird geladen..."
-              : basicPackage
-              ? "Basic abonnieren"
-              : "Basic aktuell nicht verfügbar"
-          }
-          disabled={isBuying || !basicPackage}
-          onPress={() => handleSubscribe("basic")}
-          dark={false}
-        />
+        <ScrollView
+  horizontal
+  showsHorizontalScrollIndicator={false}
+  pagingEnabled
+  snapToAlignment="center"
+  decelerationRate="fast"
+  contentContainerStyle={{
+    gap: 14,
+    paddingRight: 20,
+    marginBottom: 16,
+  }}
+>
+  <View style={{ width: 330 }}>
+    <PlanCard
+      label="BASIC"
+      title="Salora Basic"
+      price="29,99 €"
+      subtitle="pro Monat"
+      description="Für Friseure, die nur ihren eigenen Buchungslink nutzen möchten."
+      benefits={[
+  "Eigener Buchungslink für deine Kunden",
+  "Barber-Dashboard mit Tages- und Wochenansicht",
+  "Termine, Services, Pausen und Profil verwalten",
+  "cross:Nicht öffentlich in der Salora-Kundensuche sichtbar",
+  "cross:Kein intelligentes Zeitfenster",
+]}
+      buttonText={
+        buyingPlan === "basic"
+          ? "Wird geladen..."
+          : basicPackage
+          ? "Basic abonnieren"
+          : "Basic aktuell nicht verfügbar"
+      }
+      disabled={isBuying || !basicPackage}
+      onPress={() => handleSubscribe("basic")}
+      dark={false}
+    />
+  </View>
 
-        <PlanCard
-          label="PRO"
-          title="Salora Pro"
-          price="49,99 €"
-          subtitle="pro Monat"
-          description="Für Friseure, die zusätzlich neue Kunden über Salora erreichen möchten."
-          benefits={[
-            "Alles aus Basic enthalten",
-            "Öffentliche Sichtbarkeit in der Salora-Kundensuche",
-            "Kunden können dich direkt in der App finden",
-            "Intelligente Zeitfenster automatisch erweitern",
-            "Maximale Funktionen für mehr Buchungen",
-          ]}
-          buttonText={
-            buyingPlan === "pro"
-              ? "Wird geladen..."
-              : proPackage
-              ? "Pro abonnieren"
-              : "Pro aktuell nicht verfügbar"
-          }
-          disabled={isBuying || !proPackage}
-          onPress={() => handleSubscribe("pro")}
-          dark
-        />
+  <View style={{ width: 330 }}>
+    <PlanCard
+      label="PRO"
+      title="Salora Pro"
+      price="49,99 €"
+      subtitle="pro Monat"
+      description="Für Friseure, die zusätzlich neue Kunden über Salora erreichen möchten."
+      benefits={[
+        "Alles aus Basic enthalten",
+        "Öffentliche Sichtbarkeit in der Salora-Kundensuche",
+        "Kunden können dich direkt in der App finden",
+        "Intelligente Zeitfenster automatisch erweitern",
+        "Maximale Funktionen für mehr Buchungen",
+      ]}
+      buttonText={
+        buyingPlan === "pro"
+          ? "Wird geladen..."
+          : proPackage
+          ? "Pro abonnieren"
+          : "Pro aktuell nicht verfügbar"
+      }
+      disabled={isBuying || !proPackage}
+      onPress={() => handleSubscribe("pro")}
+      dark
+    />
+  </View>
+</ScrollView>
 
         <View
           style={{
@@ -296,7 +313,7 @@ export default function BarberSubscriptionScreen() {
             borderRadius: 24,
             backgroundColor: "#fff",
             padding: 20,
-            marginBottom: 16,
+            marginBottom: 0,
           }}
         >
           <Text style={{ fontSize: 22, lineHeight: 26, fontWeight: "900", color: "#111" }}>
@@ -477,6 +494,9 @@ function PlanCard({
 }
 
 function Benefit({ text, dark }: { text: string; dark: boolean }) {
+  const isNegative = text.startsWith("cross:");
+  const cleanText = isNegative ? text.replace("cross:", "") : text;
+
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
       <View
@@ -484,27 +504,33 @@ function Benefit({ text, dark }: { text: string; dark: boolean }) {
           width: 22,
           height: 22,
           borderRadius: 999,
-          backgroundColor: dark ? "#fff" : "#111",
+          backgroundColor: isNegative ? "#f3f3f4" : dark ? "#fff" : "#111",
           alignItems: "center",
           justifyContent: "center",
           marginTop: 1,
         }}
       >
-        <Text style={{ color: dark ? "#111" : "#fff", fontSize: 12, fontWeight: "900" }}>
-          ✓
+        <Text
+          style={{
+            color: isNegative ? "#777" : dark ? "#111" : "#fff",
+            fontSize: 12,
+            fontWeight: "900",
+          }}
+        >
+          {isNegative ? "×" : "✓"}
         </Text>
       </View>
 
       <Text
         style={{
           flex: 1,
-          color: dark ? "#fff" : "#111",
+          color: isNegative ? "#777" : dark ? "#fff" : "#111",
           fontSize: 15,
           lineHeight: 22,
           fontWeight: "700",
         }}
       >
-        {text}
+        {cleanText}
       </Text>
     </View>
   );

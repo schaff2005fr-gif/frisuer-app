@@ -207,7 +207,7 @@ export default function BarberBookScreen() {
       setMessage("");
 
       if (!isAuthedCustomer) {
-        router.replace("/");
+        router.replace("/login");
         return;
       }
 
@@ -388,7 +388,7 @@ export default function BarberBookScreen() {
 
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable
-                  onPress={() => router.replace("/")}
+                  onPress={() => router.replace("/login")}
                   style={{
                     minHeight: 46,
                     paddingHorizontal: 16,

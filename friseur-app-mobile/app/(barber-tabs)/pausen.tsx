@@ -180,12 +180,12 @@ export default function BarberPausenScreen() {
 
   useEffect(() => {
     if (!token || !user) {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
 
     if (user.role !== "BARBER") {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
 
