@@ -969,232 +969,289 @@ export default function AdminPage() {
   }
 
   return (
-    <div style={{ paddingBottom: 10 }}>
+  <div style={{ paddingBottom: 10, width: "100%" }}>
       <style jsx>{`
-        .topGrid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
-        }
+  .topGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
 
-        .controlCard {
-          margin-bottom: 16px;
-          border: 1px solid #e6e6e8;
-          border-radius: 24px;
-          background: #fff;
-          padding: 12px;
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
-        }
+  .controlCard {
+    margin-bottom: 16px;
+    border: 1px solid #e6e6e8;
+    border-radius: 24px;
+    background: #fff;
+    padding: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  }
 
-        .segmentedWrap {
-          display: flex;
-          background: #f0f0f2;
-          border-radius: 18px;
-          padding: 5px;
-          gap: 5px;
-          margin-bottom: 10px;
-        }
+  .segmentedWrap {
+    display: flex;
+    background: #f0f0f2;
+    border-radius: 18px;
+    padding: 5px;
+    gap: 5px;
+    margin-bottom: 10px;
+  }
 
-        .segmentBtn {
-          flex: 1;
-          min-height: 44px;
-          border-radius: 14px;
-          border: none;
-          background: transparent;
-          color: #111;
-          font-weight: 900;
-          font-size: 15px;
-          cursor: pointer;
-        }
+  .segmentBtn {
+    flex: 1;
+    min-height: 44px;
+    border-radius: 14px;
+    border: none;
+    background: transparent;
+    color: #111;
+    font-weight: 900;
+    font-size: 15px;
+    cursor: pointer;
+  }
 
-        .segmentBtnActive {
-          background: #111;
-          color: #fff;
-        }
+  .segmentBtnActive {
+    background: #111;
+    color: #fff;
+  }
 
-        .navRow {
-          display: grid;
-          grid-template-columns: 1fr 1.8fr 1fr auto;
-          gap: 8px;
-          align-items: center;
-        }
+  .navRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+  }
 
-        .mobileHint {
-          margin-top: 14px;
-          padding: 13px 14px;
-          border-radius: 16px;
-          border: 1px solid #e7e7ea;
-          background: #fbfbfc;
-          color: #666;
-          font-size: 13px;
-          line-height: 18px;
-        }
+  .navRow > button:nth-child(1),
+  .navRow > button:nth-child(3) {
+    flex: 1;
+  }
 
-        .modalOverlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.35);
-          z-index: 220;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 12px;
-          box-sizing: border-box;
-        }
+  .navRow > button:nth-child(2) {
+    flex: 1.8;
+  }
 
-        .modalCard {
-          width: 100%;
-          max-width: 560px;
-          max-height: calc(100vh - 24px);
-          overflow-y: auto;
-          background: #fff;
-          border-radius: 20px;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
-          border: 1px solid #eee;
-          padding: 18px;
-          box-sizing: border-box;
-        }
+  .mobileHint {
+    margin-top: 14px;
+    padding: 13px 14px;
+    border-radius: 16px;
+    border: 1px solid #e7e7ea;
+    background: #fbfbfc;
+    color: #666;
+    font-size: 13px;
+    line-height: 18px;
+  }
 
-        .modalHead {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 12px;
-        }
+  .modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 220;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    box-sizing: border-box;
+  }
 
-        .closeBtn {
-          width: 40px;
-          height: 40px;
-          border-radius: 999px;
-          border: 1px solid #ddd;
-          background: #fff;
-          color: #111;
-          font-size: 22px;
-          font-weight: 700;
-          cursor: pointer;
-          line-height: 1;
-          flex-shrink: 0;
-        }
+  .modalCard {
+    width: 100%;
+    max-width: 560px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+    border: 1px solid #eee;
+    padding: 18px;
+    box-sizing: border-box;
+  }
 
-        .createActions {
-          margin-top: 18px;
-          display: flex;
-          gap: 8px;
-        }
+  .modalHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
 
-        .serviceList {
-          display: grid;
-          gap: 8px;
-        }
+  .closeBtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #111;
+    font-size: 22px;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+  }
 
-        .serviceBtn {
-          min-height: 48px;
-          border-radius: 12px;
-          border: 1px solid #ddd;
-          background: #fff;
-          justify-content: center;
-          padding: 0 14px;
-          cursor: pointer;
-          font-weight: 900;
-          text-align: left;
-          color: #111;
-        }
+  .createActions {
+    margin-top: 18px;
+    display: flex;
+    gap: 8px;
+  }
 
-        .serviceBtnActive {
-          border-color: #111;
-          background: #111;
-          color: #fff;
-        }
+  .serviceList {
+    display: grid;
+    gap: 8px;
+  }
 
-        .dateRow {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
+  .serviceBtn {
+    min-height: 48px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    background: #fff;
+    justify-content: center;
+    padding: 0 14px;
+    cursor: pointer;
+    font-weight: 900;
+    text-align: left;
+    color: #111;
+  }
 
-        .dateChip {
-          padding: 10px 12px;
-          border-radius: 12px;
-          border: 1px solid #ddd;
-          background: #fff;
-          color: #111;
-          cursor: pointer;
-          font-weight: 900;
-          font-size: 12px;
-        }
+  .serviceBtnActive {
+    border-color: #111;
+    background: #111;
+    color: #fff;
+  }
 
-        .dateChipActive {
-          border-color: #111;
-          background: #111;
-          color: #fff;
-        }
+  .dateRow {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
 
-        .slotWrap {
-          border: 1px solid #ddd;
-          border-radius: 12px;
-          padding: 10px;
-          background: #fff;
-          min-height: 48px;
-        }
+  .dateChip {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #111;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 12px;
+  }
 
-        .slotRow {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
+  .dateChipActive {
+    border-color: #111;
+    background: #111;
+    color: #fff;
+  }
 
-        .slotChip {
-          padding: 8px 10px;
-          border-radius: 10px;
-          border: 1px solid #ddd;
-          background: #fff;
-          color: #111;
-          font-weight: 900;
-          font-size: 13px;
-          cursor: pointer;
-        }
+  .slotWrap {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 10px;
+    background: #fff;
+    min-height: 48px;
+  }
 
-        .slotChipActive {
-          border-color: #111;
-          background: #111;
-          color: #fff;
-        }
+  .slotRow {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
 
-        .fieldInput,
-        .fieldTextarea {
-          width: 100%;
-          padding: 12px 14px;
-          border-radius: 12px;
-          border: 1px solid #ddd;
-          font-size: 14px;
-          box-sizing: border-box;
-          background: #fff;
-          color: #111;
-        }
+  .slotChip {
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #111;
+    font-weight: 900;
+    font-size: 13px;
+    cursor: pointer;
+  }
 
-        .fieldTextarea {
-          min-height: 110px;
-          padding-top: 14px;
-          resize: vertical;
-        }
+  .slotChipActive {
+    border-color: #111;
+    background: #111;
+    color: #fff;
+  }
 
-        @media (max-width: 768px) {
-          .navRow {
-            grid-template-columns: 1fr 1.6fr 1fr auto;
-          }
-        }
+  .fieldInput,
+  .fieldTextarea {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    box-sizing: border-box;
+    background: #fff;
+    color: #111;
+  }
 
-        @media (max-width: 640px) {
-          .navRow {
-            grid-template-columns: 1fr;
-          }
+  .fieldTextarea {
+    min-height: 110px;
+    padding-top: 14px;
+    resize: vertical;
+  }
 
-          .createActions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-      `}</style>
+  @media (min-width: 900px) {
+    .controlCard {
+      padding: 14px;
+    }
+
+    .navRow {
+      display: grid;
+      grid-template-columns: 1fr 1.8fr 1fr auto;
+    }
+
+    .navRow > button:nth-child(1),
+    .navRow > button:nth-child(2),
+    .navRow > button:nth-child(3) {
+      flex: unset;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .topGrid {
+      grid-template-columns: 1fr;
+    }
+
+    .controlCard {
+      border-radius: 24px;
+      padding: 12px;
+    }
+
+    .navRow {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+    }
+
+    .navRow > button:nth-child(1),
+    .navRow > button:nth-child(3) {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .navRow > button:nth-child(2) {
+      flex: 1.8;
+      min-width: 0;
+    }
+
+    .navRow > button:nth-child(4) {
+      flex: 0 0 50px;
+    }
+
+    .modalOverlay {
+      align-items: center;
+      padding: 12px;
+    }
+
+    .modalCard {
+      max-width: 100%;
+      max-height: calc(100vh - 24px);
+      border-radius: 20px;
+    }
+
+    .createActions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+`}</style>
 
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 34, lineHeight: 1.1, fontWeight: 900, color: "#111" }}>
