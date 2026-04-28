@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "friseur-app-mobile",
+    "name": "Salora",
     "slug": "friseur-app-mobile",
     "version": "1.0.3",
     "orientation": "portrait",
@@ -44,7 +44,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
