@@ -2124,25 +2124,40 @@ const isBasic = activePlan === "basic_monthly";
     });
 
     return res.json({
-      ok: true,
-      subscription: {
-        barberId: barber.id,
-        status: barber.subscriptionStatus,
-        plan: barber.subscriptionPlan,
-        source: barber.subscriptionSource,
-        expiresAt: barber.subscriptionExpiresAt,
-        trialEndsAt: barber.trialEndsAt,
-        revenueCatAppUserId: barber.revenueCatAppUserId,
-        updatedAt: barber.subscriptionUpdatedAt,
-        isPro,
-        isBasic,
-activePlan,
-features: {
-  publicDiscovery: isPro,
-  smartScheduling: isPro,
-},
-      },
-    });
+  ok: true,
+
+  // wichtig für Frontend/Admin-Guards
+  isActive: isPro || isBasic,
+  isPro,
+  isBasic,
+  activePlan,
+  plan: barber.subscriptionPlan,
+  status: barber.subscriptionStatus,
+
+  features: {
+    publicDiscovery: isPro,
+    smartScheduling: isPro,
+  },
+
+  subscription: {
+    barberId: barber.id,
+    status: barber.subscriptionStatus,
+    plan: barber.subscriptionPlan,
+    source: barber.subscriptionSource,
+    expiresAt: barber.subscriptionExpiresAt,
+    trialEndsAt: barber.trialEndsAt,
+    revenueCatAppUserId: barber.revenueCatAppUserId,
+    updatedAt: barber.subscriptionUpdatedAt,
+    isActive: isPro || isBasic,
+    isPro,
+    isBasic,
+    activePlan,
+    features: {
+      publicDiscovery: isPro,
+      smartScheduling: isPro,
+    },
+  },
+});
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? "Server error" });
   }
