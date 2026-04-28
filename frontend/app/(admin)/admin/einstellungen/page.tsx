@@ -72,6 +72,7 @@ const WEEKDAYS = [
 const SERVICE_DURATION_OPTIONS = [10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
 const STEP_MIN_OPTIONS = [5, 10, 15, 20, 30];
 const EXTEND_STEP_OPTIONS = [15, 30, 45, 60];
+
 const DISPLAY_TIME_OPTIONS = [
   6 * 60,
   7 * 60,
@@ -91,7 +92,9 @@ const DISPLAY_TIME_OPTIONS = [
   21 * 60,
   22 * 60,
 ];
+
 const MIN_DAYS_OPTIONS = [0, 1, 2, 3, 5, 7, 10, 14, 21, 30];
+
 const WORK_TIME_OPTIONS = [
   6 * 60,
   7 * 60,
@@ -147,12 +150,16 @@ async function uploadToCloudinary(file: File): Promise<string> {
   form.append("upload_preset", UPLOAD_PRESET);
   form.append("folder", "salora/barbers");
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-    method: "POST",
-    body: form,
-  });
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+    {
+      method: "POST",
+      body: form,
+    }
+  );
 
   const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
     throw new Error(data?.error?.message || "Upload fehlgeschlagen");
   }
@@ -167,6 +174,7 @@ function getToken() {
 
 function getUser() {
   if (typeof window === "undefined") return null;
+
   const raw = localStorage.getItem("user");
   if (!raw) return null;
 
@@ -186,7 +194,13 @@ export default function AdminSettingsPage() {
   const router = useRouter();
 
   const [tab, setTab] = useState<TabKey>("PROFILE");
-  const [hasActivePro, setHasActivePro] = useState(false);
+
+  const [activePlan, setActivePlan] = useState<
+    "basic_monthly" | "pro_monthly" | null
+  >(null);
+  const isPro = activePlan === "pro_monthly";
+  const isBasic = activePlan === "basic_monthly";
+
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   const [loading, setLoading] = useState(true);
@@ -230,7 +244,10 @@ export default function AdminSettingsPage() {
 
   async function apiFetch(path: string, init?: RequestInit) {
     const token = getToken();
-    if (!token) throw new Error("Kein Token. Bitte neu einloggen.");
+
+    if (!token) {
+      throw new Error("Kein Token. Bitte neu einloggen.");
+    }
 
     const isFormData = init?.body instanceof FormData;
 
@@ -246,6 +263,7 @@ export default function AdminSettingsPage() {
 
     const raw = await res.text();
     let data: any = {};
+
     try {
       data = raw ? JSON.parse(raw) : {};
     } catch {
@@ -271,7 +289,10 @@ export default function AdminSettingsPage() {
         apiFetch("/admin/settings", { method: "GET" }),
       ]);
 
-      const nextProfile = (profileRes.barber ?? profileRes.data?.barber ?? null) as BarberProfile | null;
+      const nextProfile = (profileRes.barber ??
+        profileRes.data?.barber ??
+        null) as BarberProfile | null;
+
       setProfile(nextProfile);
 
       setServices(
@@ -282,8 +303,9 @@ export default function AdminSettingsPage() {
           : []
       );
 
-      const rawSettings =
-        (settingsRes.settings ?? settingsRes.data?.settings ?? null) as AppSettings | null;
+      const rawSettings = (settingsRes.settings ??
+        settingsRes.data?.settings ??
+        null) as AppSettings | null;
 
       if (rawSettings) {
         setSettings({
@@ -296,7 +318,9 @@ export default function AdminSettingsPage() {
           displayEndMin: Number.isFinite((rawSettings as any).displayEndMin)
             ? Number((rawSettings as any).displayEndMin)
             : 17 * 60,
-          minDaysBetweenBookings: Number.isFinite((rawSettings as any).minDaysBetweenBookings)
+          minDaysBetweenBookings: Number.isFinite(
+            (rawSettings as any).minDaysBetweenBookings
+          )
             ? Number((rawSettings as any).minDaysBetweenBookings)
             : 0,
         });
@@ -305,6 +329,7 @@ export default function AdminSettingsPage() {
       }
 
       const localUser = getUser();
+
       if (localUser?.role === "BARBER" && nextProfile) {
         setUser({
           ...localUser,
@@ -330,36 +355,54 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({}),
       });
 
-      const subData = await apiFetch("/admin/subscription-status", { method: "GET" });
+      const subData = await apiFetch("/admin/subscription-status", {
+        method: "GET",
+      });
+
       const subscription = subData?.subscription ?? {};
 
-      setHasActivePro(!!subscription?.isPro);
+      const nextPlan =
+        subscription?.activePlan ?? subData?.activePlan ?? syncData?.plan ?? null;
+
+      setActivePlan(nextPlan);
 
       const localUser = getUser();
+
       if (localUser?.role === "BARBER") {
         const nextUser = {
           ...localUser,
           barber: {
             ...localUser.barber,
             ...(syncData?.barber ?? {}),
-            subscriptionStatus: subscription?.status ?? localUser?.barber?.subscriptionStatus ?? null,
-            subscriptionPlan: subscription?.plan ?? localUser?.barber?.subscriptionPlan ?? null,
-            subscriptionSource: subscription?.source ?? localUser?.barber?.subscriptionSource ?? null,
-            subscriptionExpiresAt: subscription?.expiresAt ?? localUser?.barber?.subscriptionExpiresAt ?? null,
-            trialEndsAt: subscription?.trialEndsAt ?? localUser?.barber?.trialEndsAt ?? null,
+            subscriptionStatus:
+              subscription?.status ?? localUser?.barber?.subscriptionStatus ?? null,
+            subscriptionPlan:
+              subscription?.plan ?? localUser?.barber?.subscriptionPlan ?? null,
+            subscriptionSource:
+              subscription?.source ?? localUser?.barber?.subscriptionSource ?? null,
+            subscriptionExpiresAt:
+              subscription?.expiresAt ??
+              localUser?.barber?.subscriptionExpiresAt ??
+              null,
+            trialEndsAt:
+              subscription?.trialEndsAt ?? localUser?.barber?.trialEndsAt ?? null,
             revenueCatAppUserId:
               subscription?.revenueCatAppUserId ??
               syncData?.revenueCatAppUserId ??
               localUser?.barber?.revenueCatAppUserId ??
               null,
-            subscriptionUpdatedAt: subscription?.updatedAt ?? localUser?.barber?.subscriptionUpdatedAt ?? null,
+            subscriptionUpdatedAt:
+              subscription?.updatedAt ??
+              localUser?.barber?.subscriptionUpdatedAt ??
+              null,
           },
         };
+
         setUser(nextUser);
       }
     } catch (e) {
       console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
-      setHasActivePro(false);
+      setActivePlan(null);
     } finally {
       setCheckingSubscription(false);
     }
@@ -387,10 +430,14 @@ export default function AdminSettingsPage() {
         }),
       });
 
-      const nextProfile = (data?.barber ?? data?.data?.barber ?? profile) as BarberProfile;
+      const nextProfile = (data?.barber ??
+        data?.data?.barber ??
+        profile) as BarberProfile;
+
       setProfile(nextProfile);
 
       const localUser = getUser();
+
       if (localUser?.role === "BARBER") {
         setUser({
           ...localUser,
@@ -442,6 +489,7 @@ export default function AdminSettingsPage() {
       });
 
       const localUser = getUser();
+
       if (localUser?.role === "BARBER") {
         setUser({
           ...localUser,
@@ -476,6 +524,7 @@ export default function AdminSettingsPage() {
       });
 
       const localUser = getUser();
+
       if (localUser?.role === "BARBER") {
         setUser({
           ...localUser,
@@ -524,6 +573,7 @@ export default function AdminSettingsPage() {
       });
 
       const created = data?.service as Service;
+
       setServices((prev) => [...prev, created].sort((a, b) => a.id - b.id));
       setNewServiceName("");
       setNewServiceDuration(30);
@@ -550,6 +600,7 @@ export default function AdminSettingsPage() {
       });
 
       const updated = data?.service as Service;
+
       setServices((prev) => prev.map((s) => (s.id === id ? updated : s)));
       setMessage("Service aktualisiert.");
     } catch (e: any) {
@@ -634,6 +685,7 @@ export default function AdminSettingsPage() {
   async function openSubscriptionManagement() {
     try {
       setError("");
+
       const token = getToken();
       if (!token) {
         router.push("/login");
@@ -671,8 +723,10 @@ export default function AdminSettingsPage() {
   async function copyToClipboard(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
+
       setCopied(label === "Profil-Link" ? "profile" : "book");
       setTimeout(() => setCopied(""), 1200);
+
       setMessage(`${label} kopiert.`);
       setError("");
     } catch {
@@ -704,14 +758,15 @@ export default function AdminSettingsPage() {
       setError("");
       setMessage("");
 
-      if (hasActivePro) {
+      if (isPro || isBasic) {
         const proceed = window.confirm(
-          "Dein Salora Pro Abo ist noch aktiv. Es wird nicht automatisch beendet, wenn du deinen Account löschst. Kündige dein Abo zuerst über die Abo-Verwaltung. Klicke auf OK, um die Abo-Verwaltung zu öffnen."
+          "Dein Salora Abo ist noch aktiv. Es wird nicht automatisch beendet, wenn du deinen Account löschst. Kündige dein Abo zuerst über die Abo-Verwaltung. Klicke auf OK, um die Abo-Verwaltung zu öffnen."
         );
 
         if (proceed) {
           await openSubscriptionManagement();
         }
+
         return;
       }
 
@@ -731,33 +786,54 @@ export default function AdminSettingsPage() {
     const ok = window.confirm(
       "Willst du deinen Account wirklich endgültig löschen? Dieser Schritt kann nicht rückgängig gemacht werden."
     );
+
     if (!ok) return;
+
     deleteAccount();
   }
 
   const profileUrl = useMemo(() => {
     if (!profile?.slug) return "";
+
     const base = trimTrailingSlash(
-      cleanUrl(PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : ""))
+      cleanUrl(
+        PUBLIC_APP_URL ||
+          (typeof window !== "undefined" ? window.location.origin : "")
+      )
     );
+
     return `${base}/b/${profile.slug}`;
   }, [profile?.slug]);
 
   const bookingUrl = useMemo(() => {
     if (!profile?.slug) return "";
+
     const base = trimTrailingSlash(
-      cleanUrl(PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : ""))
+      cleanUrl(
+        PUBLIC_APP_URL ||
+          (typeof window !== "undefined" ? window.location.origin : "")
+      )
     );
+
     return `${base}/b/${profile.slug}/book`;
   }, [profile?.slug]);
 
   const workingHoursUi = useMemo(() => {
     const wh = settings?.workingHours ?? [];
     const map = new Map<number, WorkingHoursRow>();
-    for (const row of wh) map.set(row.day, row);
+
+    for (const row of wh) {
+      map.set(row.day, row);
+    }
 
     return WEEKDAYS.map(
-      (d) => map.get(d.k) ?? { day: d.k, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 }
+      (d) =>
+        map.get(d.k) ?? {
+          day: d.k,
+          isOpen: false,
+          startMin: 12 * 60,
+          endMin: 17 * 60,
+        }
     );
   }, [settings]);
 
@@ -782,7 +858,9 @@ export default function AdminSettingsPage() {
     return (
       <div style={{ padding: 16 }}>
         <div style={alertErr}>
-          <div style={alertErrText}>Einstellungen konnten nicht geladen werden.</div>
+          <div style={alertErrText}>
+            Einstellungen konnten nicht geladen werden.
+          </div>
         </div>
       </div>
     );
@@ -796,7 +874,10 @@ export default function AdminSettingsPage() {
         .tabGrid {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 10px;
+          gap: 5px;
+          background: #ededf0;
+          border-radius: 18px;
+          padding: 5px;
           margin-bottom: 16px;
         }
 
@@ -827,9 +908,22 @@ export default function AdminSettingsPage() {
         }
 
         @media (max-width: 720px) {
-          .tabGrid,
+          .tabGrid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 5px;
+            background: #ededf0;
+            border-radius: 18px;
+            padding: 5px;
+          }
+
           .twoColGrid {
             grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .tabText {
+            font-size: 12px !important;
           }
         }
       `}</style>
@@ -855,41 +949,111 @@ export default function AdminSettingsPage() {
 
       <div className="tabGrid">
         <button
+          type="button"
           onClick={() => setTab("PROFILE")}
           style={{ ...tabBtn, ...(tab === "PROFILE" ? tabBtnActive : {}) }}
         >
-          <span style={{ ...tabBtnText, ...(tab === "PROFILE" ? tabBtnTextActive : {}) }}>
+          <span
+            className="tabText"
+            style={{
+              ...tabBtnText,
+              ...(tab === "PROFILE" ? tabBtnTextActive : {}),
+            }}
+          >
             Profil
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setTab("SERVICES")}
           style={{ ...tabBtn, ...(tab === "SERVICES" ? tabBtnActive : {}) }}
         >
-          <span style={{ ...tabBtnText, ...(tab === "SERVICES" ? tabBtnTextActive : {}) }}>
+          <span
+            className="tabText"
+            style={{
+              ...tabBtnText,
+              ...(tab === "SERVICES" ? tabBtnTextActive : {}),
+            }}
+          >
             Services
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setTab("HOURS")}
           style={{ ...tabBtn, ...(tab === "HOURS" ? tabBtnActive : {}) }}
         >
-          <span style={{ ...tabBtnText, ...(tab === "HOURS" ? tabBtnTextActive : {}) }}>
+          <span
+            className="tabText"
+            style={{
+              ...tabBtnText,
+              ...(tab === "HOURS" ? tabBtnTextActive : {}),
+            }}
+          >
             Zeiten
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setTab("RULES")}
           style={{ ...tabBtn, ...(tab === "RULES" ? tabBtnActive : {}) }}
         >
-          <span style={{ ...tabBtnText, ...(tab === "RULES" ? tabBtnTextActive : {}) }}>
+          <span
+            className="tabText"
+            style={{
+              ...tabBtnText,
+              ...(tab === "RULES" ? tabBtnTextActive : {}),
+            }}
+          >
             Regeln
           </span>
         </button>
       </div>
+
+      {isBasic ? (
+        <div
+          style={{
+            ...card,
+            marginBottom: 16,
+            background: "#fffaf0",
+            borderColor: "#f0d6a6",
+          }}
+        >
+          <div style={sectionTitle}>Salora Basic aktiv</div>
+          <div style={sectionSub}>
+            Du bist aktuell nur über deinen eigenen Buchungslink erreichbar.
+            Öffentliche Sichtbarkeit und intelligente Zeitfenster sind nur in
+            Salora Pro enthalten.
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push("/barber/subscription?mode=upgrade")}
+            style={{ ...primaryBtn, marginTop: 14 }}
+          >
+            <span style={primaryBtnText}>Auf Pro upgraden</span>
+          </button>
+        </div>
+      ) : null}
+
+      {isPro ? (
+        <div
+          style={{
+            ...card,
+            marginBottom: 16,
+            background: "#f4fbf4",
+            borderColor: "#cfe7d1",
+          }}
+        >
+          <div style={sectionTitle}>Salora Pro aktiv</div>
+          <div style={sectionSub}>
+            Du bist öffentlich sichtbar und kannst alle Pro-Funktionen nutzen.
+          </div>
+        </div>
+      ) : null}
 
       {tab === "PROFILE" ? (
         <>
@@ -910,7 +1074,9 @@ export default function AdminSettingsPage() {
                 {previewUrl ? (
                   <img src={previewUrl} alt="Profilbild" style={avatarImg} />
                 ) : (
-                  <div style={avatarFallback}>{profile.name?.trim()?.[0]?.toUpperCase() || "B"}</div>
+                  <div style={avatarFallback}>
+                    {profile.name?.trim()?.[0]?.toUpperCase() || "B"}
+                  </div>
                 )}
               </div>
 
@@ -919,6 +1085,7 @@ export default function AdminSettingsPage() {
                   <span style={primaryBtnText}>
                     {uploadingImg ? "Lädt..." : "Profilbild auswählen"}
                   </span>
+
                   <input
                     type="file"
                     accept="image/*"
@@ -930,9 +1097,13 @@ export default function AdminSettingsPage() {
 
                 {previewUrl ? (
                   <button
+                    type="button"
                     onClick={removeImage}
                     disabled={uploadingImg}
-                    style={{ ...secondaryBtn, ...(uploadingImg ? disabledBtn : {}) }}
+                    style={{
+                      ...secondaryBtn,
+                      ...(uploadingImg ? disabledBtn : {}),
+                    }}
                   >
                     <span style={secondaryBtnText}>Profilbild entfernen</span>
                   </button>
@@ -947,13 +1118,19 @@ export default function AdminSettingsPage() {
 
             <div style={fieldGap}>
               <Field label="Name">
-                <input value={profile.name || ""} disabled style={{ ...input, ...disabledInput }} />
+                <input
+                  value={profile.name || ""}
+                  disabled
+                  style={{ ...input, ...disabledInput }}
+                />
               </Field>
 
               <Field label="Telefon">
                 <input
                   value={profile.phone ?? ""}
-                  onChange={(e) => setProfile({ ...profile, phone: e.target.value || null })}
+                  onChange={(e) =>
+                    setProfile({ ...profile, phone: e.target.value || null })
+                  }
                   placeholder="z. B. 0176..."
                   style={input}
                 />
@@ -963,7 +1140,9 @@ export default function AdminSettingsPage() {
                 <Field label="Straße + Nr.">
                   <input
                     value={profile.street ?? ""}
-                    onChange={(e) => setProfile({ ...profile, street: e.target.value || null })}
+                    onChange={(e) =>
+                      setProfile({ ...profile, street: e.target.value || null })
+                    }
                     placeholder="z. B. Musterstraße 12"
                     style={input}
                   />
@@ -972,7 +1151,12 @@ export default function AdminSettingsPage() {
                 <Field label="PLZ">
                   <input
                     value={profile.postalCode ?? ""}
-                    onChange={(e) => setProfile({ ...profile, postalCode: e.target.value || null })}
+                    onChange={(e) =>
+                      setProfile({
+                        ...profile,
+                        postalCode: e.target.value || null,
+                      })
+                    }
                     placeholder="45127"
                     style={input}
                   />
@@ -981,7 +1165,9 @@ export default function AdminSettingsPage() {
                 <Field label="Stadt">
                   <input
                     value={profile.city ?? ""}
-                    onChange={(e) => setProfile({ ...profile, city: e.target.value || null })}
+                    onChange={(e) =>
+                      setProfile({ ...profile, city: e.target.value || null })
+                    }
                     placeholder="Essen"
                     style={input}
                   />
@@ -991,7 +1177,12 @@ export default function AdminSettingsPage() {
               <Field label="Instagram">
                 <input
                   value={profile.instagram ?? ""}
-                  onChange={(e) => setProfile({ ...profile, instagram: e.target.value || null })}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      instagram: e.target.value || null,
+                    })
+                  }
                   placeholder="@deinprofil"
                   style={input}
                 />
@@ -1000,7 +1191,9 @@ export default function AdminSettingsPage() {
               <Field label="Website">
                 <input
                   value={profile.website ?? ""}
-                  onChange={(e) => setProfile({ ...profile, website: e.target.value || null })}
+                  onChange={(e) =>
+                    setProfile({ ...profile, website: e.target.value || null })
+                  }
                   placeholder="https://..."
                   style={input}
                 />
@@ -1009,7 +1202,9 @@ export default function AdminSettingsPage() {
               <Field label="Bio">
                 <textarea
                   value={profile.bio ?? ""}
-                  onChange={(e) => setProfile({ ...profile, bio: e.target.value || null })}
+                  onChange={(e) =>
+                    setProfile({ ...profile, bio: e.target.value || null })
+                  }
                   placeholder="Kurz über dich"
                   style={textarea}
                   rows={5}
@@ -1018,9 +1213,14 @@ export default function AdminSettingsPage() {
             </div>
 
             <button
+              type="button"
               onClick={saveProfile}
               disabled={savingProfile}
-              style={{ ...primaryBtn, marginTop: 16, ...(savingProfile ? disabledBtn : {}) }}
+              style={{
+                ...primaryBtn,
+                marginTop: 16,
+                ...(savingProfile ? disabledBtn : {}),
+              }}
             >
               <span style={primaryBtnText}>
                 {savingProfile ? "Speichert..." : "Profil speichern"}
@@ -1043,7 +1243,10 @@ export default function AdminSettingsPage() {
 
                     <div className="twoColGrid" style={{ marginTop: 12 }}>
                       <button
-                        onClick={() => copyToClipboard(profileUrl, "Profil-Link")}
+                        type="button"
+                        onClick={() =>
+                          copyToClipboard(profileUrl, "Profil-Link")
+                        }
                         style={secondaryBtnSmall}
                       >
                         <span style={secondaryBtnSmallText}>
@@ -1052,6 +1255,7 @@ export default function AdminSettingsPage() {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => shareLink(profileUrl, "Profil-Link")}
                         style={primaryBtnSmall}
                       >
@@ -1068,7 +1272,10 @@ export default function AdminSettingsPage() {
 
                     <div className="twoColGrid" style={{ marginTop: 12 }}>
                       <button
-                        onClick={() => copyToClipboard(bookingUrl, "Buchungs-Link")}
+                        type="button"
+                        onClick={() =>
+                          copyToClipboard(bookingUrl, "Buchungs-Link")
+                        }
                         style={secondaryBtnSmall}
                       >
                         <span style={secondaryBtnSmallText}>
@@ -1077,6 +1284,7 @@ export default function AdminSettingsPage() {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => shareLink(bookingUrl, "Buchungs-Link")}
                         style={primaryBtnSmall}
                       >
@@ -1092,32 +1300,40 @@ export default function AdminSettingsPage() {
           <div style={{ ...card, marginTop: 16 }}>
             <div style={sectionTitle}>Konto</div>
             <div style={sectionSub}>Sichere Aktionen für deinen Account.</div>
+
             <div style={{ ...sectionSub, marginTop: 10 }}>
-              Abonnements werden separat verwaltet. Wenn dein Abo aktiv ist, öffnet „Abo verwalten“
-              direkt die echte Verwaltungsseite. Vor dem Löschen des Accounts solltest du ein aktives
-              Abo zuerst kündigen.
+              Abonnements werden separat verwaltet. Wenn dein Abo aktiv ist,
+              öffnet „Abo verwalten“ direkt die echte Verwaltungsseite. Vor dem
+              Löschen des Accounts solltest du ein aktives Abo zuerst kündigen.
             </div>
 
             <div className="accountButtons" style={{ marginTop: 16 }}>
               <button
+                type="button"
                 onClick={openSubscriptionManagement}
-                disabled={checkingSubscription || !hasActivePro}
+                disabled={checkingSubscription || (!isPro && !isBasic)}
                 style={{
                   ...secondaryBtn,
-                  ...((checkingSubscription || !hasActivePro) ? disabledBtn : {}),
+                  ...(checkingSubscription || (!isPro && !isBasic)
+                    ? disabledBtn
+                    : {}),
                 }}
-                title={!hasActivePro ? "Nur bei aktivem Abo verfügbar" : ""}
+                title={!isPro && !isBasic ? "Nur bei aktivem Abo verfügbar" : ""}
               >
                 <span style={secondaryBtnText}>
                   {checkingSubscription ? "Lädt..." : "Abo verwalten"}
                 </span>
               </button>
 
-              <button onClick={confirmLogout} style={secondaryBtn}>
+              <button type="button" onClick={confirmLogout} style={secondaryBtn}>
                 <span style={secondaryBtnText}>Ausloggen</span>
               </button>
 
-              <button onClick={confirmDeleteAccount} style={dangerBtn}>
+              <button
+                type="button"
+                onClick={confirmDeleteAccount}
+                style={dangerBtn}
+              >
                 <span style={dangerBtnText}>Account löschen</span>
               </button>
             </div>
@@ -1151,9 +1367,14 @@ export default function AdminSettingsPage() {
             </div>
 
             <button
+              type="button"
               onClick={createService}
               disabled={creatingService}
-              style={{ ...primaryBtn, marginTop: 16, ...(creatingService ? disabledBtn : {}) }}
+              style={{
+                ...primaryBtn,
+                marginTop: 16,
+                ...(creatingService ? disabledBtn : {}),
+              }}
             >
               <span style={primaryBtnText}>
                 {creatingService ? "Speichert..." : "Service hinzufügen"}
@@ -1163,7 +1384,9 @@ export default function AdminSettingsPage() {
 
           <div style={{ ...card, marginTop: 16 }}>
             <div style={sectionTitle}>Deine Services</div>
-            <div style={sectionSub}>Dauer ändern, aktivieren oder löschen.</div>
+            <div style={sectionSub}>
+              Dauer ändern, aktivieren oder löschen.
+            </div>
 
             <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
               {services.length === 0 ? (
@@ -1183,6 +1406,7 @@ export default function AdminSettingsPage() {
                           defaultValue={service.name}
                           onBlur={(e) => {
                             const v = e.target.value.trim();
+
                             if (v && v !== service.name) {
                               updateService(service.id, { name: v });
                             }
@@ -1199,28 +1423,47 @@ export default function AdminSettingsPage() {
                               label: `${dur} min`,
                               value: dur,
                             }))}
-                            onChange={(dur) => updateService(service.id, { durationMin: dur })}
+                            onChange={(dur) =>
+                              updateService(service.id, { durationMin: dur })
+                            }
                           />
                         </div>
 
                         <div className="twoColGrid" style={{ marginTop: 12 }}>
                           <button
-                            onClick={() => updateService(service.id, { isActive: !service.isActive })}
+                            type="button"
+                            onClick={() =>
+                              updateService(service.id, {
+                                isActive: !service.isActive,
+                              })
+                            }
                             disabled={isBusy}
                             style={{
-                              ...(service.isActive ? primaryBtnSmall : secondaryBtnSmall),
+                              ...(service.isActive
+                                ? primaryBtnSmall
+                                : secondaryBtnSmall),
                               ...(isBusy ? disabledBtn : {}),
                             }}
                           >
-                            <span style={service.isActive ? primaryBtnSmallText : secondaryBtnSmallText}>
+                            <span
+                              style={
+                                service.isActive
+                                  ? primaryBtnSmallText
+                                  : secondaryBtnSmallText
+                              }
+                            >
                               {service.isActive ? "Aktiv" : "Inaktiv"}
                             </span>
                           </button>
 
                           <button
+                            type="button"
                             onClick={() => deleteService(service.id)}
                             disabled={isBusy}
-                            style={{ ...dangerBtnSmall, ...(isBusy ? disabledBtn : {}) }}
+                            style={{
+                              ...dangerBtnSmall,
+                              ...(isBusy ? disabledBtn : {}),
+                            }}
                           >
                             <span style={dangerBtnSmallText}>Löschen</span>
                           </button>
@@ -1241,7 +1484,8 @@ export default function AdminSettingsPage() {
 
           <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
             {workingHoursUi.map((row) => {
-              const dayName = WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
+              const dayName =
+                WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
 
               return (
                 <div key={row.day} style={serviceCard}>
@@ -1257,11 +1501,14 @@ export default function AdminSettingsPage() {
                     <div style={dayTitle}>{dayName}</div>
 
                     <button
+                      type="button"
                       onClick={() => {
                         setSettings({
                           ...settings,
                           workingHours: workingHoursUi.map((r) =>
-                            r.day === row.day ? { ...r, isOpen: !r.isOpen } : r
+                            r.day === row.day
+                              ? { ...r, isOpen: !r.isOpen }
+                              : r
                           ),
                         });
                       }}
@@ -1270,7 +1517,11 @@ export default function AdminSettingsPage() {
                         minWidth: 110,
                       }}
                     >
-                      <span style={row.isOpen ? primaryBtnSmallText : secondaryBtnSmallText}>
+                      <span
+                        style={
+                          row.isOpen ? primaryBtnSmallText : secondaryBtnSmallText
+                        }
+                      >
                         {row.isOpen ? "Geöffnet" : "Geschlossen"}
                       </span>
                     </button>
@@ -1287,7 +1538,10 @@ export default function AdminSettingsPage() {
                         }))}
                         onChange={(value) => {
                           const safeStart = clamp(value, 0, 1439);
-                          const safeEnd = row.endMin <= safeStart ? safeStart + 60 : row.endMin;
+                          const safeEnd =
+                            row.endMin <= safeStart
+                              ? safeStart + 60
+                              : row.endMin;
 
                           setSettings({
                             ...settings,
@@ -1307,7 +1561,9 @@ export default function AdminSettingsPage() {
                       <SelectField
                         label="Ende"
                         value={row.endMin}
-                        options={WORK_TIME_OPTIONS.filter((value) => value > row.startMin).map((value) => ({
+                        options={WORK_TIME_OPTIONS.filter(
+                          (value) => value > row.startMin
+                        ).map((value) => ({
                           label: minToHHMM(value),
                           value,
                         }))}
@@ -1316,7 +1572,10 @@ export default function AdminSettingsPage() {
                             ...settings,
                             workingHours: workingHoursUi.map((r) =>
                               r.day === row.day
-                                ? { ...r, endMin: clamp(value, r.startMin + 1, 1440) }
+                                ? {
+                                    ...r,
+                                    endMin: clamp(value, r.startMin + 1, 1440),
+                                  }
                                 : r
                             ),
                           });
@@ -1334,9 +1593,14 @@ export default function AdminSettingsPage() {
           </div>
 
           <button
+            type="button"
             onClick={saveHours}
             disabled={savingHours}
-            style={{ ...primaryBtn, marginTop: 16, ...(savingHours ? disabledBtn : {}) }}
+            style={{
+              ...primaryBtn,
+              marginTop: 16,
+              ...(savingHours ? disabledBtn : {}),
+            }}
           >
             <span style={primaryBtnText}>
               {savingHours ? "Speichert..." : "Arbeitszeiten speichern"}
@@ -1346,7 +1610,9 @@ export default function AdminSettingsPage() {
       ) : (
         <div style={card}>
           <div style={sectionTitle}>Buchungsregeln</div>
-          <div style={sectionSub}>Hier legst du fest, was Kunden zuerst sehen.</div>
+          <div style={sectionSub}>
+            Hier legst du fest, was Kunden zuerst sehen.
+          </div>
 
           <div style={fieldGap}>
             <SelectField
@@ -1360,80 +1626,137 @@ export default function AdminSettingsPage() {
               onChange={(value) => setSettings({ ...settings, stepMin: value })}
             />
 
-            <SelectField
-              label="Zuerst sichtbarer Start"
-              helperText="Ab dieser Uhrzeit werden freie Slots Kunden anfangs angezeigt."
-              value={settings.displayStartMin}
-              options={DISPLAY_TIME_OPTIONS.map((value) => ({
-                label: minToHHMM(value),
-                value,
-              }))}
-              onChange={(value) => {
-                const nextStart = value;
-                const nextEnd =
-                  settings.displayEndMin <= nextStart
-                    ? Math.min(1440, nextStart + 60)
-                    : settings.displayEndMin;
-
-                setSettings({
-                  ...settings,
-                  displayStartMin: nextStart,
-                  displayEndMin: nextEnd,
-                });
-              }}
-            />
-
-            <SelectField
-              label="Zuerst sichtbares Ende"
-              helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
-              value={settings.displayEndMin}
-              options={DISPLAY_TIME_OPTIONS.filter((value) => value > settings.displayStartMin).map(
-                (value) => ({
-                  label: minToHHMM(value),
-                  value,
-                })
-              )}
-              onChange={(value) =>
-                setSettings({
-                  ...settings,
-                  displayEndMin: value,
-                })
-              }
-            />
-
             <Field
               label="Automatische Vorverlagerung"
-              helperText="Wenn die erste sichtbare Stunde voll ist, können automatisch frühere Slots geöffnet werden – aber nur innerhalb deiner echten Arbeitszeit."
+              helperText={
+                isPro
+                  ? "Aktiviere diese Funktion, wenn Salora automatisch zusätzliche frühere Slots freigeben soll."
+                  : "Diese Funktion ist in Basic gesperrt. Deine Kunden sehen feste Zeiten über deinen Buchungslink."
+              }
             >
               <button
-                onClick={() =>
+                type="button"
+                onClick={() => {
+                  if (!isPro) {
+                    setError("Diese Funktion ist nur in Salora Pro verfügbar.");
+                    setMessage("");
+                    return;
+                  }
+
                   setSettings({
                     ...settings,
                     extendIfFirstHourFull: !settings.extendIfFirstHourFull,
-                  })
-                }
-                style={settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall}
+                  });
+                }}
+                style={{
+                  ...(isPro && settings.extendIfFirstHourFull
+                    ? primaryBtnSmall
+                    : secondaryBtnSmall),
+                  ...(!isPro ? disabledBtn : {}),
+                }}
               >
                 <span
                   style={
-                    settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText
+                    isPro && settings.extendIfFirstHourFull
+                      ? primaryBtnSmallText
+                      : secondaryBtnSmallText
                   }
                 >
-                  {settings.extendIfFirstHourFull ? "AN" : "AUS"}
+                  {isPro ? (settings.extendIfFirstHourFull ? "AN" : "AUS") : "PRO"}
                 </span>
               </button>
             </Field>
 
-            <SelectField
-              label="Erweiterungsschritt"
-              helperText="Bestimmt, in welchen Schritten früher geöffnet wird, z. B. 15 oder 30 Minuten."
-              value={settings.extendStepMin}
-              options={EXTEND_STEP_OPTIONS.map((value) => ({
-                label: `${value} min`,
-                value,
-              }))}
-              onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
-            />
+            {isPro && settings.extendIfFirstHourFull ? (
+              <div
+                style={{
+                  border: "1px solid #ececef",
+                  borderRadius: 18,
+                  background: "#fbfbfc",
+                  padding: 14,
+                  display: "grid",
+                  gap: 14,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 900,
+                      color: "#111",
+                    }}
+                  >
+                    Intelligentes Zeitfenster
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 6,
+                      color: "#666",
+                      fontSize: 13,
+                      lineHeight: "18px",
+                    }}
+                  >
+                    Diese Werte nutzt Salora nur, wenn deine erste sichtbare
+                    Stunde voll ist.
+                  </div>
+                </div>
+
+                <SelectField
+                  label="Zuerst sichtbarer Start"
+                  helperText="Ab dieser Uhrzeit werden freie Slots Kunden zuerst angezeigt."
+                  value={settings.displayStartMin}
+                  options={DISPLAY_TIME_OPTIONS.map((value) => ({
+                    label: minToHHMM(value),
+                    value,
+                  }))}
+                  onChange={(value) => {
+                    const nextStart = value;
+                    const nextEnd =
+                      settings.displayEndMin <= nextStart
+                        ? Math.min(1440, nextStart + 60)
+                        : settings.displayEndMin;
+
+                    setSettings({
+                      ...settings,
+                      displayStartMin: nextStart,
+                      displayEndMin: nextEnd,
+                    });
+                  }}
+                />
+
+                <SelectField
+                  label="Zuerst sichtbares Ende"
+                  helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
+                  value={settings.displayEndMin}
+                  options={DISPLAY_TIME_OPTIONS.filter(
+                    (value) => value > settings.displayStartMin
+                  ).map((value) => ({
+                    label: minToHHMM(value),
+                    value,
+                  }))}
+                  onChange={(value) =>
+                    setSettings({
+                      ...settings,
+                      displayEndMin: value,
+                    })
+                  }
+                />
+
+                <SelectField
+                  label="Erweiterungsschritt"
+                  helperText="Bestimmt, in welchen Schritten früher geöffnet wird."
+                  value={settings.extendStepMin}
+                  options={EXTEND_STEP_OPTIONS.map((value) => ({
+                    label: `${value} min`,
+                    value,
+                  }))}
+                  onChange={(value) =>
+                    setSettings({ ...settings, extendStepMin: value })
+                  }
+                />
+              </div>
+            ) : null}
 
             <SelectField
               label="Mindestabstand pro Kunde"
@@ -1443,14 +1766,21 @@ export default function AdminSettingsPage() {
                 label: `${value} Tag${value === 1 ? "" : "e"}`,
                 value,
               }))}
-              onChange={(value) => setSettings({ ...settings, minDaysBetweenBookings: value })}
+              onChange={(value) =>
+                setSettings({ ...settings, minDaysBetweenBookings: value })
+              }
             />
           </div>
 
           <button
+            type="button"
             onClick={saveRules}
             disabled={savingRules}
-            style={{ ...primaryBtn, marginTop: 16, ...(savingRules ? disabledBtn : {}) }}
+            style={{
+              ...primaryBtn,
+              marginTop: 16,
+              ...(savingRules ? disabledBtn : {}),
+            }}
           >
             <span style={primaryBtnText}>
               {savingRules ? "Speichert..." : "Buchungsregeln speichern"}
@@ -1486,13 +1816,18 @@ function SelectField<T extends string | number>(props: {
   const [open, setOpen] = useState(false);
 
   const selected =
-    props.options.find((o) => o.value === props.value)?.label ?? String(props.value);
+    props.options.find((o) => o.value === props.value)?.label ??
+    String(props.value);
 
   return (
     <div style={{ position: "relative", zIndex: open ? 50 : 1 }}>
       <div style={fieldLabel}>{props.label}</div>
 
-      <button type="button" onClick={() => setOpen((v) => !v)} style={selectTrigger}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={selectTrigger}
+      >
         <span style={selectTriggerText}>{selected}</span>
         <span style={selectChevron}>{open ? "▲" : "▼"}</span>
       </button>
@@ -1519,7 +1854,12 @@ function SelectField<T extends string | number>(props: {
                     ...(active ? selectOptionActive : {}),
                   }}
                 >
-                  <span style={{ ...selectOptionText, ...(active ? selectOptionTextActive : {}) }}>
+                  <span
+                    style={{
+                      ...selectOptionText,
+                      ...(active ? selectOptionTextActive : {}),
+                    }}
+                  >
                     {option.label}
                   </span>
                 </button>
