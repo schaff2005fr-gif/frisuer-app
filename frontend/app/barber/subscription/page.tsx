@@ -8,6 +8,8 @@ const API_BASE =
 
 const WEB_CHECKOUT_URL = process.env.NEXT_PUBLIC_WEB_CHECKOUT_URL || "";
 
+const UPGRADE_INTENT_KEY = "salora_upgrade_intent";
+
 type PlanKey = "basic" | "pro";
 
 function getToken() {
@@ -120,50 +122,66 @@ function SubscriptionInner() {
   }
 
   async function checkSubscriptionStatus(showSuccessMessage: boolean) {
-    try {
-      setLoading(true);
-      setChecking(true);
-      setError("");
+  try {
+    setLoading(true);
+    setChecking(true);
+    setError("");
 
-      const syncData = await syncSubscriptionToBackend();
+    const syncData = await syncSubscriptionToBackend();
 
-      const isPro = !!syncData?.isPro;
-      const isBasic = !!syncData?.isBasic;
+    const isPro = !!syncData?.isPro;
+    const isBasic = !!syncData?.isBasic;
 
-      setHasProActive(isPro);
-      setHasBasicActive(isBasic);
+    setHasProActive(isPro);
+    setHasBasicActive(isBasic);
 
-      if (isPro) {
-        if (showSuccessMessage) {
-          setStatusMessage("✅ Dein Pro-Abo ist jetzt aktiv.");
-        }
+    const upgradeIntent =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem(UPGRADE_INTENT_KEY) === "1";
 
+    const shouldStayForUpgrade = isUpgradeMode || upgradeIntent;
+
+    if (isPro) {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(UPGRADE_INTENT_KEY);
+      }
+
+      if (showSuccessMessage) {
+        setStatusMessage("✅ Dein Pro-Abo ist jetzt aktiv.");
+      }
+
+      router.replace("/admin");
+      return;
+    }
+
+    if (isBasic) {
+      if (showSuccessMessage) {
+        setStatusMessage(
+          shouldStayForUpgrade
+            ? "Basic ist aktiv. Wähle Pro aus, um dein Abo zu erweitern."
+            : "✅ Dein Basic-Abo ist jetzt aktiv."
+        );
+      }
+
+      if (!shouldStayForUpgrade) {
         router.replace("/admin");
         return;
       }
 
-      if (isBasic) {
-        if (showSuccessMessage) {
-          setStatusMessage("✅ Dein Basic-Abo ist jetzt aktiv.");
-        }
-
-        if (!isUpgradeMode) {
-          router.replace("/admin");
-          return;
-        }
-      }
-
-      if (showSuccessMessage && !isPro && !isBasic) {
-        setStatusMessage("Es wurde noch kein aktives Abo gefunden.");
-      }
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || "Abo-Status konnte nicht geladen werden.");
-    } finally {
-      setLoading(false);
-      setChecking(false);
+      return;
     }
+
+    if (showSuccessMessage && !isPro && !isBasic) {
+      setStatusMessage("Es wurde noch kein aktives Abo gefunden.");
+    }
+  } catch (e: any) {
+    console.error(e);
+    setError(e?.message || "Abo-Status konnte nicht geladen werden.");
+  } finally {
+    setLoading(false);
+    setChecking(false);
   }
+}
 
   async function syncSubscriptionToBackend() {
     const token = getToken();
@@ -213,19 +231,28 @@ function SubscriptionInner() {
   }
 
   function handleSubscribe(plan: PlanKey) {
-    setError("");
+  setError("");
+  setStatusMessage("");
 
-    const checkoutUrl = buildCheckoutUrl();
+  const checkoutUrl = buildCheckoutUrl();
 
-    if (!checkoutUrl) {
-      setError("Es ist noch keine Web-Checkout-URL hinterlegt.");
-      return;
-    }
-
-    setBuyingPlan(plan);
-
-    window.location.href = checkoutUrl;
+  if (!checkoutUrl) {
+    setError("Es ist noch keine Web-Checkout-URL hinterlegt.");
+    return;
   }
+
+  if (typeof window !== "undefined") {
+    if (plan === "pro") {
+      sessionStorage.setItem(UPGRADE_INTENT_KEY, "1");
+    } else {
+      sessionStorage.removeItem(UPGRADE_INTENT_KEY);
+    }
+  }
+
+  setBuyingPlan(plan);
+
+  window.location.href = checkoutUrl;
+}
 
   function handleBackToLogin() {
     localStorage.removeItem("token");
