@@ -1031,10 +1031,10 @@ export default function AdminSettingsPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/barber/subscription?mode=upgrade")}
+            onClick={openSubscriptionManagement}
             style={{ ...primaryBtn, marginTop: 14 }}
           >
-            <span style={primaryBtnText}>Auf Pro upgraden</span>
+            <span style={primaryBtnText}>Auf Pro upgraden / Abo verwalten</span>
           </button>
         </div>
       ) : null}
