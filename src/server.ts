@@ -963,8 +963,29 @@ app.get("/public/available-times", async (req, res) => {
     }
     if (!isValidDateYYYYMMDD(dateStr)) return res.status(400).json({ error: "date must be YYYY-MM-DD" });
 
-    const barber = await prisma.barber.findUnique({ where: { slug: barberSlug } });
-    if (!barber || !barber.isActive) return res.status(404).json({ error: "Barber not found" });
+    const barber = await prisma.barber.findUnique({
+  where: { slug: barberSlug },
+  select: {
+    id: true,
+    name: true,
+    slug: true,
+    isActive: true,
+    subscriptionStatus: true,
+    subscriptionPlan: true,
+    subscriptionExpiresAt: true,
+    trialEndsAt: true,
+  },
+});
+
+if (!barber || !barber.isActive) {
+  return res.status(404).json({ error: "Barber not found" });
+}
+
+if (!isBasicOrPro(barber)) {
+  return res.status(403).json({
+    error: "Dieser Friseur hat aktuell kein aktives Abo.",
+  });
+}
 
     const service = await prisma.service.findUnique({
       where: { barberId_key: { barberId: barber.id, key: serviceKey } },
@@ -1544,8 +1565,29 @@ if (dateStr < todayStr) {
   return res.status(400).json({ error: "Du kannst keinen Termin in der Vergangenheit buchen." });
 }
 
-    const barber = await prisma.barber.findUnique({ where: { slug: barberSlug } });
-    if (!barber || !barber.isActive) return res.status(404).json({ error: "Barber not found" });
+    const barber = await prisma.barber.findUnique({
+  where: { slug: barberSlug },
+  select: {
+    id: true,
+    name: true,
+    slug: true,
+    isActive: true,
+    subscriptionStatus: true,
+    subscriptionPlan: true,
+    subscriptionExpiresAt: true,
+    trialEndsAt: true,
+  },
+});
+
+if (!barber || !barber.isActive) {
+  return res.status(404).json({ error: "Barber not found" });
+}
+
+if (!isBasicOrPro(barber)) {
+  return res.status(403).json({
+    error: "Dieser Friseur hat aktuell kein aktives Abo.",
+  });
+}
 
     const service = await prisma.service.findUnique({
       where: { barberId_key: { barberId: barber.id, key: serviceKey } },
