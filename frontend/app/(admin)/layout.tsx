@@ -65,9 +65,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           return;
         }
 
-        const isPro = !!data?.subscription?.isPro;
+        const isPro =
+          !!data?.isPro || !!data?.subscription?.isPro;
 
-        if (!isPro) {
+        const isBasic =
+          !!data?.isBasic || !!data?.subscription?.isBasic;
+
+        const isActive =
+          !!data?.isActive ||
+          !!data?.subscription?.isActive ||
+          isPro ||
+          isBasic;
+
+        if (!isActive) {
           router.replace("/barber/subscription");
           return;
         }
