@@ -481,43 +481,53 @@ export default function AdminPage() {
   }, [view, anchorDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function checkSubscriptionAccess() {
+  try {
+    setCheckingSubscription(true);
+
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/admin/subscription-status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const raw = await res.text();
+    let data: any = {};
     try {
-      setCheckingSubscription(true);
-
-      const token = getToken();
-      const res = await fetch(`${API_BASE}/admin/subscription-status`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const raw = await res.text();
-      let data: any = {};
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch {
-        data = { raw };
-      }
-
-      if (!res.ok) {
-        setError(data?.error || "Fehler beim Prüfen des Abos.");
-        return false;
-      }
-
-      const isPro = !!data?.subscription?.isPro;
-
-      if (!isPro) {
-        router.replace("/barber/subscription");
-        return false;
-      }
-
-      return true;
-    } catch (e: any) {
-      console.error(e);
-      setError("Fehler beim Prüfen des Abos.");
-      return false;
-    } finally {
-      setCheckingSubscription(false);
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = { raw };
     }
+
+    if (!res.ok) {
+      setError(data?.error || "Fehler beim Prüfen des Abos.");
+      return false;
+    }
+
+    const isPro =
+      !!data?.isPro || !!data?.subscription?.isPro;
+
+    const isBasic =
+      !!data?.isBasic || !!data?.subscription?.isBasic;
+
+    const isActive =
+      !!data?.isActive ||
+      !!data?.subscription?.isActive ||
+      isPro ||
+      isBasic;
+
+    if (!isActive) {
+      router.replace("/barber/subscription");
+      return false;
+    }
+
+    return true;
+  } catch (e: any) {
+    console.error(e);
+    setError("Fehler beim Prüfen des Abos.");
+    return false;
+  } finally {
+    setCheckingSubscription(false);
   }
+}
 
   async function fetchRecurringBlocks() {
     const token = getToken();
