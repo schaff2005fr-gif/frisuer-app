@@ -91,6 +91,16 @@ function buildNextUrl(slug: string, serviceKey?: string) {
   return base;
 }
 
+function buildRegisterUrl(slug: string, serviceKey?: string) {
+  const next = buildNextUrl(slug, serviceKey);
+  return `/register?next=${encodeURIComponent(next)}`;
+}
+
+function buildLoginUrl(slug: string, serviceKey?: string) {
+  const next = buildNextUrl(slug, serviceKey);
+  return `/login?next=${encodeURIComponent(next)}`;
+}
+
 export default function BarberBookPage() {
   const router = useRouter();
   const params = useParams<{ slug: string }>();
@@ -104,6 +114,7 @@ export default function BarberBookPage() {
   const [barber, setBarber] = useState<Barber | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authChecking, setAuthChecking] = useState(true);
 
   const [me, setMe] = useState<Me | null>(null);
 
@@ -137,13 +148,8 @@ export default function BarberBookPage() {
     [services, selectedServiceKey]
   );
 
-  const nextUrl = useMemo(
-    () => buildNextUrl(slug, selectedServiceKey || presetServiceKey),
-    [slug, selectedServiceKey, presetServiceKey]
-  );
-
-  const loginHref = `/login?next=${encodeURIComponent(nextUrl)}`;
-  const registerHref = `/register?next=${encodeURIComponent(nextUrl)}`;
+  const registerHref = buildRegisterUrl(slug, selectedServiceKey || presetServiceKey);
+  const loginHref = buildLoginUrl(slug, selectedServiceKey || presetServiceKey);
 
   useEffect(() => {
     if (presetServiceKey) {
@@ -151,13 +157,30 @@ export default function BarberBookPage() {
     }
   }, [presetServiceKey]);
 
+  // Wichtig: Booking-Seite ist nicht mehr öffentlich.
+  // Wer nicht eingeloggt ist, wird direkt zur Registrierung geschickt.
   useEffect(() => {
     if (!slug) return;
-    loadPage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+
+    const t = getTokenSafe();
+
+    if (!t) {
+      router.replace(buildRegisterUrl(slug, presetServiceKey));
+      return;
+    }
+
+    setAuthChecking(false);
+  }, [slug, presetServiceKey, router]);
 
   useEffect(() => {
+    if (!slug || authChecking) return;
+    loadPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, authChecking]);
+
+  useEffect(() => {
+    if (authChecking) return;
+
     if (!selectedServiceKey || !selectedDate) {
       setAvailableTimes([]);
       setSelectedTimeMin(null);
@@ -166,7 +189,7 @@ export default function BarberBookPage() {
 
     loadTimes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedServiceKey, selectedDate]);
+  }, [selectedServiceKey, selectedDate, authChecking]);
 
   async function loadPage() {
     try {
@@ -211,13 +234,15 @@ export default function BarberBookPage() {
             const meData = await meRes.json().catch(() => null);
             setMe(meData as Me);
           } else {
-            setMe(null);
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            router.replace(buildRegisterUrl(slug, presetServiceKey));
           }
         } catch {
           setMe(null);
         }
       } else {
-        setMe(null);
+        router.replace(buildRegisterUrl(slug, presetServiceKey));
       }
     } catch (e: any) {
       setError(e?.message || "Fehler");
@@ -267,8 +292,8 @@ export default function BarberBookPage() {
     }
   }
 
-  function redirectToLogin() {
-    window.location.href = loginHref;
+  function redirectToRegister() {
+    router.replace(buildRegisterUrl(slug, selectedServiceKey || presetServiceKey));
   }
 
   async function bookNow() {
@@ -277,8 +302,13 @@ export default function BarberBookPage() {
       setError("");
       setMessage("");
 
+      if (!isLoggedIn) {
+        redirectToRegister();
+        return;
+      }
+
       if (!isAuthedCustomer) {
-        redirectToLogin();
+        setError("Du bist nicht als Kunde eingeloggt. Bitte als Kunde einloggen oder neu registrieren.");
         return;
       }
 
@@ -342,7 +372,7 @@ export default function BarberBookPage() {
     selectedTimeMin == null ||
     (isAuthedCustomer && !customerProfileComplete);
 
-  if (loading) {
+  if (authChecking || loading) {
     return (
       <div
         style={{
@@ -363,7 +393,6 @@ export default function BarberBookPage() {
     return (
       <div className="page">
         <style jsx>{styles}</style>
-
         <div className="alertError">{error}</div>
       </div>
     );
@@ -373,7 +402,6 @@ export default function BarberBookPage() {
     return (
       <div className="page">
         <style jsx>{styles}</style>
-
         <div className="emptyBox">Friseur nicht gefunden.</div>
       </div>
     );
@@ -405,21 +433,7 @@ export default function BarberBookPage() {
       </section>
 
       <section className="card">
-        {!isLoggedIn ? (
-          <div className="loginBox">
-            <div className="boxTitle">Kunden-Login</div>
-
-            <div className="loginActions">
-              <a href={loginHref} className="secondaryBtn">
-                Login
-              </a>
-
-              <a href={registerHref} className="secondaryBtn">
-                Registrieren
-              </a>
-            </div>
-          </div>
-        ) : isCustomer ? (
+        {isCustomer ? (
           <div className="loginBox">
             <div className="boxTitle">Dein Kundenprofil</div>
 
@@ -439,13 +453,27 @@ export default function BarberBookPage() {
             ) : null}
           </div>
         ) : (
-          <div className="profileWarning">
-            Du bist als Friseur eingeloggt. Bitte als Kunde einloggen, um zu buchen.
+          <div className="loginBox">
+            <div className="boxTitle">Kundenkonto erforderlich</div>
+
+            <div className="profileWarning">
+              Du bist nicht als Kunde eingeloggt. Bitte als Kunde einloggen oder registrieren.
+            </div>
+
+            <div className="loginActions">
+              <a href={loginHref} className="secondaryBtn">
+                Login
+              </a>
+
+              <a href={registerHref} className="secondaryBtn">
+                Registrieren
+              </a>
+            </div>
           </div>
         )}
       </section>
 
-      {(message || error) ? (
+      {message || error ? (
         <div className={error ? "alertError" : "alertOk"}>{error || message}</div>
       ) : null}
 
@@ -559,7 +587,7 @@ export default function BarberBookPage() {
             onClick={bookNow}
             disabled={disableBook}
             className="bookBtn"
-            title={!isAuthedCustomer ? "Du wirst zum Login weitergeleitet" : ""}
+            title={!isAuthedCustomer ? "Bitte als Kunde einloggen oder registrieren" : ""}
           >
             {busyBooking ? "Bucht..." : "Termin buchen"}
           </button>
@@ -590,10 +618,7 @@ export default function BarberBookPage() {
 
           <Info label="Kunde" value={isAuthedCustomer ? customerName || "—" : "—"} />
 
-          <Info
-            label="Telefon"
-            value={isAuthedCustomer ? customerPhone || "—" : "—"}
-          />
+          <Info label="Telefon" value={isAuthedCustomer ? customerPhone || "—" : "—"} />
 
           {note.trim() ? <Info label="Notiz" value={note.trim()} /> : null}
         </div>

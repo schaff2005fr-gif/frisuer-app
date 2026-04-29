@@ -53,6 +53,25 @@ function cleanUrl(u?: string | null) {
   return "https://" + s;
 }
 
+function buildBookUrl(slug: string) {
+  return `/b/${encodeURIComponent(slug)}/book`;
+}
+
+function buildRegisterUrl(slug: string) {
+  const next = buildBookUrl(slug);
+  return `/register?next=${encodeURIComponent(next)}`;
+}
+
+function getBookingHref(slug: string) {
+  const token = getToken();
+
+  if (!token) {
+    return buildRegisterUrl(slug);
+  }
+
+  return buildBookUrl(slug);
+}
+
 export default function PublicBarberProfilePage() {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
@@ -147,7 +166,7 @@ export default function PublicBarberProfilePage() {
     const user = getUser();
 
     if (!token || user?.role !== "CUSTOMER") {
-      router.push("/login");
+      router.push(`/login?next=${encodeURIComponent(`/b/${barber.slug}`)}`);
       return;
     }
 
@@ -180,6 +199,11 @@ export default function PublicBarberProfilePage() {
     } finally {
       setFavoriteBusy(false);
     }
+  }
+
+  function goToBooking() {
+    if (!barber) return;
+    router.push(getBookingHref(barber.slug));
   }
 
   if (loading) {
@@ -227,6 +251,8 @@ export default function PublicBarberProfilePage() {
     );
   }
 
+  const bookingHref = getBookingHref(barber.slug);
+
   return (
     <div className="page">
       <style jsx>{styles}</style>
@@ -253,7 +279,7 @@ export default function PublicBarberProfilePage() {
         </div>
 
         <div className="heroActions">
-          <a href={`/b/${barber.slug}/book`} className="primaryBtn">
+          <a href={bookingHref} className="primaryBtn">
             Termin buchen
           </a>
 
@@ -341,7 +367,7 @@ export default function PublicBarberProfilePage() {
         <div className="sectionTop">
           <h2>Services</h2>
 
-          <a href={`/b/${barber.slug}/book`} className="smallPrimaryBtn">
+          <a href={bookingHref} className="smallPrimaryBtn">
             Jetzt buchen
           </a>
         </div>
