@@ -21,6 +21,7 @@ export default function CustomerNav() {
 
   const links = [
     { href: "/", label: "Home" },
+    { href: "/search", label: "Suche" },
     { href: "/my-bookings", label: "Meine Termine" },
     { href: "/notifications", label: "Nachrichten" },
     { href: "/settings", label: "Einstellungen" },
@@ -33,14 +34,12 @@ export default function CustomerNav() {
           display: none;
         }
 
-        /* ✅ Desktop/Tablet Topbar */
         @media (min-width: 521px) {
           .topbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-
             padding: 12px 14px;
             border: 1px solid #eee;
             border-radius: 16px;
@@ -53,7 +52,7 @@ export default function CustomerNav() {
           display: flex;
           align-items: center;
           gap: 10px;
-          min-width: 170px;
+          min-width: 150px;
         }
 
         .brandDot {
@@ -118,7 +117,7 @@ export default function CustomerNav() {
           display: flex;
           gap: 8px;
           align-items: center;
-          min-width: 170px;
+          min-width: 150px;
           justify-content: flex-end;
         }
 
@@ -150,7 +149,11 @@ export default function CustomerNav() {
 
       <div className="center">
         {links.map((l) => (
-          <Link key={l.href} href={l.href} className={`navLink ${isActive(pathname, l.href) ? "navLinkActive" : ""}`}>
+          <Link
+            key={l.href}
+            href={l.href}
+            className={`navLink ${isActive(pathname, l.href) ? "navLinkActive" : ""}`}
+          >
             {l.label}
           </Link>
         ))}

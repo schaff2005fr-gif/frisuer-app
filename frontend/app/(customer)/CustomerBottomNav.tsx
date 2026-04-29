@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, Home, Bell, User } from "lucide-react";
+import { Calendar, Home, Bell, User, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
 function getToken() {
   return localStorage.getItem("token") || "";
@@ -43,6 +44,7 @@ export default function CustomerBottomNav() {
 
   const items = [
     { href: "/", icon: Home, key: "home" },
+    { href: "/search", icon: Search, key: "search" },
     { href: "/my-bookings", icon: Calendar, key: "bookings" },
     { href: "/notifications", icon: Bell, key: "notifications", badge: unread },
     { href: "/settings", icon: User, key: "settings" },
@@ -60,8 +62,8 @@ export default function CustomerBottomNav() {
           background: rgba(255, 255, 255, 0.96);
           border-top: 1px solid #eee;
           backdrop-filter: blur(10px);
-          padding: 12px 22px;
-          padding-bottom: calc(12px + env(safe-area-inset-bottom));
+          padding: 10px 10px;
+          padding-bottom: calc(10px + env(safe-area-inset-bottom));
           box-sizing: border-box;
           display: none;
         }
@@ -73,7 +75,7 @@ export default function CustomerBottomNav() {
           flex-wrap: nowrap;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
+          gap: 6px;
           box-sizing: border-box;
         }
 
@@ -96,7 +98,6 @@ export default function CustomerBottomNav() {
           background: #f4f4f4;
         }
 
-        /* ✅ Badge IMMER relativ zum Icon */
         .cbn_iconWrap {
           position: relative;
           width: 36px;
@@ -136,11 +137,17 @@ export default function CustomerBottomNav() {
           const active = isActive(pathname, it.href);
 
           return (
-            <Link key={it.key} href={it.href} className={`cbn_item ${active ? "cbn_active" : ""}`}>
+            <Link
+              key={it.key}
+              href={it.href}
+              className={`cbn_item ${active ? "cbn_active" : ""}`}
+            >
               <span className="cbn_iconWrap" aria-hidden="true">
-                <Icon size={32} strokeWidth={2.2} />
+                <Icon size={30} strokeWidth={2.2} />
                 {it.badge != null && it.badge > 0 ? (
-                  <span className="cbn_badge">{it.badge > 99 ? "99+" : it.badge}</span>
+                  <span className="cbn_badge">
+                    {it.badge > 99 ? "99+" : it.badge}
+                  </span>
                 ) : null}
               </span>
             </Link>

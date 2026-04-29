@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
 type Service = { key: string; name: string; durationMin: number };
+
 type Barber = {
   id: number;
   name: string;
@@ -32,7 +34,50 @@ function minToHHMM(min: number) {
 }
 
 function todayYYYYMMDD() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  return `${year}-${month}-${day}`;
+}
+
+function isoToDisplayDate(iso: string) {
+  if (!iso) return "";
+
+  const d = new Date(`${iso}T00:00:00`);
+
+  return d.toLocaleDateString("de-DE", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function buildNextDays(count: number) {
+  const out: string[] = [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  for (let i = 0; i < count; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+
+    const year = d.getFullYear();
+    const month = pad2(d.getMonth() + 1);
+    const day = pad2(d.getDate());
+
+    out.push(`${year}-${month}-${day}`);
+  }
+
+  return out;
+}
+
+function cleanUrl(u?: string | null) {
+  const s = String(u || "").trim();
+  if (!s) return "";
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  return "https://" + s;
 }
 
 function getTokenSafe() {
@@ -46,87 +91,13 @@ function buildNextUrl(slug: string, serviceKey?: string) {
   return base;
 }
 
-function isoToDisplayDate(iso: string) {
-  if (!iso) return "";
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString("de-DE", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function isoToMonthLabel(iso: string) {
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString("de-DE", {
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function getMonthStart(iso: string) {
-  const d = new Date(`${iso}T00:00:00`);
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
-function getMonthEnd(iso: string) {
-  const d = new Date(`${iso}T00:00:00`);
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
-}
-
-function dateToISO(d: Date) {
-  const year = d.getFullYear();
-  const month = pad2(d.getMonth() + 1);
-  const day = pad2(d.getDate());
-  return `${year}-${month}-${day}`;
-}
-
-function addMonthsToISO(iso: string, delta: number) {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setMonth(d.getMonth() + delta);
-  d.setDate(1);
-  return dateToISO(d);
-}
-
-function isSameMonth(date: Date, monthRefIso: string) {
-  const ref = new Date(`${monthRefIso}T00:00:00`);
-  return date.getFullYear() === ref.getFullYear() && date.getMonth() === ref.getMonth();
-}
-
-function buildCalendarDays(monthIso: string) {
-  const monthStart = getMonthStart(monthIso);
-  const monthEnd = getMonthEnd(monthIso);
-
-  const startWeekday = monthStart.getDay(); // 0 Sonntag
-  const days: Date[] = [];
-
-  for (let i = startWeekday; i > 0; i--) {
-    const d = new Date(monthStart);
-    d.setDate(monthStart.getDate() - i);
-    days.push(d);
-  }
-
-  for (let day = 1; day <= monthEnd.getDate(); day++) {
-    days.push(new Date(monthStart.getFullYear(), monthStart.getMonth(), day));
-  }
-
-  while (days.length % 7 !== 0) {
-    const d = new Date(monthEnd);
-    d.setDate(monthEnd.getDate() + (days.length % 7));
-    days.push(d);
-  }
-
-  return days;
-}
-
 export default function BarberBookPage() {
   const router = useRouter();
   const params = useParams<{ slug: string }>();
   const slug = String(params?.slug ?? "");
 
-  const sp = useSearchParams();
-  const presetServiceKey = sp.get("serviceKey") || "";
+  const searchParams = useSearchParams();
+  const presetServiceKey = searchParams.get("serviceKey") || "";
 
   const today = todayYYYYMMDD();
 
@@ -138,8 +109,6 @@ export default function BarberBookPage() {
 
   const [selectedServiceKey, setSelectedServiceKey] = useState(presetServiceKey);
   const [selectedDate, setSelectedDate] = useState(today);
-  const [calendarMonth, setCalendarMonth] = useState(today);
-  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const [availableTimes, setAvailableTimes] = useState<number[]>([]);
   const [selectedTimeMin, setSelectedTimeMin] = useState<number | null>(null);
@@ -152,19 +121,21 @@ export default function BarberBookPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (presetServiceKey) setSelectedServiceKey(presetServiceKey);
-  }, [presetServiceKey]);
+  const nextDays = useMemo(() => buildNextDays(21), []);
 
   const token = getTokenSafe();
   const isLoggedIn = Boolean(token);
-
   const isCustomer = me?.role === "CUSTOMER";
   const isAuthedCustomer = isLoggedIn && isCustomer;
 
   const customerName = (me?.customer?.name ?? "").trim();
   const customerPhone = (me?.customer?.phone ?? "").trim();
   const customerProfileComplete = Boolean(customerName && customerPhone);
+
+  const selectedService = useMemo(
+    () => services.find((s) => s.key === selectedServiceKey) ?? null,
+    [services, selectedServiceKey]
+  );
 
   const nextUrl = useMemo(
     () => buildNextUrl(slug, selectedServiceKey || presetServiceKey),
@@ -175,99 +146,144 @@ export default function BarberBookPage() {
   const registerHref = `/register?next=${encodeURIComponent(nextUrl)}`;
 
   useEffect(() => {
+    if (presetServiceKey) {
+      setSelectedServiceKey(presetServiceKey);
+    }
+  }, [presetServiceKey]);
+
+  useEffect(() => {
     if (!slug) return;
-
-    setLoading(true);
-    setError("");
-    setMessage("");
-
-    fetch(`${API_BASE}/barbers/${encodeURIComponent(slug)}`)
-      .then(async (r) => {
-        const d = await r.json().catch(() => null);
-        if (!r.ok) throw new Error(d?.error || "Load failed");
-        return d;
-      })
-      .then((d) => {
-        setBarber(d?.barber ?? null);
-        setServices(Array.isArray(d?.services) ? d.services : []);
-      })
-      .catch((e) => setError(e?.message || "Fehler"))
-      .finally(() => setLoading(false));
+    loadPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   useEffect(() => {
-    const t = getTokenSafe();
-    if (!t) return;
+    if (!selectedServiceKey || !selectedDate) {
+      setAvailableTimes([]);
+      setSelectedTimeMin(null);
+      return;
+    }
 
-    fetch(`${API_BASE}/me`, {
-      headers: { Authorization: `Bearer ${t}` },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!d) return;
-        setMe(d as Me);
-      })
-      .catch(() => null);
-  }, []);
+    loadTimes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedServiceKey, selectedDate]);
 
-  const selectedService = useMemo(
-    () => services.find((s) => s.key === selectedServiceKey) ?? null,
-    [services, selectedServiceKey]
-  );
+  async function loadPage() {
+    try {
+      setLoading(true);
+      setError("");
+      setMessage("");
 
-  const canLoadTimes = Boolean(selectedServiceKey && selectedDate);
+      const barberRes = await fetch(`${API_BASE}/barbers/${encodeURIComponent(slug)}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const barberRaw = await barberRes.text();
+      let barberData: any = {};
+
+      try {
+        barberData = barberRaw ? JSON.parse(barberRaw) : {};
+      } catch {
+        barberData = { raw: barberRaw };
+      }
+
+      if (!barberRes.ok) {
+        throw new Error(barberData?.error || "Fehler");
+      }
+
+      setBarber(barberData?.barber ?? null);
+      setServices(Array.isArray(barberData?.services) ? barberData.services : []);
+
+      const t = getTokenSafe();
+
+      if (t) {
+        try {
+          const meRes = await fetch(`${API_BASE}/me`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${t}`,
+            },
+            cache: "no-store",
+          });
+
+          if (meRes.ok) {
+            const meData = await meRes.json().catch(() => null);
+            setMe(meData as Me);
+          } else {
+            setMe(null);
+          }
+        } catch {
+          setMe(null);
+        }
+      } else {
+        setMe(null);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Fehler");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function loadTimes() {
-    setBusyTimes(true);
-    setError("");
-    setMessage("");
-    setSelectedTimeMin(null);
-
     try {
+      setBusyTimes(true);
+      setError("");
+      setMessage("");
+      setSelectedTimeMin(null);
+
       const res = await fetch(
-        `${API_BASE}/public/available-times?barberSlug=${encodeURIComponent(slug)}&date=${encodeURIComponent(
-          selectedDate
-        )}&serviceKey=${encodeURIComponent(selectedServiceKey)}`
+        `${API_BASE}/public/available-times?barberSlug=${encodeURIComponent(
+          slug
+        )}&date=${encodeURIComponent(selectedDate)}&serviceKey=${encodeURIComponent(
+          selectedServiceKey
+        )}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        }
       );
 
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "Fehler beim Laden");
+      const raw = await res.text();
+      let data: any = {};
+
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Fehler beim Laden");
+      }
 
       setAvailableTimes(Array.isArray(data?.times) ? data.times : []);
     } catch (e: any) {
-      setError(e?.message ?? "Fehler");
+      setError(e?.message || "Fehler beim Laden");
       setAvailableTimes([]);
     } finally {
       setBusyTimes(false);
     }
   }
 
-  useEffect(() => {
-    if (canLoadTimes) loadTimes();
-    else {
-      setAvailableTimes([]);
-      setSelectedTimeMin(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedServiceKey, selectedDate]);
-
   function redirectToLogin() {
-    if (typeof window === "undefined") return;
     window.location.href = loginHref;
   }
 
   async function bookNow() {
-    setBusyBooking(true);
-    setError("");
-    setMessage("");
-
     try {
+      setBusyBooking(true);
+      setError("");
+      setMessage("");
+
       if (!isAuthedCustomer) {
         redirectToLogin();
         return;
       }
 
       const t = getTokenSafe();
+
       const res = await fetch(`${API_BASE}/bookings`, {
         method: "POST",
         headers: {
@@ -283,10 +299,25 @@ export default function BarberBookPage() {
         }),
       });
 
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "Buchung fehlgeschlagen");
+      const raw = await res.text();
+      let data: any = {};
 
-      setMessage(`✅ Termin erfolgreich gebucht: ${isoToDisplayDate(selectedDate)} um ${minToHHMM(selectedTimeMin!)}`);
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Buchung fehlgeschlagen");
+      }
+
+      setMessage(
+        `✅ Termin erfolgreich gebucht: ${isoToDisplayDate(selectedDate)} um ${minToHHMM(
+          selectedTimeMin!
+        )}`
+      );
+
       setError("");
       setNote("");
       setSelectedTimeMin(null);
@@ -295,58 +326,12 @@ export default function BarberBookPage() {
 
       setTimeout(() => {
         router.push("/my-bookings");
-      }, 900);
+      }, 100);
     } catch (e: any) {
-      setError(e?.message ?? "Fehler beim Buchen");
+      setError(e?.message || "Fehler beim Buchen");
     } finally {
       setBusyBooking(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <div style={{ padding: 20, maxWidth: 1120, margin: "0 auto" }}>
-        <div style={{ color: "#666" }}>Lade Buchungsseite...</div>
-      </div>
-    );
-  }
-
-  if (error && !barber) {
-    return (
-      <div style={{ padding: 20, maxWidth: 1120, margin: "0 auto" }}>
-        <div
-          style={{
-            padding: 14,
-            border: "1px solid #f1c7c7",
-            background: "#fff5f5",
-            borderRadius: 16,
-            color: "#8a1c1c",
-            fontWeight: 800,
-          }}
-        >
-          {error}
-        </div>
-      </div>
-    );
-  }
-
-  if (!barber) {
-    return (
-      <div style={{ padding: 20, maxWidth: 1120, margin: "0 auto" }}>
-        <div
-          style={{
-            padding: 14,
-            border: "1px solid #eee",
-            background: "#fff",
-            borderRadius: 16,
-            color: "#666",
-            fontWeight: 700,
-          }}
-        >
-          Friseur nicht gefunden.
-        </div>
-      </div>
-    );
   }
 
   const disableBook =
@@ -357,550 +342,626 @@ export default function BarberBookPage() {
     selectedTimeMin == null ||
     (isAuthedCustomer && !customerProfileComplete);
 
-  const calendarDays = buildCalendarDays(calendarMonth);
-  const monthBackDisabled = addMonthsToISO(calendarMonth, -1) < today.slice(0, 8) + "01";
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: "60vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#666",
+          fontWeight: 800,
+        }}
+      >
+        Lade Buchungsseite...
+      </div>
+    );
+  }
 
-  const cardStyle: React.CSSProperties = {
-    border: "1px solid #e9e9e9",
-    borderRadius: 24,
-    background: "#fff",
-    padding: 18,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-    overflow: "hidden",
-  };
+  if (error && !barber) {
+    return (
+      <div className="page">
+        <style jsx>{styles}</style>
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    minWidth: 0,
-    maxWidth: "100%",
-    minHeight: 52,
-    borderRadius: 14,
-    border: "1px solid #dedede",
-    background: "#fff",
-    padding: "0 16px",
-    fontSize: 16,
-    color: "#111",
-    outline: "none",
-    boxSizing: "border-box",
-    display: "block",
-  };
+        <div className="alertError">{error}</div>
+      </div>
+    );
+  }
 
-  const textareaStyle: React.CSSProperties = {
-    width: "100%",
-    minWidth: 0,
-    maxWidth: "100%",
-    borderRadius: 14,
-    border: "1px solid #dedede",
-    background: "#fff",
-    padding: "14px 16px",
-    fontSize: 16,
-    color: "#111",
-    outline: "none",
-    boxSizing: "border-box",
-    display: "block",
-    resize: "vertical",
-    fontFamily: "inherit",
-  };
+  if (!barber) {
+    return (
+      <div className="page">
+        <style jsx>{styles}</style>
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#555",
-    marginBottom: 8,
-  };
-
-  const primaryButton: React.CSSProperties = {
-    width: "100%",
-    minHeight: 54,
-    borderRadius: 14,
-    border: "1px solid #111",
-    background: "#111",
-    color: "#fff",
-    fontWeight: 900,
-    fontSize: 15,
-    cursor: disableBook ? "not-allowed" : "pointer",
-    opacity: disableBook ? 0.7 : 1,
-  };
-
-  const secondaryButton: React.CSSProperties = {
-    display: "inline-flex",
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: 46,
-    padding: "0 16px",
-    borderRadius: 14,
-    border: "1px solid #ddd",
-    background: "#fff",
-    color: "#111",
-    textDecoration: "none",
-    fontWeight: 800,
-    fontSize: 14,
-  };
+        <div className="emptyBox">Friseur nicht gefunden.</div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 20, maxWidth: 1120, margin: "0 auto" }}>
-      <style jsx>{`
-        @media (max-width: 900px) {
-          .layoutGrid,
-          .topGrid,
-          .summaryGrid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
+    <div className="page">
+      <style jsx>{styles}</style>
 
-      <div style={{ marginBottom: 14 }}>
-        <a
-          href={`/b/${barber.slug}`}
-          style={{
-            textDecoration: "none",
-            color: "#111",
-            fontWeight: 900,
-            fontSize: 14,
-          }}
-        >
-          ← Zurück zum Profil
-        </a>
-      </div>
+      <a href={`/b/${barber.slug}`} className="backLink">
+        ← Zurück zum Profil
+      </a>
 
-      <div
-        className="topGrid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.15fr) minmax(300px, 0.85fr)",
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <section style={{ ...cardStyle, padding: 22 }}>
-          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-            <div
-              style={{
-                width: 82,
-                height: 82,
-                borderRadius: 999,
-                overflow: "hidden",
-                border: "1px solid #ececec",
-                background: "#fafafa",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 900,
-                color: "#666",
-                flexShrink: 0,
-              }}
-            >
-              {barber.imageUrl ? (
-                <img
-                  src={barber.imageUrl}
-                  alt={barber.name}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                barber.name.slice(0, 1).toUpperCase()
-              )}
-            </div>
-
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.1, letterSpacing: -0.4 }}>
-                Termin buchen
-              </h1>
-              <div style={{ marginTop: 8, color: "#444", fontSize: 15, fontWeight: 700 }}>
-                {barber.name}
-              </div>
-            </div>
+      <section className="card">
+        <div className="heroRow">
+          <div className="avatar">
+            {barber.imageUrl ? (
+              <img src={cleanUrl(barber.imageUrl)} alt={barber.name} />
+            ) : (
+              <span>{barber.name.slice(0, 1).toUpperCase()}</span>
+            )}
           </div>
-        </section>
 
-        <section style={{ ...cardStyle, padding: 22 }}>
-          {!isLoggedIn ? (
-            <div style={{ display: "grid", gap: 10 }}>
-              <div style={{ fontWeight: 900, fontSize: 17 }}>Kunden-Login</div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <a href={loginHref} style={secondaryButton}>
-                  Login
-                </a>
-                <a href={registerHref} style={secondaryButton}>
-                  Registrieren
-                </a>
-              </div>
-            </div>
-          ) : isCustomer ? (
-            <div style={{ display: "grid", gap: 10 }}>
-              <div style={{ fontWeight: 900, fontSize: 17 }}>Dein Kundenprofil</div>
-              <div
-                style={{
-                  border: "1px solid #ececec",
-                  borderRadius: 16,
-                  background: "#fafafa",
-                  padding: 14,
-                  display: "grid",
-                  gap: 6,
-                }}
-              >
-                <div>
-                  Name: <b>{customerName || "—"}</b>
-                </div>
-                <div>
-                  Telefon: <b>{customerPhone || "—"}</b>
-                </div>
-              </div>
-
-              {!customerProfileComplete ? (
-                <div style={{ color: "#b42318", fontWeight: 800, fontSize: 13 }}>
-                  Bitte Name und Telefonnummer in deinem Profil ergänzen.
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div style={{ color: "#b42318", fontWeight: 800 }}>
-              Du bist als Friseur eingeloggt. Bitte als Kunde einloggen, um zu buchen.
-            </div>
-          )}
-        </section>
-      </div>
-
-      {(message || error) && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "14px 16px",
-            borderRadius: 16,
-            border: error ? "1px solid #f1c7c7" : "1px solid #cfe7d1",
-            background: error ? "#fff5f5" : "#f4fbf4",
-            color: error ? "#b42318" : "#17663a",
-            fontWeight: 700,
-          }}
-        >
-          {error || message}
+          <div className="heroText">
+            <h1>Termin buchen</h1>
+            <div>{barber.name}</div>
+          </div>
         </div>
-      )}
+      </section>
 
-      <div
-        className="layoutGrid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.15fr) minmax(300px, 0.85fr)",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        <section style={cardStyle}>
-          <div style={{ fontWeight: 900, fontSize: 22 }}>Termin auswählen</div>
+      <section className="card">
+        {!isLoggedIn ? (
+          <div className="loginBox">
+            <div className="boxTitle">Kunden-Login</div>
 
-          <div style={{ marginTop: 16, display: "grid", gap: 14 }}>
-            <div>
-              <div style={labelStyle}>Service</div>
-              <select
-                value={selectedServiceKey}
-                onChange={(e) => {
-                  setSelectedServiceKey(e.target.value);
-                  setMessage("");
-                  setError("");
-                }}
-                style={inputStyle}
-              >
-                <option value="">Bitte wählen</option>
-                {services.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.name} – {s.durationMin} min
-                  </option>
-                ))}
-              </select>
+            <div className="loginActions">
+              <a href={loginHref} className="secondaryBtn">
+                Login
+              </a>
+
+              <a href={registerHref} className="secondaryBtn">
+                Registrieren
+              </a>
+            </div>
+          </div>
+        ) : isCustomer ? (
+          <div className="loginBox">
+            <div className="boxTitle">Dein Kundenprofil</div>
+
+            <div className="profileBox">
+              <div>
+                Name: <b>{customerName || "—"}</b>
+              </div>
+              <div>
+                Telefon: <b>{customerPhone || "—"}</b>
+              </div>
             </div>
 
-            <div>
-              <div style={labelStyle}>Datum</div>
+            {!customerProfileComplete ? (
+              <div className="profileWarning">
+                Bitte Name und Telefonnummer in deinem Profil ergänzen.
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="profileWarning">
+            Du bist als Friseur eingeloggt. Bitte als Kunde einloggen, um zu buchen.
+          </div>
+        )}
+      </section>
 
-              <button
-                type="button"
-                onClick={() => setCalendarOpen((v) => !v)}
-                style={{
-                  ...inputStyle,
-                  textAlign: "left",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                {isoToDisplayDate(selectedDate)}
-              </button>
+      {(message || error) ? (
+        <div className={error ? "alertError" : "alertOk"}>{error || message}</div>
+      ) : null}
 
-              {calendarOpen ? (
-                <div
-                  style={{
-                    marginTop: 10,
-                    border: "1px solid #e9e9e9",
-                    borderRadius: 18,
-                    background: "#fff",
-                    padding: 14,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 10,
-                      marginBottom: 12,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => !monthBackDisabled && setCalendarMonth(addMonthsToISO(calendarMonth, -1))}
-                      disabled={monthBackDisabled}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: monthBackDisabled ? "not-allowed" : "pointer",
-                        opacity: monthBackDisabled ? 0.4 : 1,
-                        fontWeight: 900,
-                      }}
-                    >
-                      ←
-                    </button>
+      <section className="card">
+        <h2>Termin auswählen</h2>
 
-                    <div style={{ fontWeight: 900, fontSize: 16, textTransform: "capitalize" }}>
-                      {isoToMonthLabel(calendarMonth)}
-                    </div>
+        <div className="formGrid">
+          <div>
+            <label>Service</label>
 
-                    <button
-                      type="button"
-                      onClick={() => setCalendarMonth(addMonthsToISO(calendarMonth, 1))}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: "pointer",
-                        fontWeight: 900,
-                      }}
-                    >
-                      →
-                    </button>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                      gap: 6,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"].map((d) => (
-                      <div
-                        key={d}
-                        style={{
-                          textAlign: "center",
-                          fontSize: 12,
-                          fontWeight: 800,
-                          color: "#666",
-                          padding: "4px 0",
-                        }}
-                      >
-                        {d}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                      gap: 6,
-                    }}
-                  >
-                    {calendarDays.map((date) => {
-                      const iso = dateToISO(date);
-                      const selected = selectedDate === iso;
-                      const inCurrentMonth = isSameMonth(date, calendarMonth);
-                      const isPast = iso < today;
-                      const disabled = !inCurrentMonth || isPast;
-
-                      return (
-                        <button
-                          key={iso}
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => {
-                            setSelectedDate(iso);
-                            setSelectedTimeMin(null);
-                            setMessage("");
-                            setError("");
-                            setCalendarOpen(false);
-                          }}
-                          style={{
-                            height: 42,
-                            borderRadius: 12,
-                            border: selected ? "1px solid #111" : "1px solid #e2e2e2",
-                            background: selected ? "#111" : "#fff",
-                            color: selected ? "#fff" : disabled ? "#bbb" : "#111",
-                            fontWeight: 800,
-                            cursor: disabled ? "not-allowed" : "pointer",
-                            opacity: inCurrentMonth ? 1 : 0.5,
-                          }}
-                        >
-                          {date.getDate()}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div>
-              <div style={{ ...labelStyle, marginBottom: 10 }}>Uhrzeit</div>
-
-              {!canLoadTimes ? (
-                <div
-                  style={{
-                    border: "1px dashed #e3e3e3",
-                    borderRadius: 16,
-                    padding: 14,
-                    color: "#777",
-                    background: "#fcfcfc",
-                  }}
-                >
-                  Bitte zuerst Service und Datum wählen.
-                </div>
-              ) : busyTimes ? (
-                <div
-                  style={{
-                    border: "1px dashed #e3e3e3",
-                    borderRadius: 16,
-                    padding: 14,
-                    color: "#777",
-                    background: "#fcfcfc",
-                  }}
-                >
-                  Verfügbare Zeiten werden geladen...
-                </div>
-              ) : availableTimes.length === 0 ? (
-                <div
-                  style={{
-                    border: "1px dashed #e3e3e3",
-                    borderRadius: 16,
-                    padding: 14,
-                    color: "#777",
-                    background: "#fcfcfc",
-                  }}
-                >
-                  Keine freien Zeiten verfügbar.
-                </div>
+            <div className="serviceList">
+              {services.length === 0 ? (
+                <div className="emptyBox">Aktuell sind keine Services verfügbar.</div>
               ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {availableTimes.map((min) => {
-                    const selected = selectedTimeMin === min;
-                    return (
-                      <button
-                        key={min}
-                        onClick={() => setSelectedTimeMin(min)}
-                        style={{
-                          minWidth: 82,
-                          padding: "10px 12px",
-                          borderRadius: 12,
-                          border: selected ? "1px solid #111" : "1px solid #ddd",
-                          background: selected ? "#111" : "#fff",
-                          color: selected ? "#fff" : "#111",
-                          fontWeight: 900,
-                          cursor: "pointer",
-                          fontSize: 14,
-                        }}
-                      >
-                        {minToHHMM(min)}
-                      </button>
-                    );
-                  })}
-                </div>
+                services.map((s) => {
+                  const selected = selectedServiceKey === s.key;
+
+                  return (
+                    <button
+                      type="button"
+                      key={s.key}
+                      onClick={() => {
+                        setSelectedServiceKey(s.key);
+                        setMessage("");
+                        setError("");
+                      }}
+                      className={`serviceBtn ${selected ? "selected" : ""}`}
+                    >
+                      {s.name} – {s.durationMin} min
+                    </button>
+                  );
+                })
               )}
             </div>
+          </div>
 
-            <div>
-              <div style={labelStyle}>Notiz</div>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Optional"
-                rows={4}
-                style={textareaStyle}
-              />
+          <div>
+            <label>Datum</label>
+
+            <div className="dateScroller">
+              {nextDays.map((iso) => {
+                const selected = selectedDate === iso;
+
+                return (
+                  <button
+                    type="button"
+                    key={iso}
+                    onClick={() => {
+                      setSelectedDate(iso);
+                      setSelectedTimeMin(null);
+                      setMessage("");
+                      setError("");
+                    }}
+                    className={`dateBtn ${selected ? "selected" : ""}`}
+                  >
+                    {new Date(`${iso}T00:00:00`).toLocaleDateString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                    })}
+                  </button>
+                );
+              })}
             </div>
 
-            <button
-              onClick={bookNow}
-              disabled={disableBook}
-              style={primaryButton}
-              title={!isAuthedCustomer ? "Du wirst zum Login weitergeleitet" : ""}
-            >
-              {busyBooking ? "Bucht..." : "Termin buchen"}
-            </button>
+            <div className="selectedDateText">{isoToDisplayDate(selectedDate)}</div>
           </div>
-        </section>
 
-        <aside style={cardStyle}>
-          <div style={{ fontWeight: 900, fontSize: 22 }}>Zusammenfassung</div>
+          <div>
+            <label>Uhrzeit</label>
 
-          <div
-            className="summaryGrid"
-            style={{
-              marginTop: 16,
-              display: "grid",
-              gap: 14,
-            }}
+            {!selectedServiceKey || !selectedDate ? (
+              <div className="emptyBox">Bitte zuerst Service und Datum wählen.</div>
+            ) : busyTimes ? (
+              <div className="emptyBox">Verfügbare Zeiten werden geladen...</div>
+            ) : availableTimes.length === 0 ? (
+              <div className="emptyBox">Keine freien Zeiten verfügbar.</div>
+            ) : (
+              <div className="timeGrid">
+                {availableTimes.map((min) => {
+                  const selected = selectedTimeMin === min;
+
+                  return (
+                    <button
+                      type="button"
+                      key={min}
+                      onClick={() => setSelectedTimeMin(min)}
+                      className={`timeBtn ${selected ? "selected" : ""}`}
+                    >
+                      {minToHHMM(min)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label>Notiz</label>
+
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Optional"
+              rows={4}
+              className="textarea"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={bookNow}
+            disabled={disableBook}
+            className="bookBtn"
+            title={!isAuthedCustomer ? "Du wirst zum Login weitergeleitet" : ""}
           >
-            <div>
-              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Friseur</div>
-              <div style={{ marginTop: 4, fontWeight: 900 }}>{barber.name}</div>
-            </div>
+            {busyBooking ? "Bucht..." : "Termin buchen"}
+          </button>
+        </div>
+      </section>
 
-            <div>
-              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Service</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>
-                {selectedService ? `${selectedService.name} · ${selectedService.durationMin} min` : "—"}
-              </div>
-            </div>
+      <section className="card">
+        <h2>Zusammenfassung</h2>
 
-            <div>
-              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Datum</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>{isoToDisplayDate(selectedDate) || "—"}</div>
-            </div>
+        <div className="summaryGrid">
+          <Info label="Friseur" value={barber.name} />
 
-            <div>
-              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Uhrzeit</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>
-                {selectedTimeMin != null ? minToHHMM(selectedTimeMin) : "—"}
-              </div>
-            </div>
+          <Info
+            label="Service"
+            value={
+              selectedService
+                ? `${selectedService.name} · ${selectedService.durationMin} min`
+                : "—"
+            }
+          />
 
-            <div>
-              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Kunde</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>{isAuthedCustomer ? customerName || "—" : "—"}</div>
-            </div>
+          <Info label="Datum" value={isoToDisplayDate(selectedDate) || "—"} />
 
-            <div>
-              <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Telefon</div>
-              <div style={{ marginTop: 4, fontWeight: 800 }}>{isAuthedCustomer ? customerPhone || "—" : "—"}</div>
-            </div>
+          <Info
+            label="Uhrzeit"
+            value={selectedTimeMin != null ? minToHHMM(selectedTimeMin) : "—"}
+          />
 
-            {note.trim() ? (
-              <div>
-                <div style={{ color: "#666", fontSize: 12, fontWeight: 800 }}>Notiz</div>
-                <div style={{ marginTop: 4, fontWeight: 800, whiteSpace: "pre-wrap" }}>{note.trim()}</div>
-              </div>
-            ) : null}
+          <Info label="Kunde" value={isAuthedCustomer ? customerName || "—" : "—"} />
 
-            {barber.phone ? (
-              <a href={`tel:${barber.phone}`} style={secondaryButton}>
-                Friseur anrufen
-              </a>
-            ) : null}
-          </div>
-        </aside>
-      </div>
+          <Info
+            label="Telefon"
+            value={isAuthedCustomer ? customerPhone || "—" : "—"}
+          />
+
+          {note.trim() ? <Info label="Notiz" value={note.trim()} /> : null}
+        </div>
+      </section>
     </div>
   );
 }
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="infoLabel">{label}</div>
+      <div className="infoValue">{value}</div>
+
+      <style jsx>{`
+        .infoLabel {
+          color: #666;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .infoValue {
+          margin-top: 4px;
+          font-weight: 800;
+          color: #111;
+          line-height: 20px;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+const styles = `
+  .page {
+    padding: 16px;
+    padding-bottom: 36px;
+    background: #fff;
+    max-width: 900px;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+
+  .backLink {
+    display: inline-flex;
+    margin-bottom: 14px;
+    text-decoration: none;
+    color: #111;
+    font-weight: 900;
+    font-size: 14px;
+  }
+
+  .card {
+    border: 1px solid #e9e9e9;
+    border-radius: 24px;
+    background: #fff;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+  }
+
+  .heroRow {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .avatar {
+    width: 82px;
+    height: 82px;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid #ececec;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .avatar span {
+    font-weight: 900;
+    color: #666;
+    font-size: 28px;
+  }
+
+  .heroText {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .heroText h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 31px;
+    font-weight: 900;
+    color: #111;
+    letter-spacing: -0.5px;
+  }
+
+  .heroText div {
+    margin-top: 8px;
+    color: #444;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .loginBox {
+    display: grid;
+    gap: 10px;
+  }
+
+  .boxTitle {
+    font-weight: 900;
+    font-size: 17px;
+    color: #111;
+  }
+
+  .loginActions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .secondaryBtn {
+    min-height: 46px;
+    padding: 0 16px;
+    border-radius: 14px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #111;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .profileBox {
+    border: 1px solid #ececec;
+    border-radius: 16px;
+    background: #fafafa;
+    padding: 14px;
+    display: grid;
+    gap: 6px;
+    color: #111;
+  }
+
+  .profileWarning {
+    color: #b42318;
+    font-weight: 800;
+    font-size: 13px;
+    line-height: 19px;
+  }
+
+  .alertError,
+  .alertOk {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    font-weight: 700;
+  }
+
+  .alertError {
+    border: 1px solid #f1c7c7;
+    background: #fff5f5;
+    color: #b42318;
+  }
+
+  .alertOk {
+    border: 1px solid #cfe7d1;
+    background: #f4fbf4;
+    color: #17663a;
+  }
+
+  h2 {
+    margin: 0;
+    font-weight: 900;
+    font-size: 22px;
+    color: #111;
+    line-height: 1.2;
+  }
+
+  .formGrid {
+    margin-top: 16px;
+    display: grid;
+    gap: 14px;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    color: #555;
+    margin-bottom: 8px;
+  }
+
+  .serviceList {
+    display: grid;
+    gap: 8px;
+  }
+
+  .serviceBtn {
+    width: 100%;
+    min-height: 52px;
+    border-radius: 14px;
+    border: 1px solid #dedede;
+    background: #fff;
+    padding: 0 16px;
+    color: #111;
+    font-size: 16px;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .serviceBtn.selected {
+    border-color: #111;
+    background: #111;
+    color: #fff;
+  }
+
+  .dateScroller {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .dateScroller::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dateBtn {
+    min-width: 94px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #111;
+    font-weight: 900;
+    text-align: center;
+    font-size: 13px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .dateBtn.selected {
+    border-color: #111;
+    background: #111;
+    color: #fff;
+  }
+
+  .selectedDateText {
+    margin-top: 8px;
+    color: #666;
+    font-size: 13px;
+    line-height: 19px;
+  }
+
+  .timeGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .timeBtn {
+    min-width: 82px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #111;
+    font-weight: 900;
+    font-size: 14px;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .timeBtn.selected {
+    border-color: #111;
+    background: #111;
+    color: #fff;
+  }
+
+  .textarea {
+    width: 100%;
+    min-height: 110px;
+    border-radius: 14px;
+    border: 1px solid #dedede;
+    background: #fff;
+    padding: 14px 16px;
+    font-size: 16px;
+    color: #111;
+    box-sizing: border-box;
+    outline: none;
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .bookBtn {
+    width: 100%;
+    min-height: 54px;
+    border-radius: 14px;
+    border: 1px solid #111;
+    background: #111;
+    color: #fff;
+    font-weight: 900;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  .bookBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .emptyBox {
+    border: 1px dashed #e3e3e3;
+    border-radius: 16px;
+    padding: 14px;
+    color: #777;
+    background: #fcfcfc;
+    font-weight: 700;
+    line-height: 20px;
+  }
+
+  .summaryGrid {
+    margin-top: 16px;
+    display: grid;
+    gap: 14px;
+  }
+
+  @media (min-width: 760px) {
+    .summaryGrid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 430px) {
+    .avatar {
+      width: 74px;
+      height: 74px;
+    }
+
+    .heroText h1 {
+      font-size: 26px;
+      line-height: 29px;
+    }
+
+    .loginActions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .secondaryBtn {
+      width: 100%;
+      box-sizing: border-box;
+    }
+  }
+`;

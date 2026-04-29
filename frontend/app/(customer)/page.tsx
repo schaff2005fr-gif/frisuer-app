@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { Heart } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://frisuer-app-1.onrender.com";
 
 type Barber = {
   id: number;
@@ -13,6 +15,7 @@ type Barber = {
   postalCode?: string | null;
   imageUrl?: string | null;
   nextDate?: string | null;
+  isFavorite?: boolean;
 };
 
 type Me = {
@@ -38,15 +41,19 @@ function cleanUrl(u?: string | null) {
 function initials(name: string) {
   const s = String(name || "").trim();
   if (!s) return "S";
+
   const parts = s.split(/\s+/).filter(Boolean);
   const a = parts[0]?.[0] ?? "S";
   const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
+
   return (a + b).toUpperCase();
 }
 
 function formatDateDE(dateStr: string) {
   const d = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr);
+
   if (Number.isNaN(d.getTime())) return dateStr;
+
   return new Intl.DateTimeFormat("de-DE", {
     dateStyle: "medium",
     timeZone: "Europe/Berlin",
@@ -61,14 +68,13 @@ function firstName(full: string) {
 
 export default function HomePage() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingFavorites, setLoadingFavorites] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const [me, setMe] = useState<Me | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
   const [authorized, setAuthorized] = useState(false);
-
-  const [q, setQ] = useState("");
 
   async function loadMeAndProtect() {
     setLoadingMe(true);
@@ -118,23 +124,73 @@ export default function HomePage() {
     }
   }
 
-  async function loadBarbers() {
+  async function loadFavorites(isRefresh = false) {
     try {
-      setLoading(true);
+      const token = getTokenSafe();
+
+      if (!token) {
+        window.location.replace("/login");
+        return;
+      }
+
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoadingFavorites(true);
+      }
+
       setError("");
 
-      const res = await fetch(`${API_BASE}/barbers`, { cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
+      const res = await fetch(`${API_BASE}/favorites/barbers`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const raw = await res.text();
+      let data: any = {};
+
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
 
       if (!res.ok) {
-        throw new Error("Fehler beim Laden");
+        throw new Error(data?.error || "Fehler beim Laden deiner Favoriten");
       }
 
       setBarbers(Array.isArray(data?.barbers) ? data.barbers : []);
-    } catch {
-      setError("Fehler beim Laden");
+    } catch (err: any) {
+      console.log("LOAD FAVORITES ERROR:", err?.message);
+      setError("Fehler beim Laden deiner Favoriten");
     } finally {
-      setLoading(false);
+      setLoadingFavorites(false);
+      setRefreshing(false);
+    }
+  }
+
+  async function removeFavorite(barberId: number) {
+    try {
+      const token = getTokenSafe();
+
+      if (!token) {
+        window.location.replace("/login");
+        return;
+      }
+
+      await fetch(`${API_BASE}/favorites/barbers/${barberId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setBarbers((prev) => prev.filter((b) => b.id !== barberId));
+    } catch (err: any) {
+      console.log("REMOVE FAVORITE ERROR:", err?.message);
     }
   }
 
@@ -144,35 +200,25 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!authorized) return;
-    loadBarbers();
+    loadFavorites();
   }, [authorized]);
 
-  const isCustomer = me?.role === "CUSTOMER";
   const fn = firstName(me?.customer?.name ?? "");
-
-  const titleText = loadingMe ? "Lade..." : isCustomer ? `Hallo ${fn || "👋"}` : "Friseure";
-
-  const subText = loadingMe
-    ? "Prüfe Login..."
-    : isCustomer
-    ? "Wähle einen Friseur und buche deinen nächsten Termin."
-    : "Finde einen passenden Friseur und buche direkt online.";
-
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return barbers;
-
-    return barbers.filter((b) => {
-      const name = (b.name ?? "").toLowerCase();
-      const slug = (b.slug ?? "").toLowerCase();
-      const city = (b.city ?? "").toLowerCase();
-      return name.includes(s) || slug.includes(s) || city.includes(s);
-    });
-  }, [barbers, q]);
+  const titleText = loadingMe ? "Lade..." : `Hallo ${fn || "👋"}`;
+  const subText =
+    "Hier siehst du deine favorisierten Friseure für den schnellen Zugriff.";
 
   if (loadingMe || !authorized) {
     return (
-      <div style={{ padding: 20, maxWidth: 1120, margin: "0 auto", color: "#666" }}>
+      <div
+        style={{
+          padding: 20,
+          maxWidth: 1020,
+          margin: "0 auto",
+          color: "#666",
+          fontWeight: 800,
+        }}
+      >
         Lade...
       </div>
     );
@@ -182,9 +228,10 @@ export default function HomePage() {
     <div className="page">
       <style jsx>{`
         .page {
-          padding: 20px;
-          max-width: 1120px;
-          margin: 0 auto;
+          padding: 16px;
+          padding-bottom: 32px;
+          box-sizing: border-box;
+          background: #fff;
         }
 
         .hero {
@@ -193,189 +240,61 @@ export default function HomePage() {
 
         .title {
           margin: 0;
-          font-size: 38px;
-          line-height: 1.03;
-          letter-spacing: -1px;
+          font-size: 34px;
+          line-height: 36px;
+          font-weight: 900;
+          letter-spacing: -0.7px;
           color: #111;
         }
 
         .sub {
           color: #666;
           margin-top: 10px;
-          font-size: 17px;
-          line-height: 1.45;
-          max-width: 760px;
+          font-size: 16px;
+          line-height: 23px;
+          max-width: 680px;
         }
 
-        .searchBox {
-          margin-top: 16px;
-          border: 1px solid #e9e9e9;
-          border-radius: 24px;
-          padding: 16px;
-          background: #fff;
-          display: grid;
-          gap: 12px;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-        }
-
-        .searchTop {
+        .topActions {
           display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 12px;
+          gap: 10px;
+          margin-top: 16px;
           flex-wrap: wrap;
         }
 
-        .searchTitle {
-          font-weight: 1000;
-          font-size: 18px;
-          color: #111;
-        }
-
-        .searchHint {
-          color: #666;
-          font-size: 13px;
-          margin-top: 4px;
-        }
-
-        .countText {
-          color: #666;
-          font-size: 12px;
-          font-weight: 900;
-          white-space: nowrap;
-          padding: 7px 10px;
-          border-radius: 999px;
-          border: 1px solid #e4e4e4;
-          background: #fafafa;
-        }
-
-        .searchInput {
-          width: 100%;
-          min-width: 0;
-          max-width: 100%;
-          height: 52px;
+        .refreshBtn,
+        .searchBtn {
+          min-height: 44px;
           border-radius: 14px;
-          border: 1px solid #dedede;
-          background: #fff;
-          padding: 0 16px;
-          font-size: 16px;
-          color: #111;
-          outline: none;
-          box-sizing: border-box;
-          display: block;
-        }
-
-        .cards {
-          margin-top: 16px;
-          display: grid;
-          gap: 14px;
-        }
-
-        .card {
-          border: 1px solid #e9e9e9;
-          border-radius: 24px;
-          padding: 16px;
-          background: #fff;
-          display: grid;
-          gap: 14px;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-        }
-
-        .topRow {
-          display: grid;
-          grid-template-columns: 64px minmax(0, 1fr) auto;
-          gap: 14px;
-          align-items: center;
-        }
-
-        .avatar {
-          width: 64px;
-          height: 64px;
-          border-radius: 18px;
-          background: #111;
-          color: #fff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          padding: 0 14px;
           font-weight: 900;
-          font-size: 18px;
-          letter-spacing: -0.6px;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
-
-        .avatarImg {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-        }
-
-        .name {
-          font-weight: 1000;
-          font-size: 20px;
-          line-height: 1.15;
-          color: #111;
-        }
-
-        .meta {
-          margin-top: 6px;
-          color: #666;
           font-size: 14px;
-          line-height: 1.35;
-          word-break: break-word;
-        }
-
-        .chip {
-          font-size: 12px;
-          font-weight: 900;
-          padding: 9px 12px;
-          border-radius: 999px;
-          border: 1px solid #111;
-          background: #111;
-          color: #fff;
-          white-space: nowrap;
-          text-align: center;
-        }
-
-        .actions {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
-
-        .btnGhost {
-          text-align: center;
           text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+
+        .refreshBtn {
           border: 1px solid #ddd;
-          min-height: 48px;
-          padding: 0 14px;
-          border-radius: 14px;
-          color: #111;
-          font-weight: 900;
           background: #fff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          color: #111;
         }
 
-        .btnPrimary {
-          text-align: center;
-          text-decoration: none;
+        .refreshBtn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+
+        .searchBtn {
           border: 1px solid #111;
-          min-height: 48px;
-          padding: 0 14px;
-          border-radius: 14px;
-          color: #fff;
-          font-weight: 900;
           background: #111;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          color: #fff;
         }
 
         .alertErr {
-          margin-top: 12px;
+          margin-bottom: 12px;
           padding: 14px 16px;
           border: 1px solid #f1c7c7;
           background: #fff5f5;
@@ -390,51 +309,159 @@ export default function HomePage() {
           padding: 16px;
           background: #fcfcfc;
           color: #777;
+          margin-bottom: 14px;
         }
 
-        .hint {
-          margin-top: 16px;
+        .emptyTitle {
+          color: #777;
+          font-weight: 700;
+        }
+
+        .emptySub {
+          color: #777;
+          margin-top: 6px;
+          line-height: 20px;
+        }
+
+        .cards {
+          display: grid;
+          gap: 14px;
+        }
+
+        .card {
+          border: 1px solid #e9e9e9;
+          border-radius: 24px;
+          padding: 16px;
+          background: #fff;
+        }
+
+        .topRow {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        }
+
+        .avatar {
+          width: 58px;
+          height: 58px;
+          border-radius: 18px;
+          background: #111;
+          color: #fff;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          font-weight: 900;
+          font-size: 18px;
+        }
+
+        .avatarImg {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .name {
+          font-size: 20px;
+          font-weight: 900;
+          color: #111;
+          line-height: 1.2;
+          word-break: break-word;
+        }
+
+        .meta {
+          margin-top: 4px;
           color: #666;
-          font-size: 13px;
-          line-height: 1.45;
-          border: 1px solid #ececec;
-          background: #fafafa;
-          border-radius: 16px;
-          padding: 14px 16px;
+          font-size: 14px;
+          line-height: 20px;
+          word-break: break-word;
         }
 
-        @media (max-width: 720px) {
-          .page {
-            padding: 14px;
+        .nextPill {
+          margin-top: 10px;
+          display: inline-flex;
+          align-self: flex-start;
+          border: 1px solid #111;
+          background: #111;
+          border-radius: 999px;
+          padding: 8px 12px;
+          color: #fff;
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .heartBtn {
+          width: 42px;
+          height: 42px;
+          border-radius: 999px;
+          border: 1px solid #f0d3d3;
+          background: #fff5f5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+
+        .actions {
+          display: flex;
+          gap: 10px;
+          margin-top: 14px;
+        }
+
+        .btnGhost,
+        .btnPrimary {
+          flex: 1;
+          min-height: 48px;
+          border-radius: 14px;
+          padding: 0 12px;
+          font-weight: 900;
+          font-size: 14px;
+          text-decoration: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+        }
+
+        .btnGhost {
+          border: 1px solid #ddd;
+          background: #fff;
+          color: #111;
+        }
+
+        .btnPrimary {
+          border: 1px solid #111;
+          background: #111;
+          color: #fff;
+        }
+
+        .loadingText {
+          padding: 20px 0;
+          color: #666;
+          font-weight: 800;
+        }
+
+        @media (min-width: 760px) {
+          .cards {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 420px) {
+          .actions {
+            flex-direction: column;
           }
 
           .title {
-            font-size: 34px;
-          }
-
-          .sub {
-            font-size: 16px;
-          }
-
-          .topRow {
-            grid-template-columns: 56px minmax(0, 1fr);
-            grid-template-rows: auto auto;
-            align-items: start;
-          }
-
-          .avatar {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
-          }
-
-          .chip {
-            grid-column: 1 / -1;
-            width: fit-content;
-          }
-
-          .actions {
-            grid-template-columns: 1fr 1fr;
+            font-size: 32px;
           }
         }
       `}</style>
@@ -443,66 +470,93 @@ export default function HomePage() {
         <h1 className="title">{titleText}</h1>
         <div className="sub">{subText}</div>
 
-        <div className="searchBox">
-          <div className="searchTop">
-            <div>
-              <div className="searchTitle">Friseur suchen</div>
-              <div className="searchHint">Nach Name, Stadt oder Profil suchen</div>
-            </div>
+        <div className="topActions">
+          <button
+            type="button"
+            onClick={() => loadFavorites(true)}
+            disabled={refreshing || loadingFavorites}
+            className="refreshBtn"
+          >
+            {refreshing || loadingFavorites ? "Lädt..." : "Aktualisieren"}
+          </button>
 
-            <div className="countText">{loading ? "…" : `${filtered.length} Friseur(e)`}</div>
-          </div>
-
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="z. B. Ali, Essen, barber-essen..."
-            className="searchInput"
-          />
+          <a href="/search" className="searchBtn">
+            Friseure suchen
+          </a>
         </div>
       </div>
 
-      {loading ? <div style={{ marginTop: 12, color: "#666" }}>Lade...</div> : null}
+      {loadingFavorites ? <div className="loadingText">Lade Favoriten...</div> : null}
+
       {error ? <div className="alertErr">{error}</div> : null}
 
+      {!loadingFavorites && barbers.length === 0 ? (
+        <div className="emptyCard">
+          <div className="emptyTitle">Noch keine Favoriten vorhanden.</div>
+          <div className="emptySub">
+            Öffne den neuen Suche-Tab und markiere Friseure mit dem Herz.
+          </div>
+        </div>
+      ) : null}
+
       <div className="cards">
-        {!loading && filtered.length === 0 ? <div className="emptyCard">Keine Friseure gefunden.</div> : null}
-
-        {filtered.map((b) => {
+        {barbers.map((b) => {
           const addr =
-            [b.street, [b.postalCode, b.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null;
+            [
+              b.street,
+              [b.postalCode, b.city].filter(Boolean).join(" "),
+            ]
+              .filter(Boolean)
+              .join(", ") || null;
 
-          const nextLabel = b.nextDate ? `Nächster Termin: ${formatDateDE(b.nextDate)}` : "Nächster Termin: —";
+          const nextLabel = b.nextDate
+            ? `Nächster Termin: ${formatDateDE(b.nextDate)}`
+            : "Nächster Termin: —";
 
           return (
-            <div key={b.id} className="card">
+            <article key={b.id} className="card">
               <div className="topRow">
                 <div className="avatar" aria-label={b.name}>
-                  {b.imageUrl ? <img src={cleanUrl(b.imageUrl)} alt={b.name} className="avatarImg" /> : initials(b.name)}
+                  {b.imageUrl ? (
+                    <img
+                      src={cleanUrl(b.imageUrl)}
+                      alt={b.name}
+                      className="avatarImg"
+                    />
+                  ) : (
+                    initials(b.name)
+                  )}
                 </div>
 
-                <div style={{ minWidth: 0 }}>
+                <div className="content">
                   <div className="name">{b.name}</div>
                   <div className="meta">{addr ? addr : `/b/${b.slug}`}</div>
+                  <div className="nextPill">{nextLabel}</div>
                 </div>
 
-                <div className="chip">{nextLabel}</div>
+                <button
+                  type="button"
+                  onClick={() => removeFavorite(b.id)}
+                  className="heartBtn"
+                  aria-label="Aus Favoriten entfernen"
+                >
+                  <Heart size={18} color="#b42318" fill="#b42318" />
+                </button>
               </div>
 
               <div className="actions">
                 <a href={`/b/${b.slug}`} className="btnGhost">
                   Profil ansehen
                 </a>
+
                 <a href={`/b/${b.slug}/book`} className="btnPrimary">
                   Termin buchen
                 </a>
               </div>
-            </div>
+            </article>
           );
         })}
       </div>
-
-      <div className="hint">Hinweis: Für eine Buchung ist ein Kunden-Login erforderlich.</div>
     </div>
   );
 }
