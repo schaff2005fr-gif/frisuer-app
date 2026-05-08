@@ -427,6 +427,34 @@ async function uniqueSlug(base: string) {
   }
 }
 
+async function uniqueServiceKey(barberId: number, name: string, ignoreServiceId?: number) {
+  const base = slugify(name) || "service";
+
+  let i = 0;
+
+  while (true) {
+    const candidate = i === 0 ? base : `${base}-${i}`;
+
+    const existing = await prisma.service.findUnique({
+      where: {
+        barberId_key: {
+          barberId,
+          key: candidate,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!existing) return candidate;
+
+    if (ignoreServiceId && existing.id === ignoreServiceId) {
+      return candidate;
+    }
+
+    i++;
+  }
+}
+
 async function getBarberIdFromUser(userId: number) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -1857,13 +1885,192 @@ app.get("/admin/services", requireAuth, requireRole("BARBER"), async (req, res) 
     }
 
     const services = await prisma.service.findMany({
-      where: { barberId, isActive: true },
+      where: {
+        barberId,
+        key: {
+          not: {
+            startsWith: "deleted-",
+          },
+        },
+      },
       orderBy: [{ id: "asc" }],
+      select: {
+        id: true,
+        key: true,
+        name: true,
+        durationMin: true,
+        isActive: true,
+      },
     });
 
     res.json({ ok: true, services });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+app.post("/admin/services", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const name = String(req.body?.name ?? "").trim();
+    const durationMin = Number(req.body?.durationMin);
+    const isActive = req.body?.isActive == null ? true : Boolean(req.body.isActive);
+
+    if (!name) {
+      return res.status(400).json({ error: "Service-Name ist erforderlich." });
+    }
+
+    if (!Number.isFinite(durationMin) || durationMin <= 0 || durationMin > 600) {
+      return res.status(400).json({ error: "Ungültige Service-Dauer." });
+    }
+
+    const key = await uniqueServiceKey(barberId, name);
+
+    const service = await prisma.service.create({
+      data: {
+        barberId,
+        key,
+        name,
+        durationMin: Math.floor(durationMin),
+        isActive,
+      },
+      select: {
+        id: true,
+        key: true,
+        name: true,
+        durationMin: true,
+        isActive: true,
+      },
+    });
+
+    return res.status(201).json({ ok: true, service });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Service konnte nicht erstellt werden." });
+  }
+});
+
+app.patch("/admin/services/:id", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const id = Number(req.params.id);
+
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Ungültige Service-ID." });
+    }
+
+    const existing = await prisma.service.findFirst({
+      where: {
+        id,
+        barberId,
+        key: {
+          not: {
+            startsWith: "deleted-",
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Service nicht gefunden." });
+    }
+
+    const updateData: any = {};
+
+    if (req.body?.name !== undefined) {
+      const name = String(req.body.name ?? "").trim();
+
+      if (!name) {
+        return res.status(400).json({ error: "Service-Name darf nicht leer sein." });
+      }
+
+      updateData.name = name;
+
+      // Key passend zum Namen erneuern, aber eindeutig pro Barber halten
+      updateData.key = await uniqueServiceKey(barberId, name, existing.id);
+    }
+
+    if (req.body?.durationMin !== undefined) {
+      const durationMin = Number(req.body.durationMin);
+
+      if (!Number.isFinite(durationMin) || durationMin <= 0 || durationMin > 600) {
+        return res.status(400).json({ error: "Ungültige Service-Dauer." });
+      }
+
+      updateData.durationMin = Math.floor(durationMin);
+    }
+
+    if (req.body?.isActive !== undefined) {
+      updateData.isActive = Boolean(req.body.isActive);
+    }
+
+    const service = await prisma.service.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        key: true,
+        name: true,
+        durationMin: true,
+        isActive: true,
+      },
+    });
+
+    return res.json({ ok: true, service });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Service konnte nicht aktualisiert werden." });
+  }
+});
+
+app.delete("/admin/services/:id", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const barberId = await getBarberIdFromUser(userId);
+
+    const id = Number(req.params.id);
+
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Ungültige Service-ID." });
+    }
+
+    const existing = await prisma.service.findFirst({
+      where: {
+        id,
+        barberId,
+        key: {
+          not: {
+            startsWith: "deleted-",
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Service nicht gefunden." });
+    }
+
+    /*
+      Nicht hart löschen:
+      Alte Buchungen können noch auf serviceId zeigen.
+      Deshalb wird der Service intern versteckt und deaktiviert.
+      Für Frontend/App sieht es trotzdem wie gelöscht aus.
+    */
+    const hiddenKey = `deleted-${id}-${Date.now()}`;
+
+    await prisma.service.update({
+      where: { id },
+      data: {
+        key: hiddenKey,
+        isActive: false,
+      },
+    });
+
+    return res.json({ ok: true, deleted: true, id });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Service konnte nicht gelöscht werden." });
   }
 });
 
