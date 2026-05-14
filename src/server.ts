@@ -10,19 +10,83 @@ import prisma from "./prisma.js";
 const DEFAULT_SETTINGS = {
   stepMin: 10,
   minDaysBetweenBookings: 0,
+
   workingHours: [
-    { day: 0, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 }, // So
-    { day: 1, isOpen: true, startMin: 12 * 60, endMin: 17 * 60 }, // Mo
-    { day: 2, isOpen: true, startMin: 12 * 60, endMin: 17 * 60 }, // Di
-    { day: 3, isOpen: true, startMin: 12 * 60, endMin: 17 * 60 }, // Mi
-    { day: 4, isOpen: true, startMin: 12 * 60, endMin: 17 * 60 }, // Do
-    { day: 5, isOpen: true, startMin: 12 * 60, endMin: 17 * 60 }, // Fr
-    { day: 6, isOpen: true, startMin: 12 * 60, endMin: 17 * 60 }, // Sa
+    {
+      day: 0,
+      isOpen: false,
+      startMin: 12 * 60,
+      endMin: 17 * 60,
+      displayStartMin: 12 * 60,
+      displayEndMin: 17 * 60,
+      extendIfFirstHourFull: true,
+      extendStepMin: 60,
+    },
+    {
+      day: 1,
+      isOpen: true,
+      startMin: 12 * 60,
+      endMin: 17 * 60,
+      displayStartMin: 12 * 60,
+      displayEndMin: 17 * 60,
+      extendIfFirstHourFull: true,
+      extendStepMin: 60,
+    },
+    {
+      day: 2,
+      isOpen: true,
+      startMin: 12 * 60,
+      endMin: 17 * 60,
+      displayStartMin: 12 * 60,
+      displayEndMin: 17 * 60,
+      extendIfFirstHourFull: true,
+      extendStepMin: 60,
+    },
+    {
+      day: 3,
+      isOpen: true,
+      startMin: 12 * 60,
+      endMin: 17 * 60,
+      displayStartMin: 12 * 60,
+      displayEndMin: 17 * 60,
+      extendIfFirstHourFull: true,
+      extendStepMin: 60,
+    },
+    {
+      day: 4,
+      isOpen: true,
+      startMin: 12 * 60,
+      endMin: 17 * 60,
+      displayStartMin: 12 * 60,
+      displayEndMin: 17 * 60,
+      extendIfFirstHourFull: true,
+      extendStepMin: 60,
+    },
+    {
+      day: 5,
+      isOpen: true,
+      startMin: 12 * 60,
+      endMin: 17 * 60,
+      displayStartMin: 12 * 60,
+      displayEndMin: 17 * 60,
+      extendIfFirstHourFull: true,
+      extendStepMin: 60,
+    },
+    {
+      day: 6,
+      isOpen: true,
+      startMin: 12 * 60,
+      endMin: 17 * 60,
+      displayStartMin: 12 * 60,
+      displayEndMin: 17 * 60,
+      extendIfFirstHourFull: true,
+      extendStepMin: 60,
+    },
   ],
 
+  // alte globale Felder bleiben als Fallback für alte App/Web-Versionen
   displayStartMin: 12 * 60,
   displayEndMin: 17 * 60,
-
   extendIfFirstHourFull: true,
   extendStepMin: 60,
 };
@@ -37,7 +101,17 @@ const REVENUECAT_SECRET_API_KEY = process.env.REVENUECAT_SECRET_API_KEY;
 type Role = "CUSTOMER" | "BARBER";
 type JwtPayload = { userId: number; role: Role };
 
-type WorkingHoursRow = { day: number; isOpen: boolean; startMin: number; endMin: number };
+type WorkingHoursRow = {
+  day: number;
+  isOpen: boolean;
+  startMin: number;
+  endMin: number;
+
+  displayStartMin: number;
+  displayEndMin: number;
+  extendIfFirstHourFull: boolean;
+  extendStepMin: number;
+};
 
 type AppSettings = {
   stepMin: number;
@@ -511,58 +585,136 @@ function normalizeSettings(raw: any): AppSettings {
 
   const minDaysBetweenBookings = Number(raw?.minDaysBetweenBookings ?? fb.minDaysBetweenBookings);
   const stepMin = Number(raw?.stepMin ?? fb.stepMin);
-  const extendIfFirstHourFull = Boolean(raw?.extendIfFirstHourFull ?? fb.extendIfFirstHourFull);
-  const extendStepMin = Number(raw?.extendStepMin ?? fb.extendStepMin);
 
-  const displayStartMin = Number(
+  // globale Werte bleiben als Fallback für alte App/Web-Versionen
+  const globalExtendIfFirstHourFull = Boolean(
+    raw?.extendIfFirstHourFull ?? fb.extendIfFirstHourFull
+  );
+
+  const globalExtendStepMin = Number(raw?.extendStepMin ?? fb.extendStepMin);
+
+  const globalDisplayStartMin = Number(
     raw?.displayStartMin ?? raw?.earliestLimitMin ?? fb.displayStartMin
   );
-  const displayEndMin = Number(raw?.displayEndMin ?? fb.displayEndMin);
+
+  const globalDisplayEndMin = Number(raw?.displayEndMin ?? fb.displayEndMin);
 
   const whRaw = Array.isArray(raw?.workingHours) ? raw.workingHours : fb.workingHours;
 
-  const workingHours: WorkingHoursRow[] = whRaw
-    .map((r: any) => ({
-      day: Number(r?.day),
-      isOpen: Boolean(r?.isOpen),
-      startMin: Number(r?.startMin),
-      endMin: Number(r?.endMin),
-    }))
+  const normalizedRows: WorkingHoursRow[] = whRaw
+    .map((r: any) => {
+      const day = Number(r?.day);
+
+      const startRaw = Number(r?.startMin);
+      const endRaw = Number(r?.endMin);
+
+      const safeStartMin = Number.isFinite(startRaw)
+        ? Math.max(0, Math.min(1439, Math.floor(startRaw)))
+        : 12 * 60;
+
+      let safeEndMin = Number.isFinite(endRaw)
+        ? Math.max(1, Math.min(1440, Math.floor(endRaw)))
+        : 17 * 60;
+
+      if (safeEndMin <= safeStartMin) {
+        safeEndMin = Math.min(1440, safeStartMin + 60);
+      }
+
+      let displayStartMin = Number(
+        r?.displayStartMin ?? globalDisplayStartMin ?? safeStartMin
+      );
+
+      let displayEndMin = Number(
+        r?.displayEndMin ?? globalDisplayEndMin ?? safeEndMin
+      );
+
+      displayStartMin = Number.isFinite(displayStartMin)
+        ? Math.max(0, Math.min(1439, Math.floor(displayStartMin)))
+        : safeStartMin;
+
+      displayEndMin = Number.isFinite(displayEndMin)
+        ? Math.max(1, Math.min(1440, Math.floor(displayEndMin)))
+        : safeEndMin;
+
+      // sichtbares Zeitfenster darf nie außerhalb der echten Arbeitszeit liegen
+      if (displayStartMin < safeStartMin) displayStartMin = safeStartMin;
+      if (displayEndMin > safeEndMin) displayEndMin = safeEndMin;
+
+      if (displayEndMin <= displayStartMin) {
+        displayEndMin = Math.min(safeEndMin, displayStartMin + 60);
+      }
+
+      const extendStepMinRaw = Number(r?.extendStepMin ?? globalExtendStepMin);
+
+      return {
+        day,
+        isOpen: Boolean(r?.isOpen),
+        startMin: safeStartMin,
+        endMin: safeEndMin,
+        displayStartMin,
+        displayEndMin,
+        extendIfFirstHourFull: Boolean(
+          r?.extendIfFirstHourFull ?? globalExtendIfFirstHourFull
+        ),
+        extendStepMin:
+          Number.isFinite(extendStepMinRaw) && extendStepMinRaw > 0
+            ? Math.floor(extendStepMinRaw)
+            : fb.extendStepMin,
+      };
+    })
     .filter((r: WorkingHoursRow) => Number.isFinite(r.day) && r.day >= 0 && r.day <= 6)
-    .map((r: WorkingHoursRow) => ({
-      ...r,
-      startMin: Math.max(0, Math.min(1439, r.startMin)),
-      endMin: Math.max(1, Math.min(1440, r.endMin)),
-    }))
     .sort((a, b) => a.day - b.day);
 
   const byDay = new Map<number, WorkingHoursRow>();
-  for (const r of workingHours) byDay.set(r.day, r);
 
-  const full: WorkingHoursRow[] = [];
-  for (let d = 0; d <= 6; d++) {
-    full.push(byDay.get(d) ?? { day: d, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 });
+  for (const row of normalizedRows) {
+    byDay.set(row.day, row);
   }
 
-  const safeDisplayStartMin = Number.isFinite(displayStartMin)
-    ? Math.max(0, Math.min(1439, Math.floor(displayStartMin)))
+  const full: WorkingHoursRow[] = [];
+
+  for (let d = 0; d <= 6; d++) {
+    const fallback =
+      fb.workingHours.find((x) => x.day === d) ?? {
+        day: d,
+        isOpen: false,
+        startMin: 12 * 60,
+        endMin: 17 * 60,
+        displayStartMin: 12 * 60,
+        displayEndMin: 17 * 60,
+        extendIfFirstHourFull: true,
+        extendStepMin: 60,
+      };
+
+    full.push(byDay.get(d) ?? fallback);
+  }
+
+  const safeGlobalDisplayStartMin = Number.isFinite(globalDisplayStartMin)
+    ? Math.max(0, Math.min(1439, Math.floor(globalDisplayStartMin)))
     : fb.displayStartMin;
 
-  let safeDisplayEndMin = Number.isFinite(displayEndMin)
-    ? Math.max(1, Math.min(1440, Math.floor(displayEndMin)))
+  let safeGlobalDisplayEndMin = Number.isFinite(globalDisplayEndMin)
+    ? Math.max(1, Math.min(1440, Math.floor(globalDisplayEndMin)))
     : fb.displayEndMin;
 
-  if (safeDisplayEndMin <= safeDisplayStartMin) {
-    safeDisplayEndMin = Math.min(1440, safeDisplayStartMin + 60);
+  if (safeGlobalDisplayEndMin <= safeGlobalDisplayStartMin) {
+    safeGlobalDisplayEndMin = Math.min(1440, safeGlobalDisplayStartMin + 60);
   }
 
   return {
-    stepMin: Number.isFinite(stepMin) && stepMin > 0 ? stepMin : fb.stepMin,
+    stepMin: Number.isFinite(stepMin) && stepMin > 0 ? Math.floor(stepMin) : fb.stepMin,
+
     workingHours: full,
-    displayStartMin: safeDisplayStartMin,
-    displayEndMin: safeDisplayEndMin,
-    extendIfFirstHourFull,
-    extendStepMin: Number.isFinite(extendStepMin) && extendStepMin > 0 ? extendStepMin : fb.extendStepMin,
+
+    // globale Felder bleiben drin, damit alte App/Web-Versionen nicht kaputtgehen
+    displayStartMin: safeGlobalDisplayStartMin,
+    displayEndMin: safeGlobalDisplayEndMin,
+    extendIfFirstHourFull: globalExtendIfFirstHourFull,
+    extendStepMin:
+      Number.isFinite(globalExtendStepMin) && globalExtendStepMin > 0
+        ? Math.floor(globalExtendStepMin)
+        : fb.extendStepMin,
+
     minDaysBetweenBookings:
       Number.isFinite(minDaysBetweenBookings) && minDaysBetweenBookings >= 0
         ? Math.floor(minDaysBetweenBookings)
@@ -695,10 +847,7 @@ const barberPlan = await prisma.barber.findUnique({
 
 const allowSmartScheduling = barberPlan ? isProPlan(barberPlan) : false;
 
-const settings = {
-  ...settingsRaw,
-  extendIfFirstHourFull: allowSmartScheduling ? settingsRaw.extendIfFirstHourFull : false,
-};
+const settings = settingsRaw;
 
   const wd = weekdayFromDateStr(dateStr);
   const dayCfg = settings.workingHours.find((x) => x.day === wd) ?? DEFAULT_SETTINGS.workingHours[wd];
@@ -713,10 +862,18 @@ const settings = {
   }
 
   const realStartMin = dayCfg.startMin;
-  const realEndMin = dayCfg.endMin;
+const realEndMin = dayCfg.endMin;
 
-  let windowStartMin = Math.max(settings.displayStartMin, realStartMin);
-  let windowEndMin = Math.min(settings.displayEndMin, realEndMin);
+const dayDisplayStartMin = Number.isFinite(dayCfg.displayStartMin)
+  ? dayCfg.displayStartMin
+  : settings.displayStartMin;
+
+const dayDisplayEndMin = Number.isFinite(dayCfg.displayEndMin)
+  ? dayCfg.displayEndMin
+  : settings.displayEndMin;
+
+let windowStartMin = Math.max(dayDisplayStartMin, realStartMin);
+let windowEndMin = Math.min(dayDisplayEndMin, realEndMin);
 
   if (windowEndMin <= windowStartMin) {
     windowEndMin = realEndMin;
@@ -758,21 +915,30 @@ const settings = {
 
   let times = buildTimesForWindow(windowStartMin);
 
-  if (settings.extendIfFirstHourFull) {
-    while (true) {
-      const firstHourStart = windowStartMin;
-      const firstHourEnd = windowStartMin + 60;
+const dayExtendIfFirstHourFull = allowSmartScheduling
+  ? Boolean(dayCfg.extendIfFirstHourFull)
+  : false;
 
-      const hasAnyInFirstHour = times.some((t) => t >= firstHourStart && t < firstHourEnd);
-      if (hasAnyInFirstHour) break;
+const dayExtendStepMin =
+  Number.isFinite(dayCfg.extendStepMin) && dayCfg.extendStepMin > 0
+    ? dayCfg.extendStepMin
+    : settings.extendStepMin;
 
-      const nextStart = windowStartMin - settings.extendStepMin;
-      if (nextStart < realStartMin) break;
+if (dayExtendIfFirstHourFull) {
+  while (true) {
+    const firstHourStart = windowStartMin;
+    const firstHourEnd = windowStartMin + 60;
 
-      windowStartMin = nextStart;
-      times = buildTimesForWindow(windowStartMin);
-    }
+    const hasAnyInFirstHour = times.some((t) => t >= firstHourStart && t < firstHourEnd);
+    if (hasAnyInFirstHour) break;
+
+    const nextStart = windowStartMin - dayExtendStepMin;
+    if (nextStart < realStartMin) break;
+
+    windowStartMin = nextStart;
+    times = buildTimesForWindow(windowStartMin);
   }
+}
 
   return {
     isOpen: true,
@@ -971,6 +1137,8 @@ trialEndsAt: true,
   stepMin: settings.stepMin,
   displayStartMin: settings.displayStartMin,
   displayEndMin: settings.displayEndMin,
+  extendIfFirstHourFull: settings.extendIfFirstHourFull,
+  extendStepMin: settings.extendStepMin,
 },
     });
   } catch (e: any) {
@@ -2223,30 +2391,56 @@ app.put("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
   try {
     const { userId } = (req as any).user as JwtPayload;
     const barberId = await getBarberIdFromUser(userId);
+
     const barber = await prisma.barber.findUnique({
-  where: { id: barberId },
-  select: {
-    subscriptionStatus: true,
-    subscriptionPlan: true,
-    subscriptionExpiresAt: true,
-    trialEndsAt: true,
-  },
-});
+      where: { id: barberId },
+      select: {
+        subscriptionStatus: true,
+        subscriptionPlan: true,
+        subscriptionExpiresAt: true,
+        trialEndsAt: true,
+      },
+    });
 
-const allowSmartScheduling = barber ? isProPlan(barber) : false;
+    const allowSmartScheduling = barber ? isProPlan(barber) : false;
+
     const current = await getSettings(barberId);
-    const body = req.body ?? {};
 
-if (!allowSmartScheduling) {
-  delete body.extendIfFirstHourFull;
-  delete body.extendStepMin;
-}
+    // wichtig: Kopie erstellen, nicht direkt req.body verändern
+    const body = { ...(req.body ?? {}) };
 
-const merged = { ...current, ...body };
+    if (Array.isArray(body.workingHours)) {
+      body.workingHours = body.workingHours.map((row: any) => {
+        const copy = { ...row };
+
+        // Basic darf keine Pro-Slotlogik speichern
+        if (!allowSmartScheduling) {
+          delete copy.extendIfFirstHourFull;
+          delete copy.extendStepMin;
+        }
+
+        return copy;
+      });
+    }
+
+    if (!allowSmartScheduling) {
+      delete body.extendIfFirstHourFull;
+      delete body.extendStepMin;
+    }
+
+    const merged = { ...current, ...body };
     const normalized = normalizeSettings(merged);
 
     await saveSettings(barberId, normalized);
-    res.json({ ok: true, settings: normalized });
+
+    res.json({
+      ok: true,
+      settings: normalized,
+      features: {
+        publicDiscovery: allowSmartScheduling,
+        smartScheduling: allowSmartScheduling,
+      },
+    });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
   }
