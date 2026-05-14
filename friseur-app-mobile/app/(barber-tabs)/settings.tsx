@@ -47,6 +47,11 @@ type WorkingHoursRow = {
   isOpen: boolean;
   startMin: number;
   endMin: number;
+
+  displayStartMin: number;
+  displayEndMin: number;
+  extendIfFirstHourFull: boolean;
+  extendStepMin: number;
 };
 
 type AppSettings = {
@@ -674,14 +679,94 @@ const isBasic = activePlan === "basic_monthly";
   }, [profile?.slug]);
 
   const workingHoursUi = useMemo(() => {
-    const wh = settings?.workingHours ?? [];
-    const map = new Map<number, WorkingHoursRow>();
-    for (const row of wh) map.set(row.day, row);
+  const wh = settings?.workingHours ?? [];
+  const map = new Map<number, WorkingHoursRow>();
 
-    return WEEKDAYS.map(
-      (d) => map.get(d.k) ?? { day: d.k, isOpen: false, startMin: 12 * 60, endMin: 17 * 60 }
+  for (const row of wh) {
+    const startMin = Number.isFinite(row.startMin) ? row.startMin : 12 * 60;
+    const endMin = Number.isFinite(row.endMin) ? row.endMin : 17 * 60;
+
+    const displayStartMin = Number.isFinite((row as any).displayStartMin)
+      ? Number((row as any).displayStartMin)
+      : Number.isFinite((settings as any)?.displayStartMin)
+      ? Number((settings as any).displayStartMin)
+      : startMin;
+
+    const displayEndMin = Number.isFinite((row as any).displayEndMin)
+      ? Number((row as any).displayEndMin)
+      : Number.isFinite((settings as any)?.displayEndMin)
+      ? Number((settings as any).displayEndMin)
+      : endMin;
+
+    map.set(row.day, {
+      day: row.day,
+      isOpen: Boolean(row.isOpen),
+      startMin,
+      endMin,
+      displayStartMin: clamp(displayStartMin, startMin, endMin),
+      displayEndMin: clamp(displayEndMin, startMin + 1, endMin),
+      extendIfFirstHourFull:
+        typeof (row as any).extendIfFirstHourFull === "boolean"
+          ? Boolean((row as any).extendIfFirstHourFull)
+          : Boolean((settings as any)?.extendIfFirstHourFull ?? true),
+      extendStepMin: Number.isFinite((row as any).extendStepMin)
+        ? Number((row as any).extendStepMin)
+        : Number.isFinite((settings as any)?.extendStepMin)
+        ? Number((settings as any).extendStepMin)
+        : 60,
+    });
+  }
+
+  return WEEKDAYS.map(
+    (d) =>
+      map.get(d.k) ?? {
+        day: d.k,
+        isOpen: false,
+        startMin: 12 * 60,
+        endMin: 17 * 60,
+        displayStartMin: 12 * 60,
+        displayEndMin: 17 * 60,
+        extendIfFirstHourFull: true,
+        extendStepMin: 60,
+      }
+  );
+}, [settings]);
+
+function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
+  if (!settings) return;
+
+  const nextRows = workingHoursUi.map((row) => {
+    if (row.day !== day) return row;
+
+    const next = {
+      ...row,
+      ...patch,
+    };
+
+    if (next.endMin <= next.startMin) {
+      next.endMin = Math.min(1440, next.startMin + 60);
+    }
+
+    next.displayStartMin = clamp(
+      Number.isFinite(next.displayStartMin) ? next.displayStartMin : next.startMin,
+      next.startMin,
+      next.endMin - 1
     );
-  }, [settings]);
+
+    next.displayEndMin = clamp(
+      Number.isFinite(next.displayEndMin) ? next.displayEndMin : next.endMin,
+      next.displayStartMin + 1,
+      next.endMin
+    );
+
+    return next;
+  });
+
+  setSettings({
+    ...settings,
+    workingHours: nextRows,
+  });
+}
 
   if (loading) {
     return (
@@ -1097,109 +1182,270 @@ const isBasic = activePlan === "basic_monthly";
             </View>
           </>
         ) : tab === "HOURS" ? (
-          <View style={card}>
-            <Text style={sectionTitle}>Arbeitszeiten</Text>
-            <Text style={sectionSub}>Lege fest, an welchen Tagen und Uhrzeiten du buchbar bist.</Text>
+  <View style={card}>
+    <View style={hoursHeaderBox}>
+      <View style={{ flex: 1 }}>
+        <Text style={sectionTitle}>Zeiten & Slot-Logik</Text>
+        <Text style={sectionSub}>
+          Lege pro Tag fest, wann du arbeitest und welche Zeiten Kunden zuerst buchen können.
+        </Text>
+      </View>
 
-            <View style={{ marginTop: 16, gap: 12 }}>
-              {workingHoursUi.map((row) => {
-                const dayName = WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
+      <View style={planPill}>
+        <Text style={planPillText}>{isPro ? "PRO" : "BASIC"}</Text>
+      </View>
+    </View>
 
-                return (
-                  <View key={row.day} style={serviceCard}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 10,
-                      }}
-                    >
-                      <Text style={dayTitle}>{dayName}</Text>
+    <View style={infoBox}>
+      <Text style={infoTitle}>So funktioniert es</Text>
+      <Text style={infoText}>
+        Arbeitszeit ist dein echter verfügbarer Zeitraum. Sichtbare Kundenzeit ist der Bereich,
+        den Kunden zuerst sehen. Mit Pro können automatisch frühere Slots geöffnet werden,
+        sobald die erste sichtbare Stunde voll ist.
+      </Text>
+    </View>
 
-                      <Pressable
-                        onPress={() => {
-                          setSettings({
-                            ...settings,
-                            workingHours: workingHoursUi.map((r) =>
-                              r.day === row.day ? { ...r, isOpen: !r.isOpen } : r
-                            ),
-                          });
-                        }}
-                        style={[row.isOpen ? primaryBtnSmall : secondaryBtnSmall, { minWidth: 110 }]}
-                      >
-                        <Text style={row.isOpen ? primaryBtnSmallText : secondaryBtnSmallText}>
-                          {row.isOpen ? "Geöffnet" : "Geschlossen"}
-                        </Text>
-                      </Pressable>
-                    </View>
+    <View style={{ marginTop: 16, gap: 14 }}>
+      {workingHoursUi.map((row) => {
+        const dayName = WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
 
-                    {row.isOpen ? (
-                      <View style={{ marginTop: 14, gap: 12 }}>
-                        <SelectField
-                          label="Start"
-                          value={row.startMin}
-                          options={WORK_TIME_OPTIONS.map((value) => ({
-                            label: minToHHMM(value),
-                            value,
-                          }))}
-                          onChange={(value) => {
-                            const safeStart = clamp(value, 0, 1439);
-                            const safeEnd = row.endMin <= safeStart ? safeStart + 60 : row.endMin;
+        const workSummary = row.isOpen
+          ? `${minToHHMM(row.startMin)} - ${minToHHMM(row.endMin)}`
+          : "Geschlossen";
 
-                            setSettings({
-                              ...settings,
-                              workingHours: workingHoursUi.map((r) =>
-                                r.day === row.day
-                                  ? {
-                                      ...r,
-                                      startMin: safeStart,
-                                      endMin: clamp(safeEnd, safeStart + 1, 1440),
-                                    }
-                                  : r
-                              ),
-                            });
-                          }}
-                        />
+        const visibleSummary = row.isOpen
+          ? `${minToHHMM(row.displayStartMin)} - ${minToHHMM(row.displayEndMin)}`
+          : "Keine Buchung";
 
-                        <SelectField
-                          label="Ende"
-                          value={row.endMin}
-                          options={WORK_TIME_OPTIONS.filter((value) => value > row.startMin).map((value) => ({
-                            label: minToHHMM(value),
-                            value,
-                          }))}
-                          onChange={(value) => {
-                            setSettings({
-                              ...settings,
-                              workingHours: workingHoursUi.map((r) =>
-                                r.day === row.day
-                                  ? { ...r, endMin: clamp(value, r.startMin + 1, 1440) }
-                                  : r
-                              ),
-                            });
-                          }}
-                        />
-                      </View>
-                    ) : (
-                      <Text style={helperText}>
-                        An diesem Tag können keine Termine gebucht werden.
-                      </Text>
-                    )}
+        return (
+          <View key={row.day} style={dayCard}>
+            <View style={dayCardTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={dayTitleLarge}>{dayName}</Text>
+
+                <View style={summaryRow}>
+                  <View style={summaryChip}>
+                    <Text style={summaryChipLabel}>Arbeitszeit</Text>
+                    <Text style={summaryChipValue}>{workSummary}</Text>
                   </View>
-                );
-              })}
+
+                  <View style={summaryChip}>
+                    <Text style={summaryChipLabel}>Kunden sehen</Text>
+                    <Text style={summaryChipValue}>{visibleSummary}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <Pressable
+                onPress={() => updateWorkingDay(row.day, { isOpen: !row.isOpen })}
+                style={[
+                  row.isOpen ? statusOpenBtn : statusClosedBtn,
+                  { minWidth: 104 },
+                ]}
+              >
+                <Text style={row.isOpen ? statusOpenText : statusClosedText}>
+                  {row.isOpen ? "Offen" : "Zu"}
+                </Text>
+              </Pressable>
             </View>
 
-            <Pressable
-              onPress={saveHours}
-              disabled={savingHours}
-              style={[primaryBtn, { marginTop: 16 }, savingHours ? disabledBtn : null]}
-            >
-              <Text style={primaryBtnText}>{savingHours ? "Speichert..." : "Arbeitszeiten speichern"}</Text>
-            </Pressable>
+            {row.isOpen ? (
+              <View style={{ marginTop: 16, gap: 14 }}>
+                <View style={subSection}>
+                  <Text style={subSectionTitle}>1. Arbeitszeit</Text>
+                  <Text style={subSectionText}>
+                    In diesem Zeitraum kannst du grundsätzlich Termine annehmen.
+                  </Text>
+
+                  <View style={twoSelectRow}>
+                    <View style={{ flex: 1 }}>
+                      <SelectField
+                        label="Start"
+                        value={row.startMin}
+                        options={WORK_TIME_OPTIONS.map((value) => ({
+                          label: minToHHMM(value),
+                          value,
+                        }))}
+                        onChange={(value) => {
+                          const safeStart = clamp(value, 0, 1439);
+                          const safeEnd =
+                            row.endMin <= safeStart ? safeStart + 60 : row.endMin;
+
+                          updateWorkingDay(row.day, {
+                            startMin: safeStart,
+                            endMin: clamp(safeEnd, safeStart + 1, 1440),
+                            displayStartMin: Math.max(row.displayStartMin, safeStart),
+                            displayEndMin: clamp(row.displayEndMin, safeStart + 1, safeEnd),
+                          });
+                        }}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <SelectField
+                        label="Ende"
+                        value={row.endMin}
+                        options={WORK_TIME_OPTIONS.filter((value) => value > row.startMin).map(
+                          (value) => ({
+                            label: minToHHMM(value),
+                            value,
+                          })
+                        )}
+                        onChange={(value) => {
+                          const safeEnd = clamp(value, row.startMin + 1, 1440);
+
+                          updateWorkingDay(row.day, {
+                            endMin: safeEnd,
+                            displayEndMin: Math.min(row.displayEndMin, safeEnd),
+                            displayStartMin: clamp(row.displayStartMin, row.startMin, safeEnd - 1),
+                          });
+                        }}
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                <View style={subSection}>
+                  <Text style={subSectionTitle}>2. Sichtbare Kundenzeit</Text>
+                  <Text style={subSectionText}>
+                    Diese Zeiten sehen Kunden zuerst auf deiner Buchungsseite.
+                  </Text>
+
+                  <View style={twoSelectRow}>
+                    <View style={{ flex: 1 }}>
+                      <SelectField
+                        label="Von"
+                        value={row.displayStartMin}
+                        options={WORK_TIME_OPTIONS.filter(
+                          (value) => value >= row.startMin && value < row.endMin
+                        ).map((value) => ({
+                          label: minToHHMM(value),
+                          value,
+                        }))}
+                        onChange={(value) => {
+                          const nextStart = clamp(value, row.startMin, row.endMin - 1);
+                          const nextEnd =
+                            row.displayEndMin <= nextStart
+                              ? Math.min(row.endMin, nextStart + 60)
+                              : row.displayEndMin;
+
+                          updateWorkingDay(row.day, {
+                            displayStartMin: nextStart,
+                            displayEndMin: nextEnd,
+                          });
+                        }}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <SelectField
+                        label="Bis"
+                        value={row.displayEndMin}
+                        options={WORK_TIME_OPTIONS.filter(
+                          (value) => value > row.displayStartMin && value <= row.endMin
+                        ).map((value) => ({
+                          label: minToHHMM(value),
+                          value,
+                        }))}
+                        onChange={(value) => {
+                          updateWorkingDay(row.day, {
+                            displayEndMin: clamp(value, row.displayStartMin + 1, row.endMin),
+                          });
+                        }}
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                <View style={[subSection, !isPro ? lockedSection : null]}>
+                  <View style={proHeaderRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={subSectionTitle}>3. Automatische Erweiterung</Text>
+                      <Text style={subSectionText}>
+                        Wenn die erste sichtbare Stunde voll ist, öffnet Salora automatisch frühere Zeiten.
+                      </Text>
+                    </View>
+
+                    {!isPro ? (
+                      <View style={smallProPill}>
+                        <Text style={smallProPillText}>PRO</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <Pressable
+                    onPress={() => {
+                      if (!isPro) {
+                        Alert.alert(
+                          "Nur mit Pro",
+                          "Diese Funktion ist nur in Salora Pro verfügbar."
+                        );
+                        return;
+                      }
+
+                      updateWorkingDay(row.day, {
+                        extendIfFirstHourFull: !row.extendIfFirstHourFull,
+                      });
+                    }}
+                    style={[
+                      row.extendIfFirstHourFull && isPro ? primaryBtnSmall : secondaryBtnSmall,
+                      !isPro ? disabledBtn : null,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        row.extendIfFirstHourFull && isPro
+                          ? primaryBtnSmallText
+                          : secondaryBtnSmallText
+                      }
+                    >
+                      {isPro ? (row.extendIfFirstHourFull ? "Aktiv" : "Aus") : "Pro-Funktion"}
+                    </Text>
+                  </Pressable>
+
+                  {isPro && row.extendIfFirstHourFull ? (
+                    <View style={{ marginTop: 12 }}>
+                      <SelectField
+                        label="Erweiterungsschritt"
+                        helperText="Beispiel: Bei 60 min öffnet Salora jeweils eine Stunde früher."
+                        value={row.extendStepMin}
+                        options={EXTEND_STEP_OPTIONS.map((value) => ({
+                          label: `${value} min`,
+                          value,
+                        }))}
+                        onChange={(value) =>
+                          updateWorkingDay(row.day, {
+                            extendStepMin: value,
+                          })
+                        }
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ) : (
+              <View style={closedBox}>
+                <Text style={closedBoxText}>
+                  An diesem Tag werden keine Termine angeboten.
+                </Text>
+              </View>
+            )}
           </View>
-        ) : (
+        );
+      })}
+    </View>
+
+    <Pressable
+      onPress={saveHours}
+      disabled={savingHours}
+      style={[primaryBtn, { marginTop: 18 }, savingHours ? disabledBtn : null]}
+    >
+      <Text style={primaryBtnText}>
+        {savingHours ? "Speichert..." : "Zeiten speichern"}
+      </Text>
+    </Pressable>
+  </View>
+) : (
           <View style={card}>
             <Text style={sectionTitle}>Buchungsregeln</Text>
             <Text style={sectionSub}>Hier legst du fest, was Kunden zuerst sehen.</Text>
@@ -1822,4 +2068,204 @@ const selectOptionText = {
 
 const selectOptionTextActive = {
   color: "#fff",
+} as const;
+
+const hoursHeaderBox = {
+  flexDirection: "row" as const,
+  alignItems: "flex-start" as const,
+  gap: 12,
+} as const;
+
+const planPill = {
+  minHeight: 32,
+  paddingHorizontal: 12,
+  borderRadius: 999,
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const planPillText = {
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: "900" as const,
+} as const;
+
+const infoBox = {
+  marginTop: 16,
+  borderWidth: 1,
+  borderColor: "#ececef",
+  backgroundColor: "#fbfbfc",
+  borderRadius: 18,
+  padding: 14,
+} as const;
+
+const infoTitle = {
+  fontSize: 15,
+  color: "#111",
+  fontWeight: "900" as const,
+} as const;
+
+const infoText = {
+  marginTop: 6,
+  fontSize: 13,
+  lineHeight: 19,
+  color: "#666",
+  fontWeight: "600" as const,
+} as const;
+
+const dayCard = {
+  borderWidth: 1,
+  borderColor: "#e7e7ea",
+  borderRadius: 22,
+  backgroundColor: "#fff",
+  padding: 14,
+} as const;
+
+const dayCardTop = {
+  flexDirection: "row" as const,
+  alignItems: "flex-start" as const,
+  justifyContent: "space-between" as const,
+  gap: 12,
+} as const;
+
+const dayTitleLarge = {
+  fontSize: 20,
+  lineHeight: 24,
+  color: "#111",
+  fontWeight: "900" as const,
+} as const;
+
+const summaryRow = {
+  flexDirection: "row" as const,
+  gap: 8,
+  marginTop: 10,
+} as const;
+
+const summaryChip = {
+  flex: 1,
+  borderWidth: 1,
+  borderColor: "#eeeeef",
+  borderRadius: 14,
+  backgroundColor: "#fafafa",
+  paddingVertical: 10,
+  paddingHorizontal: 10,
+} as const;
+
+const summaryChipLabel = {
+  fontSize: 11,
+  color: "#777",
+  fontWeight: "800" as const,
+} as const;
+
+const summaryChipValue = {
+  marginTop: 4,
+  fontSize: 13,
+  color: "#111",
+  fontWeight: "900" as const,
+} as const;
+
+const statusOpenBtn = {
+  minHeight: 38,
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: "#111",
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  paddingHorizontal: 12,
+} as const;
+
+const statusClosedBtn = {
+  minHeight: 38,
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: "#d8d8d8",
+  backgroundColor: "#fff",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  paddingHorizontal: 12,
+} as const;
+
+const statusOpenText = {
+  color: "#fff",
+  fontSize: 13,
+  fontWeight: "900" as const,
+} as const;
+
+const statusClosedText = {
+  color: "#111",
+  fontSize: 13,
+  fontWeight: "900" as const,
+} as const;
+
+const subSection = {
+  borderWidth: 1,
+  borderColor: "#efeff1",
+  borderRadius: 18,
+  backgroundColor: "#fbfbfc",
+  padding: 14,
+} as const;
+
+const subSectionTitle = {
+  fontSize: 16,
+  lineHeight: 20,
+  color: "#111",
+  fontWeight: "900" as const,
+} as const;
+
+const subSectionText = {
+  marginTop: 5,
+  color: "#666",
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "600" as const,
+} as const;
+
+const twoSelectRow = {
+  flexDirection: "row" as const,
+  gap: 10,
+  marginTop: 12,
+} as const;
+
+const proHeaderRow = {
+  flexDirection: "row" as const,
+  alignItems: "flex-start" as const,
+  gap: 10,
+  marginBottom: 12,
+} as const;
+
+const smallProPill = {
+  minHeight: 28,
+  paddingHorizontal: 10,
+  borderRadius: 999,
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const smallProPillText = {
+  color: "#fff",
+  fontSize: 11,
+  fontWeight: "900" as const,
+} as const;
+
+const lockedSection = {
+  opacity: 0.72,
+} as const;
+
+const closedBox = {
+  marginTop: 14,
+  borderWidth: 1,
+  borderColor: "#eeeeef",
+  borderRadius: 16,
+  backgroundColor: "#fafafa",
+  padding: 14,
+} as const;
+
+const closedBoxText = {
+  color: "#777",
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "700" as const,
 } as const;
