@@ -831,10 +831,14 @@ async function getBlocksForDay(barberId: number, dateStr: string) {
   };
 }
 
-async function computeAvailableTimes(opts: { barberId: number; dateStr: string; serviceDurationMin: number }) {
+async function computeAvailableTimes(opts: {
+  barberId: number;
+  dateStr: string;
+  serviceDurationMin: number;
+}) {
   const { barberId, dateStr, serviceDurationMin } = opts;
 
-  const settings = await getSettings(barberId);
+  const settingsRaw = await getSettings(barberId);
 
   const barberPlan = await prisma.barber.findUnique({
     where: { id: barberId },
@@ -850,7 +854,8 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
 
   const wd = weekdayFromDateStr(dateStr);
   const dayCfg =
-    settings.workingHours.find((x) => x.day === wd) ?? DEFAULT_SETTINGS.workingHours[wd];
+    settingsRaw.workingHours.find((x) => x.day === wd) ??
+    DEFAULT_SETTINGS.workingHours[wd];
 
   if (!dayCfg.isOpen) {
     return {
@@ -864,19 +869,42 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
   const realStartMin = dayCfg.startMin;
   const realEndMin = dayCfg.endMin;
 
-  const dayDisplayStartMin = Number.isFinite(dayCfg.displayStartMin)
-    ? dayCfg.displayStartMin
-    : settings.displayStartMin;
+  const stepMin =
+    Number.isFinite(settingsRaw.stepMin) && settingsRaw.stepMin > 0
+      ? Math.floor(settingsRaw.stepMin)
+      : 10;
 
-  const dayDisplayEndMin = Number.isFinite(dayCfg.displayEndMin)
-    ? dayCfg.displayEndMin
-    : settings.displayEndMin;
+  const dayDisplayStartMin = Number.isFinite((dayCfg as any).displayStartMin)
+    ? Number((dayCfg as any).displayStartMin)
+    : Number.isFinite(settingsRaw.displayStartMin)
+    ? Number(settingsRaw.displayStartMin)
+    : realStartMin;
 
-  let windowStartMin = Math.max(dayDisplayStartMin, realStartMin);
+  const dayDisplayEndMin = Number.isFinite((dayCfg as any).displayEndMin)
+    ? Number((dayCfg as any).displayEndMin)
+    : Number.isFinite(settingsRaw.displayEndMin)
+    ? Number(settingsRaw.displayEndMin)
+    : realEndMin;
+
+  const dayExtendIfFirstHourFull =
+    allowSmartScheduling &&
+    (typeof (dayCfg as any).extendIfFirstHourFull === "boolean"
+      ? Boolean((dayCfg as any).extendIfFirstHourFull)
+      : Boolean(settingsRaw.extendIfFirstHourFull));
+
+  const dayExtendStepMin =
+    Number.isFinite((dayCfg as any).extendStepMin) &&
+    Number((dayCfg as any).extendStepMin) > 0
+      ? Math.floor(Number((dayCfg as any).extendStepMin))
+      : Number.isFinite(settingsRaw.extendStepMin) && settingsRaw.extendStepMin > 0
+      ? Math.floor(settingsRaw.extendStepMin)
+      : 60;
+
+  let baseWindowStartMin = Math.max(dayDisplayStartMin, realStartMin);
   let windowEndMin = Math.min(dayDisplayEndMin, realEndMin);
 
-  if (windowEndMin <= windowStartMin) {
-    windowStartMin = realStartMin;
+  if (windowEndMin <= baseWindowStartMin) {
+    baseWindowStartMin = realStartMin;
     windowEndMin = realEndMin;
   }
 
@@ -897,20 +925,15 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
   const berlinNow = getBerlinNowParts();
   const isTodayBerlin = dateStr === berlinNow.dateStr;
 
-  const stepMin =
-    Number.isFinite(settings.stepMin) && settings.stepMin > 0
-      ? Math.floor(settings.stepMin)
-      : 10;
-
-  const buildTimesBetween = (startMin: number, endMin: number) => {
+  function buildTimes(startMin: number, endMin: number, durationMin: number) {
     const times: number[] = [];
 
     const safeStart = Math.max(realStartMin, startMin);
     const safeEnd = Math.min(realEndMin, endMin);
-    const lastStart = safeEnd - serviceDurationMin;
+    const lastStart = safeEnd - durationMin;
 
     for (let t = safeStart; t <= lastStart; t += stepMin) {
-      const tEnd = t + serviceDurationMin;
+      const tEnd = t + durationMin;
 
       if (tEnd > safeEnd) continue;
       if (t < realStartMin || tEnd > realEndMin) continue;
@@ -921,38 +944,77 @@ async function computeAvailableTimes(opts: { barberId: number; dateStr: string; 
     }
 
     return times;
-  };
+  }
 
-  const dayExtendIfFirstHourFull = allowSmartScheduling
-    ? Boolean(dayCfg.extendIfFirstHourFull)
-    : false;
+  const activeServices = await prisma.service.findMany({
+    where: {
+      barberId,
+      isActive: true,
+      key: {
+        not: {
+          startsWith: "deleted-",
+        },
+      },
+    },
+    select: {
+      durationMin: true,
+    },
+  });
 
-  const dayExtendStepMin =
-    Number.isFinite(dayCfg.extendStepMin) && dayCfg.extendStepMin > 0
-      ? Math.floor(dayCfg.extendStepMin)
-      : settings.extendStepMin;
+  const durationsToCheck = Array.from(
+    new Set(
+      [serviceDurationMin, ...activeServices.map((s) => Number(s.durationMin))]
+        .filter((n) => Number.isFinite(n) && n > 0)
+        .map((n) => Math.floor(n))
+    )
+  );
 
-  if (dayExtendIfFirstHourFull) {
+  function calculateWindowStartForDuration(durationMin: number) {
+    let candidateStart = baseWindowStartMin;
+
+    if (!dayExtendIfFirstHourFull) {
+      return candidateStart;
+    }
+
     while (true) {
-      const firstHourStart = windowStartMin;
-      const firstHourEnd = Math.min(windowStartMin + 60, windowEndMin);
+      const firstHourStart = candidateStart;
+      const firstHourEnd = Math.min(candidateStart + 60, windowEndMin);
 
-      const freeInFirstHour = buildTimesBetween(firstHourStart, firstHourEnd);
+      const freeInFirstHour = buildTimes(
+        firstHourStart,
+        firstHourEnd,
+        durationMin
+      );
 
       if (freeInFirstHour.length > 0) break;
 
-      const nextStart = windowStartMin - dayExtendStepMin;
+      const nextStart = candidateStart - dayExtendStepMin;
 
       if (nextStart < realStartMin) {
-        windowStartMin = realStartMin;
+        candidateStart = realStartMin;
         break;
       }
 
-      windowStartMin = nextStart;
+      candidateStart = nextStart;
     }
+
+    return candidateStart;
   }
 
-  const times = buildTimesBetween(windowStartMin, windowEndMin)
+  /*
+    Wichtiger Fix:
+    Die Öffnung früherer Slots wird nicht mehr nur anhand des gerade gewählten
+    Services entschieden. Stattdessen berechnen wir für alle aktiven Services,
+    wie weit der Tag geöffnet werden müsste, und nehmen den frühesten Start.
+
+    Dadurch kann ein 30-Minuten-Service nicht frühere Zeiten bekommen,
+    während ein 20-Minuten-Service diese Zeiten nicht bekommt.
+  */
+  const windowStartMin = dayExtendIfFirstHourFull
+    ? Math.min(...durationsToCheck.map(calculateWindowStartForDuration))
+    : baseWindowStartMin;
+
+  const times = buildTimes(windowStartMin, windowEndMin, serviceDurationMin)
     .filter((t, index, arr) => arr.indexOf(t) === index)
     .sort((a, b) => a - b);
 
