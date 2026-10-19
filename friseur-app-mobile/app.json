@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Salora",
-    "slug": "friseur-app-mobile",
+    "name": "Salora Staging",
+    "slug": "salora-staging",
     "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.schafik.salora",
+      "bundleIdentifier": "com.schafik.salora.staging",
       "associatedDomains": [
         "applinks:salora-booking.de"
       ],
@@ -25,7 +25,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.schafik.salora"
+      "package": "com.schafik.salora.staging"
     },
     "web": {
       "output": "static",
@@ -54,9 +54,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0014730c-5be8-4504-b79a-944143bf9ffe"
+        "projectId": "f310e671-099e-4ed1-beda-683d46ddfa00"
       }
     },
-    "owner": "schafik.frt"
+    "owner": "schafikfrt"
   }
 }
