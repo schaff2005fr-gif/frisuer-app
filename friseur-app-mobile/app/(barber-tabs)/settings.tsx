@@ -11,6 +11,7 @@ import {
   View,
   Linking,
   Share,
+  Switch,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -195,6 +196,7 @@ const isBasic = activePlan === "basic_monthly";
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
   const [savingHours, setSavingHours] = useState(false);
+  const [savingVisibility, setSavingVisibility] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [creatingService, setCreatingService] = useState(false);
   const [busyServiceId, setBusyServiceId] = useState<number | null>(null);
@@ -205,6 +207,7 @@ const isBasic = activePlan === "basic_monthly";
   const [profile, setProfile] = useState<BarberProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [publicDiscoveryEnabled, setPublicDiscoveryEnabled] = useState(true);
 
   const [newServiceName, setNewServiceName] = useState("");
   const [newServiceDuration, setNewServiceDuration] = useState(30);
@@ -243,6 +246,11 @@ const isBasic = activePlan === "basic_monthly";
 
       setProfile((profileRes.data?.barber ?? null) as BarberProfile | null);
       setServices(Array.isArray(servicesRes.data?.services) ? servicesRes.data.services : []);
+      setPublicDiscoveryEnabled(
+        typeof settingsRes.data?.publicDiscoveryEnabled === "boolean"
+          ? settingsRes.data.publicDiscoveryEnabled
+          : true
+      );
 
       const rawSettings = (settingsRes.data?.settings ?? null) as AppSettings | null;
 
@@ -282,6 +290,11 @@ const isBasic = activePlan === "basic_monthly";
     const sub = res.data?.subscription;
 
     setActivePlan(sub?.activePlan ?? null);
+
+    if (typeof res.data?.publicDiscoveryEnabled === "boolean") {
+      setPublicDiscoveryEnabled(res.data.publicDiscoveryEnabled);
+    }
+
     setSubscriptionManagementUrl("");
   } catch (e) {
     console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
@@ -291,6 +304,56 @@ const isBasic = activePlan === "basic_monthly";
     setCheckingSubscription(false);
   }
 }
+
+  async function savePublicDiscoveryEnabled(nextValue: boolean) {
+    if (!isPro) {
+      Alert.alert(
+        "Nur mit Pro",
+        "Die öffentliche Sichtbarkeit ist nur in Salora Pro verfügbar."
+      );
+      return;
+    }
+
+    const previousValue = publicDiscoveryEnabled;
+
+    try {
+      setSavingVisibility(true);
+      setError("");
+      setMessage("");
+      setPublicDiscoveryEnabled(nextValue);
+
+      const res = await api.put(
+        "/admin/settings",
+        { publicDiscoveryEnabled: nextValue },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const savedValue =
+        typeof res.data?.publicDiscoveryEnabled === "boolean"
+          ? res.data.publicDiscoveryEnabled
+          : nextValue;
+
+      setPublicDiscoveryEnabled(savedValue);
+      setMessage(
+        savedValue
+          ? "Dein Salon ist jetzt öffentlich sichtbar."
+          : "Dein Salon ist jetzt nicht mehr in der öffentlichen Suche sichtbar."
+      );
+    } catch (e: any) {
+      setPublicDiscoveryEnabled(previousValue);
+      setError(
+        e?.response?.data?.error ||
+          "Die öffentliche Sichtbarkeit konnte nicht gespeichert werden."
+      );
+    } finally {
+      setSavingVisibility(false);
+    }
+  }
 
   async function saveProfile() {
     if (!profile) return;
@@ -848,8 +911,53 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
   <View style={[card, { marginBottom: 16, backgroundColor: "#f4fbf4", borderColor: "#cfe7d1" }]}>
     <Text style={sectionTitle}>Salora Pro aktiv</Text>
     <Text style={sectionSub}>
-      Du bist öffentlich sichtbar und kannst alle Pro-Funktionen nutzen.
+      Du kannst alle Pro-Funktionen nutzen. Ob dein Salon in der öffentlichen Suche erscheint,
+      entscheidest du selbst.
     </Text>
+  </View>
+) : null}
+
+{isPro ? (
+  <View style={[card, { marginBottom: 16 }]}>
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={sectionTitle}>Öffentliche Sichtbarkeit</Text>
+        <Text style={sectionSub}>
+          {publicDiscoveryEnabled
+            ? "Dein Salon wird Kunden aktuell in der Friseursuche angezeigt."
+            : "Dein Salon wird aktuell nicht in der Friseursuche angezeigt."}
+        </Text>
+      </View>
+
+      <Switch
+        value={publicDiscoveryEnabled}
+        onValueChange={savePublicDiscoveryEnabled}
+        disabled={savingVisibility}
+      />
+    </View>
+
+    <View style={[infoBox, { marginTop: 14 }]}>
+      <Text style={infoText}>
+        Auch wenn du die öffentliche Sichtbarkeit ausschaltest, bleiben dein direkter Profil-Link
+        und dein Buchungs-Link erreichbar.
+      </Text>
+    </View>
+
+    {savingVisibility ? (
+      <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <ActivityIndicator size="small" />
+        <Text style={{ color: "#666", fontSize: 13, fontWeight: "600" }}>
+          Sichtbarkeit wird gespeichert...
+        </Text>
+      </View>
+    ) : null}
   </View>
 ) : null}
 
