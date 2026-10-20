@@ -1010,10 +1010,11 @@ app.get("/barbers", async (req, res) => {
 
     const barbers = await prisma.barber.findMany({
       where: {
-  isActive: true,
-  subscriptionStatus: { in: ["active", "trialing"] },
-  subscriptionPlan: "pro_monthly",
-},
+        isActive: true,
+        subscriptionStatus: { in: ["active", "trialing"] },
+        subscriptionPlan: "pro_monthly",
+        publicDiscoveryEnabled: true,
+      },
       orderBy: [{ createdAt: "asc" }],
       select: {
         id: true,
@@ -1089,6 +1090,7 @@ app.get("/barbers/:slug", async (req, res) => {
         instagram: true,
         website: true,
         imageUrl: true,
+        publicDiscoveryEnabled: true,
         subscriptionStatus: true,
 subscriptionPlan: true,
 subscriptionExpiresAt: true,
@@ -2361,27 +2363,31 @@ app.get("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
     const { userId } = (req as any).user as JwtPayload;
     const barberId = await getBarberIdFromUser(userId);
 
-    const settings = await getSettings(barberId);
-    const barber = await prisma.barber.findUnique({
-  where: { id: barberId },
-  select: {
-    subscriptionStatus: true,
-    subscriptionPlan: true,
-    subscriptionExpiresAt: true,
-    trialEndsAt: true,
-  },
-});
+    const [settings, barber] = await Promise.all([
+      getSettings(barberId),
+      prisma.barber.findUnique({
+        where: { id: barberId },
+        select: {
+          publicDiscoveryEnabled: true,
+          subscriptionStatus: true,
+          subscriptionPlan: true,
+          subscriptionExpiresAt: true,
+          trialEndsAt: true,
+        },
+      }),
+    ]);
 
-const allowSmartScheduling = barber ? isProPlan(barber) : false;
+    const isPro = barber ? isProPlan(barber) : false;
 
-res.json({
-  ok: true,
-  settings,
-  features: {
-    publicDiscovery: allowSmartScheduling,
-    smartScheduling: allowSmartScheduling,
-  },
-});
+    res.json({
+      ok: true,
+      settings,
+      publicDiscoveryEnabled: barber?.publicDiscoveryEnabled ?? true,
+      features: {
+        publicDiscovery: isPro,
+        smartScheduling: isPro,
+      },
+    });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
   }
@@ -2395,6 +2401,7 @@ app.put("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
     const barber = await prisma.barber.findUnique({
       where: { id: barberId },
       select: {
+        publicDiscoveryEnabled: true,
         subscriptionStatus: true,
         subscriptionPlan: true,
         subscriptionExpiresAt: true,
@@ -2402,19 +2409,37 @@ app.put("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
       },
     });
 
-    const allowSmartScheduling = barber ? isProPlan(barber) : false;
+    if (!barber) {
+      return res.status(404).json({ error: "Barber not found" });
+    }
 
+    const isPro = isProPlan(barber);
     const current = await getSettings(barberId);
 
-    // wichtig: Kopie erstellen, nicht direkt req.body verändern
+    // Kopie erstellen, nicht direkt req.body verändern.
+    // publicDiscoveryEnabled gehört zum Barber und nicht in AppSetting.
     const body = { ...(req.body ?? {}) };
+    const requestedPublicDiscoveryEnabled = body.publicDiscoveryEnabled;
+    delete body.publicDiscoveryEnabled;
+
+    if (requestedPublicDiscoveryEnabled !== undefined) {
+      if (typeof requestedPublicDiscoveryEnabled !== "boolean") {
+        return res.status(400).json({ error: "publicDiscoveryEnabled must be boolean" });
+      }
+
+      if (!isPro) {
+        return res.status(403).json({
+          error: "Öffentliche Sichtbarkeit ist nur im Pro-Tarif verfügbar.",
+        });
+      }
+    }
 
     if (Array.isArray(body.workingHours)) {
       body.workingHours = body.workingHours.map((row: any) => {
         const copy = { ...row };
 
-        // Basic darf keine Pro-Slotlogik speichern
-        if (!allowSmartScheduling) {
+        // Basic darf keine Pro-Slotlogik speichern.
+        if (!isPro) {
           delete copy.extendIfFirstHourFull;
           delete copy.extendStepMin;
         }
@@ -2423,29 +2448,37 @@ app.put("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
       });
     }
 
-    if (!allowSmartScheduling) {
+    if (!isPro) {
       delete body.extendIfFirstHourFull;
       delete body.extendStepMin;
     }
 
-    const merged = { ...current, ...body };
-    const normalized = normalizeSettings(merged);
+    const normalized = normalizeSettings({ ...current, ...body });
 
-    await saveSettings(barberId, normalized);
+    await Promise.all([
+      saveSettings(barberId, normalized),
+      requestedPublicDiscoveryEnabled !== undefined
+        ? prisma.barber.update({
+            where: { id: barberId },
+            data: { publicDiscoveryEnabled: requestedPublicDiscoveryEnabled },
+          })
+        : Promise.resolve(),
+    ]);
 
     res.json({
       ok: true,
       settings: normalized,
+      publicDiscoveryEnabled:
+        requestedPublicDiscoveryEnabled ?? barber.publicDiscoveryEnabled,
       features: {
-        publicDiscovery: allowSmartScheduling,
-        smartScheduling: allowSmartScheduling,
+        publicDiscovery: isPro,
+        smartScheduling: isPro,
       },
     });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "Server error" });
   }
 });
-
 
 
 /* ---------- ADMIN profile ---------- */
@@ -2494,6 +2527,7 @@ app.get("/admin/subscription-status", requireAuth, requireRole("BARBER"), async 
       where: { id: barberId },
       select: {
         id: true,
+        publicDiscoveryEnabled: true,
         subscriptionStatus: true,
         subscriptionPlan: true,
         subscriptionSource: true,
@@ -2534,6 +2568,7 @@ const isBasic = activePlan === "basic_monthly";
   activePlan,
   plan: barber.subscriptionPlan,
   status: barber.subscriptionStatus,
+  publicDiscoveryEnabled: barber.publicDiscoveryEnabled,
 
   features: {
     publicDiscovery: isPro,
@@ -2737,6 +2772,7 @@ app.put("/admin/profile", requireAuth, requireRole("BARBER"), async (req, res) =
         instagram: true,
         website: true,
         imageUrl: true,
+        publicDiscoveryEnabled: true,
         subscriptionStatus: true,
 subscriptionPlan: true,
 subscriptionSource: true,
