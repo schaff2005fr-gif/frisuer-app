@@ -312,6 +312,7 @@ export default function BarberDashboardScreen() {
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   const [selectedBooking, setSelectedBooking] = useState<ApiBooking | null>(null);
+  const [expandedWeekDay, setExpandedWeekDay] = useState<string | null>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creatingBooking, setCreatingBooking] = useState(false);
@@ -755,20 +756,21 @@ async function fetchTimeBlocks(date: string) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f6f6f7" }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 34 }}>
-        <View style={{ marginBottom: 18 }}>
-          <Text style={{ fontSize: 34, lineHeight: 38, fontWeight: "900", color: "#111" }}>Dashboard</Text>
-
-          <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <View style={miniChip}>
-              <Text style={miniChipText}>
-                {view === "day" ? "Tagesansicht" : "Wochenansicht"}
+        <View style={{ marginBottom: 14 }}>
+          <View style={dashboardTitleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={dashboardTitle}>Dashboard</Text>
+              <Text style={dashboardSub}>
+                {view === "day"
+                  ? formatDayHeadline(anchorDate)
+                  : formatWeekRange(anchorDate)}
               </Text>
             </View>
 
             {view === "day" ? (
-              <View style={miniChipSoft}>
-                <Text style={miniChipSoftText}>
-                  {daySummary.active} aktive Termine
+              <View style={appointmentCountPill}>
+                <Text style={appointmentCountPillText}>
+                  {daySummary.active} {daySummary.active === 1 ? "Termin" : "Termine"}
                 </Text>
               </View>
             ) : null}
@@ -781,27 +783,32 @@ async function fetchTimeBlocks(date: string) {
               onPress={() => setView("day")}
               style={[segmentBtn, view === "day" ? segmentBtnActive : null]}
             >
-              <Text style={[segmentText, view === "day" ? segmentTextActive : null]}>Tag</Text>
+              <Text style={[segmentText, view === "day" ? segmentTextActive : null]}>
+                Tag
+              </Text>
             </Pressable>
+
 
             <Pressable
               onPress={() => setView("week")}
               style={[segmentBtn, view === "week" ? segmentBtnActive : null]}
             >
-              <Text style={[segmentText, view === "week" ? segmentTextActive : null]}>Woche</Text>
+              <Text style={[segmentText, view === "week" ? segmentTextActive : null]}>
+                Woche
+              </Text>
             </Pressable>
           </View>
 
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable onPress={goPrev} style={[topNavBtn, { flex: 1 }]}>
+          <View style={navRow}>
+            <Pressable onPress={goPrev} style={navArrowBtn}>
               <Text style={topNavBtnArrow}>←</Text>
             </Pressable>
 
-            <Pressable onPress={goToday} style={[topNavBtn, topNavBtnCenter]}>
-              <Text style={topNavBtnText}>Heute</Text>
+            <Pressable onPress={goToday} style={todayBtn}>
+              <Text style={todayBtnText}>Heute</Text>
             </Pressable>
 
-            <Pressable onPress={goNext} style={[topNavBtn, { flex: 1 }]}>
+            <Pressable onPress={goNext} style={navArrowBtn}>
               <Text style={topNavBtnArrow}>→</Text>
             </Pressable>
 
@@ -843,14 +850,13 @@ async function fetchTimeBlocks(date: string) {
             days={weekData}
             onSelectBooking={(booking) => setSelectedBooking(booking)}
             weekLabel={formatWeekRange(anchorDate)}
+            expandedDay={expandedWeekDay}
+            onToggleDay={(date) =>
+              setExpandedWeekDay((prev) => (prev === date ? null : date))
+            }
           />
         )}
 
-        <View style={hintBox}>
-          <Text style={hintText}>
-            In der Tagesansicht kannst du im Kalender nach links oder rechts wischen.
-          </Text>
-        </View>
       </ScrollView>
 
       <Modal visible={!!selectedBooking} animationType="slide" transparent>
@@ -1171,14 +1177,16 @@ function DayCalendar(props: {
     <View style={calendarCard} {...panResponder.panHandlers}>
       <View style={calendarTopRow}>
         <View style={{ flex: 1 }}>
-          <Text style={calendarDateText}>{formatDayHeadline(props.date)}</Text>
+          <View style={calendarTitleWithInfo}>
+            <Text style={calendarDateText}>{formatDayHeadline(props.date)}</Text>
+            <InfoButton
+              title="Tagesansicht"
+              text="Du kannst im Kalender nach links oder rechts wischen, um zum vorherigen oder nächsten Tag zu wechseln."
+            />
+          </View>
           <Text style={calendarSubText}>
             {props.bookings.length} {props.bookings.length === 1 ? "Termin" : "Termine"}
           </Text>
-        </View>
-
-        <View style={swipeHintChip}>
-          <Text style={swipeHintText}>Swipe</Text>
         </View>
       </View>
 
@@ -1369,12 +1377,20 @@ function WeekCalendar(props: {
   days: DayData[];
   onSelectBooking: (booking: ApiBooking) => void;
   weekLabel: string;
+  expandedDay: string | null;
+  onToggleDay: (date: string) => void;
 }) {
   return (
     <View style={calendarCard}>
       <View style={calendarTopRow}>
         <View style={{ flex: 1 }}>
-          <Text style={calendarDateText}>{props.weekLabel}</Text>
+          <View style={calendarTitleWithInfo}>
+            <Text style={calendarDateText}>{props.weekLabel}</Text>
+            <InfoButton
+              title="Wochenansicht"
+              text="Tippe auf einen Wochentag, um die Termine dieses Tages auf- oder zuzuklappen."
+            />
+          </View>
           <Text style={calendarSubText}>Wochenübersicht</Text>
         </View>
       </View>
@@ -1389,57 +1405,96 @@ function WeekCalendar(props: {
               return sa - sb;
             });
 
+          const isExpanded = props.expandedDay === day.date;
+          const firstStart = bookings.length
+            ? parseStartEndFromTimeHHMM(bookings[0].timeHHMM)?.startMin ?? null
+            : null;
+          const lastEnd = bookings.length
+            ? parseStartEndFromTimeHHMM(bookings[bookings.length - 1].timeHHMM)?.endMin ?? null
+            : null;
+
           return (
             <View key={day.date} style={weekDayCard}>
-              <View style={weekDayHead}>
-                <Text style={weekDayTitle}>{formatDayHeadline(day.date)}</Text>
-                <Text style={weekDayCount}>
-                  {bookings.length} {bookings.length === 1 ? "Termin" : "Termine"}
+              <Pressable
+                onPress={() => props.onToggleDay(day.date)}
+                style={weekAccordionHead}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={weekDayTitle}>{formatDayHeadline(day.date)}</Text>
+                  <Text style={weekDayCount}>
+                    {bookings.length} {bookings.length === 1 ? "Termin" : "Termine"}
+                    {firstStart !== null && lastEnd !== null
+                      ? ` • ${minToHHMM(firstStart)}–${minToHHMM(lastEnd)}`
+                      : ""}
+                  </Text>
+                </View>
+
+                <Text style={accordionChevron}>
+                  {isExpanded ? "▲" : "▼"}
                 </Text>
-              </View>
+              </Pressable>
 
-              <View style={{ padding: 12, gap: 8 }}>
-                {bookings.length === 0 ? (
-                  <Text style={emptyCalendarStateText}>Keine Termine</Text>
-                ) : (
-                  bookings.map((b) => {
-                    const colors = statusColors(b.status);
-                    return (
-                      <Pressable
-                        key={b.id}
-                        onPress={() => props.onSelectBooking(b)}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          borderRadius: 16,
-                          backgroundColor: colors.soft,
-                          overflow: "hidden",
-                          flexDirection: "row",
-                        }}
-                      >
-                        <View style={{ width: 6, backgroundColor: colors.accent }} />
+              {isExpanded ? (
+                <View style={weekAccordionBody}>
+                  {bookings.length === 0 ? (
+                    <Text style={emptyCalendarStateText}>Keine Termine</Text>
+                  ) : (
+                    bookings.map((b) => {
+                      const colors = statusColors(b.status);
+                      return (
+                        <Pressable
+                          key={b.id}
+                          onPress={() => props.onSelectBooking(b)}
+                          style={[
+                            weekBookingCard,
+                            {
+                              borderColor: colors.border,
+                              backgroundColor: colors.soft,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              weekBookingAccent,
+                              { backgroundColor: colors.accent },
+                            ]}
+                          />
 
-                        <View style={{ flex: 1, padding: 12 }}>
-                          <Text style={{ fontWeight: "900", fontSize: 13, color: "#111" }}>
-                            {b.timeHHMM || "—"}
-                          </Text>
-                          <Text style={{ marginTop: 4, fontWeight: "900", color: "#111" }}>
-                            {b.customer?.name || "Ohne Namen"}
-                          </Text>
-                          <Text style={{ marginTop: 3, fontSize: 12, color: "#555" }}>
-                            {b.service?.name || b.service?.key || "Service"}
-                          </Text>
-                        </View>
-                      </Pressable>
-                    );
-                  })
-                )}
-              </View>
+                          <View style={weekBookingContent}>
+                            <Text style={weekBookingTime}>{b.timeHHMM || "—"}</Text>
+                            <Text style={weekBookingName}>
+                              {b.customer?.name || "Ohne Namen"}
+                            </Text>
+                            <Text style={weekBookingService}>
+                              {b.service?.name || b.service?.key || "Service"}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })
+                  )}
+                </View>
+              ) : null}
             </View>
           );
         })}
       </View>
     </View>
+  );
+}
+
+function InfoButton(props: { title: string; text: string }) {
+  return (
+    <Pressable
+      onPress={() => {
+        const { Alert } = require("react-native");
+        Alert.alert(props.title, props.text);
+      }}
+      hitSlop={10}
+      style={infoButton}
+    >
+      <Text style={infoButtonText}>i</Text>
+    </Pressable>
   );
 }
 
@@ -1490,6 +1545,157 @@ function StatusButton(props: {
     </Pressable>
   );
 }
+
+const dashboardTitleRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const dashboardTitle = {
+  fontSize: 34,
+  lineHeight: 38,
+  fontWeight: "900" as const,
+  color: "#111",
+} as const;
+
+const dashboardSub = {
+  marginTop: 6,
+  color: "#666",
+  fontSize: 15,
+  lineHeight: 20,
+  textTransform: "capitalize" as const,
+} as const;
+
+const appointmentCountPill = {
+  paddingVertical: 7,
+  paddingHorizontal: 10,
+  borderRadius: 999,
+  backgroundColor: "#ececef",
+} as const;
+
+const appointmentCountPillText = {
+  color: "#444",
+  fontSize: 12,
+  fontWeight: "800" as const,
+} as const;
+
+const navRow = {
+  flexDirection: "row" as const,
+  gap: 8,
+  alignItems: "center" as const,
+} as const;
+
+const navArrowBtn = {
+  width: 46,
+  minHeight: 44,
+  borderRadius: 14,
+  borderWidth: 1,
+  borderColor: "#dddddf",
+  backgroundColor: "#fff",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const todayBtn = {
+  flex: 1,
+  minHeight: 44,
+  borderRadius: 14,
+  borderWidth: 1,
+  borderColor: "#dddddf",
+  backgroundColor: "#fff",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const todayBtnText = {
+  color: "#111",
+  fontWeight: "900" as const,
+  fontSize: 15,
+} as const;
+
+const calendarTitleWithInfo = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 8,
+  flexWrap: "wrap" as const,
+} as const;
+
+const infoButton = {
+  width: 28,
+  height: 28,
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: "#d8d8dc",
+  backgroundColor: "#f7f7f8",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const infoButtonText = {
+  color: "#333",
+  fontSize: 15,
+  lineHeight: 18,
+  fontWeight: "900" as const,
+  fontStyle: "italic" as const,
+} as const;
+
+const accordionChevron = {
+  color: "#555",
+  fontSize: 13,
+  fontWeight: "900" as const,
+} as const;
+
+const weekAccordionHead = {
+  minHeight: 64,
+  paddingVertical: 12,
+  paddingHorizontal: 14,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  backgroundColor: "#fcfcfd",
+} as const;
+
+const weekAccordionBody = {
+  borderTopWidth: 1,
+  borderTopColor: "#eee",
+  padding: 12,
+  gap: 8,
+} as const;
+
+const weekBookingCard = {
+  borderWidth: 1,
+  borderRadius: 16,
+  overflow: "hidden" as const,
+  flexDirection: "row" as const,
+} as const;
+
+const weekBookingAccent = {
+  width: 6,
+} as const;
+
+const weekBookingContent = {
+  flex: 1,
+  padding: 12,
+} as const;
+
+const weekBookingTime = {
+  fontWeight: "900" as const,
+  fontSize: 13,
+  color: "#111",
+} as const;
+
+const weekBookingName = {
+  marginTop: 4,
+  fontWeight: "900" as const,
+  color: "#111",
+} as const;
+
+const weekBookingService = {
+  marginTop: 3,
+  fontSize: 12,
+  color: "#555",
+} as const;
 
 const miniChip = {
   paddingVertical: 7,
@@ -1649,22 +1855,6 @@ const errText = {
   fontWeight: "700" as const,
 } as const;
 
-const hintBox = {
-  marginTop: 14,
-  paddingVertical: 13,
-  paddingHorizontal: 14,
-  borderRadius: 16,
-  borderWidth: 1,
-  borderColor: "#e7e7ea",
-  backgroundColor: "#fbfbfc",
-} as const;
-
-const hintText = {
-  color: "#666",
-  fontSize: 13,
-  lineHeight: 18,
-} as const;
-
 const modalBackdrop = {
   flex: 1,
   backgroundColor: "rgba(0,0,0,0.35)",
@@ -1797,19 +1987,6 @@ const calendarSubText = {
   fontSize: 13,
   color: "#6b6b70",
   fontWeight: "700" as const,
-} as const;
-
-const swipeHintChip = {
-  paddingVertical: 7,
-  paddingHorizontal: 10,
-  borderRadius: 999,
-  backgroundColor: "#f0f0f2",
-} as const;
-
-const swipeHintText = {
-  fontSize: 12,
-  color: "#444",
-  fontWeight: "800" as const,
 } as const;
 
 const calendarGridWrap = {

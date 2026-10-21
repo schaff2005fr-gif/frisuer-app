@@ -46,12 +46,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const savedToken = await AsyncStorage.getItem("token");
       const savedUser = await AsyncStorage.getItem("user");
 
-      if (savedToken) setToken(savedToken);
-      if (savedUser) setUser(JSON.parse(savedUser));
+      if (savedToken) {
+        setToken(savedToken);
+      }
+
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
     } catch (e) {
       console.log("Auth load error:", e);
+
       await AsyncStorage.removeItem("token");
       await AsyncStorage.removeItem("user");
+
       setToken(null);
       setUser(null);
     } finally {
@@ -62,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signIn(newToken: string, newUser: User) {
     await AsyncStorage.setItem("token", newToken);
     await AsyncStorage.setItem("user", JSON.stringify(newUser));
+
     setToken(newToken);
     setUser(newUser);
   }
@@ -69,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     await AsyncStorage.removeItem("token");
     await AsyncStorage.removeItem("user");
+
     setToken(null);
     setUser(null);
   }
@@ -82,8 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const value = useContext(AuthContext);
+
   if (!value) {
     throw new Error("useAuth must be used inside AuthProvider");
   }
+
   return value;
 }
