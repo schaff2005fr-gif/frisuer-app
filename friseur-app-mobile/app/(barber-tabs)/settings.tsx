@@ -52,6 +52,7 @@ type WorkingHoursRow = {
   displayStartMin: number;
   displayEndMin: number;
   extendIfFirstHourFull: boolean;
+  extendIfLastHourFull: boolean;
   extendStepMin: number;
 };
 
@@ -61,6 +62,7 @@ type AppSettings = {
   displayStartMin: number;
   displayEndMin: number;
   extendIfFirstHourFull: boolean;
+  extendIfLastHourFull: boolean;
   extendStepMin: number;
   minDaysBetweenBookings: number;
 };
@@ -772,6 +774,10 @@ const isBasic = activePlan === "basic_monthly";
         typeof (row as any).extendIfFirstHourFull === "boolean"
           ? Boolean((row as any).extendIfFirstHourFull)
           : Boolean((settings as any)?.extendIfFirstHourFull ?? true),
+      extendIfLastHourFull:
+        typeof (row as any).extendIfLastHourFull === "boolean"
+          ? Boolean((row as any).extendIfLastHourFull)
+          : Boolean((settings as any)?.extendIfLastHourFull ?? true),
       extendStepMin: Number.isFinite((row as any).extendStepMin)
         ? Number((row as any).extendStepMin)
         : Number.isFinite((settings as any)?.extendStepMin)
@@ -790,6 +796,7 @@ const isBasic = activePlan === "basic_monthly";
         displayStartMin: 12 * 60,
         displayEndMin: 17 * 60,
         extendIfFirstHourFull: true,
+        extendIfLastHourFull: true,
         extendStepMin: 60,
       }
   );
@@ -1308,8 +1315,8 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
       <Text style={infoTitle}>So funktioniert es</Text>
       <Text style={infoText}>
         Arbeitszeit ist dein echter verfügbarer Zeitraum. Sichtbare Kundenzeit ist der Bereich,
-        den Kunden zuerst sehen. Mit Pro können automatisch frühere Slots geöffnet werden,
-        sobald die erste sichtbare Stunde voll ist.
+        den Kunden zuerst sehen. Mit Pro kann Salora automatisch frühere oder spätere Slots öffnen,
+        sobald am Anfang oder Ende des sichtbaren Zeitfensters nichts Passendes mehr frei ist.
       </Text>
     </View>
 
@@ -1470,7 +1477,7 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
                     <View style={{ flex: 1 }}>
                       <Text style={subSectionTitle}>3. Automatische Erweiterung</Text>
                       <Text style={subSectionText}>
-                        Wenn die erste sichtbare Stunde voll ist, öffnet Salora automatisch frühere Zeiten.
+                        Salora kann das sichtbare Zeitfenster automatisch nach vorne und hinten erweitern.
                       </Text>
                     </View>
 
@@ -1481,41 +1488,77 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
                     ) : null}
                   </View>
 
-                  <Pressable
-                    onPress={() => {
-                      if (!isPro) {
-                        Alert.alert(
-                          "Nur mit Pro",
-                          "Diese Funktion ist nur in Salora Pro verfügbar."
-                        );
-                        return;
-                      }
-
-                      updateWorkingDay(row.day, {
-                        extendIfFirstHourFull: !row.extendIfFirstHourFull,
-                      });
-                    }}
-                    style={[
-                      row.extendIfFirstHourFull && isPro ? primaryBtnSmall : secondaryBtnSmall,
-                      !isPro ? disabledBtn : null,
-                    ]}
-                  >
-                    <Text
-                      style={
-                        row.extendIfFirstHourFull && isPro
-                          ? primaryBtnSmallText
-                          : secondaryBtnSmallText
-                      }
+                  <View style={{ gap: 12 }}>
+                    <Field
+                      label="Frühere Zeiten öffnen"
+                      helperText="Wenn in der ersten sichtbaren Stunde kein passender Termin mehr frei ist, werden frühere Zeiten geöffnet."
                     >
-                      {isPro ? (row.extendIfFirstHourFull ? "Aktiv" : "Aus") : "Pro-Funktion"}
-                    </Text>
-                  </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          if (!isPro) {
+                            Alert.alert("Nur mit Pro", "Diese Funktion ist nur in Salora Pro verfügbar.");
+                            return;
+                          }
 
-                  {isPro && row.extendIfFirstHourFull ? (
+                          updateWorkingDay(row.day, {
+                            extendIfFirstHourFull: !row.extendIfFirstHourFull,
+                          });
+                        }}
+                        style={[
+                          row.extendIfFirstHourFull && isPro ? primaryBtnSmall : secondaryBtnSmall,
+                          !isPro ? disabledBtn : null,
+                        ]}
+                      >
+                        <Text
+                          style={
+                            row.extendIfFirstHourFull && isPro
+                              ? primaryBtnSmallText
+                              : secondaryBtnSmallText
+                          }
+                        >
+                          {isPro ? (row.extendIfFirstHourFull ? "Aktiv" : "Aus") : "Pro-Funktion"}
+                        </Text>
+                      </Pressable>
+                    </Field>
+
+                    <Field
+                      label="Spätere Zeiten öffnen"
+                      helperText="Wenn in der letzten sichtbaren Stunde kein passender Termin mehr frei ist, werden spätere Zeiten geöffnet."
+                    >
+                      <Pressable
+                        onPress={() => {
+                          if (!isPro) {
+                            Alert.alert("Nur mit Pro", "Diese Funktion ist nur in Salora Pro verfügbar.");
+                            return;
+                          }
+
+                          updateWorkingDay(row.day, {
+                            extendIfLastHourFull: !row.extendIfLastHourFull,
+                          });
+                        }}
+                        style={[
+                          row.extendIfLastHourFull && isPro ? primaryBtnSmall : secondaryBtnSmall,
+                          !isPro ? disabledBtn : null,
+                        ]}
+                      >
+                        <Text
+                          style={
+                            row.extendIfLastHourFull && isPro
+                              ? primaryBtnSmallText
+                              : secondaryBtnSmallText
+                          }
+                        >
+                          {isPro ? (row.extendIfLastHourFull ? "Aktiv" : "Aus") : "Pro-Funktion"}
+                        </Text>
+                      </Pressable>
+                    </Field>
+                  </View>
+
+                  {isPro && (row.extendIfFirstHourFull || row.extendIfLastHourFull) ? (
                     <View style={{ marginTop: 12 }}>
                       <SelectField
                         label="Erweiterungsschritt"
-                        helperText="Beispiel: Bei 60 min öffnet Salora jeweils eine Stunde früher."
+                        helperText="Beispiel: Bei 60 min erweitert Salora das Zeitfenster jeweils um eine Stunde."
                         value={row.extendStepMin}
                         options={EXTEND_STEP_OPTIONS.map((value) => ({
                           label: `${value} min`,
@@ -1573,7 +1616,7 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
               
 
               <Field
-  label="Automatische Vorverlagerung"
+  label="Frühere Slots automatisch öffnen"
   helperText={
   isPro
     ? "Aktiviere diese Funktion, wenn Salora automatisch zusätzliche frühere Slots freigeben soll."
@@ -1603,7 +1646,38 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
   </Pressable>
 </Field>
 
-{isPro && settings.extendIfFirstHourFull ? (
+<Field
+  label="Spätere Slots automatisch öffnen"
+  helperText={
+    isPro
+      ? "Aktiviere diese Funktion, wenn Salora automatisch zusätzliche spätere Slots freigeben soll."
+      : "Diese Funktion ist in Basic gesperrt. Deine Kunden sehen feste Zeiten über deinen Buchungslink."
+  }
+>
+  <Pressable
+    onPress={() => {
+      if (!isPro) {
+        Alert.alert("Nur mit Pro", "Diese Funktion ist nur in Salora Pro verfügbar.");
+        return;
+      }
+
+      setSettings({
+        ...settings,
+        extendIfLastHourFull: !settings.extendIfLastHourFull,
+      });
+    }}
+    style={[
+      isPro && settings.extendIfLastHourFull ? primaryBtnSmall : secondaryBtnSmall,
+      !isPro ? disabledBtn : null,
+    ]}
+  >
+    <Text style={isPro && settings.extendIfLastHourFull ? primaryBtnSmallText : secondaryBtnSmallText}>
+      {isPro ? (settings.extendIfLastHourFull ? "AN" : "AUS") : "PRO"}
+    </Text>
+  </Pressable>
+</Field>
+
+{isPro && (settings.extendIfFirstHourFull || settings.extendIfLastHourFull) ? (
   <View
     style={{
       borderWidth: 1,
@@ -1631,7 +1705,7 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
         lineHeight: 18,
       }}
     >
-      Diese Werte nutzt Salora nur, wenn deine erste sichtbare Stunde voll ist.
+      Diese Werte nutzt Salora, wenn am Anfang oder Ende des sichtbaren Zeitfensters keine passenden freien Slots mehr vorhanden sind.
     </Text>
 
     <SelectField
@@ -1677,7 +1751,7 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
 
     <SelectField
       label="Erweiterungsschritt"
-      helperText="Bestimmt, in welchen Schritten früher geöffnet wird."
+      helperText="Bestimmt, in welchen Schritten das Zeitfenster früher oder später erweitert wird."
       value={settings.extendStepMin}
       options={EXTEND_STEP_OPTIONS.map((value) => ({
         label: `${value} min`,
