@@ -11,6 +11,10 @@ import {
   View,
   Linking,
   Share,
+  Switch,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -51,6 +55,7 @@ type WorkingHoursRow = {
   displayStartMin: number;
   displayEndMin: number;
   extendIfFirstHourFull: boolean;
+  extendIfLastHourFull: boolean;
   extendStepMin: number;
 };
 
@@ -60,6 +65,7 @@ type AppSettings = {
   displayStartMin: number;
   displayEndMin: number;
   extendIfFirstHourFull: boolean;
+  extendIfLastHourFull: boolean;
   extendStepMin: number;
   minDaysBetweenBookings: number;
 };
@@ -81,25 +87,6 @@ const WEEKDAYS = [
 const SERVICE_DURATION_OPTIONS = [10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
 const STEP_MIN_OPTIONS = [5, 10, 15, 20, 30];
 const EXTEND_STEP_OPTIONS = [15, 30, 45, 60];
-const DISPLAY_TIME_OPTIONS = [
-  6 * 60,
-  7 * 60,
-  8 * 60,
-  9 * 60,
-  10 * 60,
-  11 * 60,
-  12 * 60,
-  13 * 60,
-  14 * 60,
-  15 * 60,
-  16 * 60,
-  17 * 60,
-  18 * 60,
-  19 * 60,
-  20 * 60,
-  21 * 60,
-  22 * 60,
-];
 const MIN_DAYS_OPTIONS = [0, 1, 2, 3, 5, 7, 10, 14, 21, 30];
 const WORK_TIME_OPTIONS = [
   6 * 60,
@@ -195,6 +182,7 @@ const isBasic = activePlan === "basic_monthly";
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
   const [savingHours, setSavingHours] = useState(false);
+  const [savingVisibility, setSavingVisibility] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [creatingService, setCreatingService] = useState(false);
   const [busyServiceId, setBusyServiceId] = useState<number | null>(null);
@@ -205,9 +193,15 @@ const isBasic = activePlan === "basic_monthly";
   const [profile, setProfile] = useState<BarberProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [publicDiscoveryEnabled, setPublicDiscoveryEnabled] = useState(true);
 
   const [newServiceName, setNewServiceName] = useState("");
   const [newServiceDuration, setNewServiceDuration] = useState(30);
+  const [showNewServiceModal, setShowNewServiceModal] = useState(false);
+  const [expandedServiceId, setExpandedServiceId] = useState<number | null>(null);
+
+  // Auf dem Handy bleibt immer nur ein Wochentag aufgeklappt.
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
 
   useEffect(() => {
     if (!token || !user) {
@@ -243,6 +237,11 @@ const isBasic = activePlan === "basic_monthly";
 
       setProfile((profileRes.data?.barber ?? null) as BarberProfile | null);
       setServices(Array.isArray(servicesRes.data?.services) ? servicesRes.data.services : []);
+      setPublicDiscoveryEnabled(
+        typeof settingsRes.data?.publicDiscoveryEnabled === "boolean"
+          ? settingsRes.data.publicDiscoveryEnabled
+          : true
+      );
 
       const rawSettings = (settingsRes.data?.settings ?? null) as AppSettings | null;
 
@@ -282,6 +281,11 @@ const isBasic = activePlan === "basic_monthly";
     const sub = res.data?.subscription;
 
     setActivePlan(sub?.activePlan ?? null);
+
+    if (typeof res.data?.publicDiscoveryEnabled === "boolean") {
+      setPublicDiscoveryEnabled(res.data.publicDiscoveryEnabled);
+    }
+
     setSubscriptionManagementUrl("");
   } catch (e) {
     console.log("LOAD SUBSCRIPTION STATUS ERROR:", e);
@@ -291,6 +295,56 @@ const isBasic = activePlan === "basic_monthly";
     setCheckingSubscription(false);
   }
 }
+
+  async function savePublicDiscoveryEnabled(nextValue: boolean) {
+    if (!isPro) {
+      Alert.alert(
+        "Nur mit Pro",
+        "Die öffentliche Sichtbarkeit ist nur in Salora Pro verfügbar."
+      );
+      return;
+    }
+
+    const previousValue = publicDiscoveryEnabled;
+
+    try {
+      setSavingVisibility(true);
+      setError("");
+      setMessage("");
+      setPublicDiscoveryEnabled(nextValue);
+
+      const res = await api.put(
+        "/admin/settings",
+        { publicDiscoveryEnabled: nextValue },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const savedValue =
+        typeof res.data?.publicDiscoveryEnabled === "boolean"
+          ? res.data.publicDiscoveryEnabled
+          : nextValue;
+
+      setPublicDiscoveryEnabled(savedValue);
+      setMessage(
+        savedValue
+          ? "Dein Salon ist jetzt öffentlich sichtbar."
+          : "Dein Salon ist jetzt nicht mehr in der öffentlichen Suche sichtbar."
+      );
+    } catch (e: any) {
+      setPublicDiscoveryEnabled(previousValue);
+      setError(
+        e?.response?.data?.error ||
+          "Die öffentliche Sichtbarkeit konnte nicht gespeichert werden."
+      );
+    } finally {
+      setSavingVisibility(false);
+    }
+  }
 
   async function saveProfile() {
     if (!profile) return;
@@ -489,6 +543,8 @@ const isBasic = activePlan === "basic_monthly";
       setServices((prev) => [...prev, created].sort((a, b) => a.id - b.id));
       setNewServiceName("");
       setNewServiceDuration(30);
+      setShowNewServiceModal(false);
+      setExpandedServiceId(created.id);
       setMessage("Service hinzugefügt.");
     } catch (e: any) {
       setError(e?.response?.data?.error || "Service konnte nicht erstellt werden.");
@@ -709,6 +765,10 @@ const isBasic = activePlan === "basic_monthly";
         typeof (row as any).extendIfFirstHourFull === "boolean"
           ? Boolean((row as any).extendIfFirstHourFull)
           : Boolean((settings as any)?.extendIfFirstHourFull ?? true),
+      extendIfLastHourFull:
+        typeof (row as any).extendIfLastHourFull === "boolean"
+          ? Boolean((row as any).extendIfLastHourFull)
+          : Boolean((settings as any)?.extendIfLastHourFull ?? true),
       extendStepMin: Number.isFinite((row as any).extendStepMin)
         ? Number((row as any).extendStepMin)
         : Number.isFinite((settings as any)?.extendStepMin)
@@ -727,6 +787,7 @@ const isBasic = activePlan === "basic_monthly";
         displayStartMin: 12 * 60,
         displayEndMin: 17 * 60,
         extendIfFirstHourFull: true,
+        extendIfLastHourFull: true,
         extendStepMin: 60,
       }
   );
@@ -827,31 +888,6 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
             <Text style={[tabBtnText, tab === "RULES" ? tabBtnTextActive : null]}>Regeln</Text>
           </Pressable>
         </View>
-
-        {isBasic ? (
-  <View style={[card, { marginBottom: 16, backgroundColor: "#fffaf0", borderColor: "#f0d6a6" }]}>
-    <Text style={sectionTitle}>Salora Basic aktiv</Text>
-    <Text style={sectionSub}>
-      Du bist aktuell nur über deinen eigenen Buchungslink erreichbar. Öffentliche Sichtbarkeit und intelligente Zeitfenster sind nur in Salora Pro enthalten.
-    </Text>
-
-    <Pressable
-      onPress={() => router.push("/barber/subscription?mode=upgrade" as any)}
-      style={[primaryBtn, { marginTop: 14 }]}
-    >
-      <Text style={primaryBtnText}>Auf Pro upgraden</Text>
-    </Pressable>
-  </View>
-) : null}
-
-{isPro ? (
-  <View style={[card, { marginBottom: 16, backgroundColor: "#f4fbf4", borderColor: "#cfe7d1" }]}>
-    <Text style={sectionTitle}>Salora Pro aktiv</Text>
-    <Text style={sectionSub}>
-      Du bist öffentlich sichtbar und kannst alle Pro-Funktionen nutzen.
-    </Text>
-  </View>
-) : null}
 
         {tab === "PROFILE" ? (
           <>
@@ -1043,24 +1079,117 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
               </View>
             )}
 
-            <View style={[card, { marginTop: 16 }]}>
-              <Text style={sectionTitle}>Konto</Text>
-              <Text style={sectionSub}>Sichere Aktionen für deinen Account.</Text>
-              <Text style={[sectionSub, { marginTop: 10 }]}>
-                Abonnements werden über Apple verwaltet. Kündigung und Verwaltung erfolgen in deinen Apple-Abonnements.
-              </Text>
+            {isPro ? (
+              <View style={[compactCard, { marginTop: 16 }]}>
+                <View style={compactCardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <View style={compactTitleRow}>
+                      <Text style={compactCardTitle}>Öffentliche Sichtbarkeit</Text>
+                      <InfoButton
+                        title="Öffentliche Sichtbarkeit"
+                        text={
+                          "Wenn diese Option aktiv ist, erscheint dein Salon in der öffentlichen Friseursuche.\n\n" +
+                          "Wenn du sie ausschaltest, bleiben dein Profil-Link und dein Buchungs-Link weiterhin erreichbar."
+                        }
+                      />
+                    </View>
 
-              <View style={{ gap: 10, marginTop: 16 }}>
+                    <Text style={compactCardSub}>
+                      {publicDiscoveryEnabled
+                        ? "Dein Salon wird in der Friseursuche angezeigt."
+                        : "Dein Salon ist aktuell nicht in der Friseursuche sichtbar."}
+                    </Text>
+                  </View>
+
+                  <Switch
+                    value={publicDiscoveryEnabled}
+                    onValueChange={savePublicDiscoveryEnabled}
+                    disabled={savingVisibility}
+                  />
+                </View>
+
+                {savingVisibility ? (
+                  <View style={compactSavingRow}>
+                    <ActivityIndicator size="small" />
+                    <Text style={compactSavingText}>Wird gespeichert...</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={[compactCard, { marginTop: 16 }]}>
+              <View style={compactCardHeader}>
+                <View style={{ flex: 1 }}>
+                  <View style={compactTitleRow}>
+                    <Text style={compactCardTitle}>Dein Abo</Text>
+                    <InfoButton
+                      title="Dein Abo"
+                      text={
+                        isPro
+                          ? "Du nutzt Salora Pro mit allen Pro-Funktionen."
+                          : isBasic
+                          ? "Du nutzt Salora Basic. Einige Funktionen, zum Beispiel öffentliche Sichtbarkeit und intelligente Zeitfenster, sind nur mit Pro verfügbar."
+                          : "Aktuell ist kein aktives Salora-Abo erkannt."
+                      }
+                    />
+                  </View>
+
+                  <Text style={planStatusText}>
+                    {isPro
+                      ? "Salora Pro"
+                      : isBasic
+                      ? "Salora Basic"
+                      : "Kein aktives Abo"}
+                  </Text>
+
+                  <Text style={compactCardSub}>
+                    {isPro
+                      ? "Alle Pro-Funktionen sind freigeschaltet."
+                      : isBasic
+                      ? "Basisfunktionen sind freigeschaltet."
+                      : "Wähle ein Abo, um Salora weiter zu nutzen."}
+                  </Text>
+                </View>
+
+                <View style={compactPlanPill}>
+                  <Text style={compactPlanPillText}>
+                    {isPro ? "PRO" : isBasic ? "BASIC" : "—"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ marginTop: 12 }}>
                 <Pressable
                   onPress={openSubscriptionManagement}
                   disabled={checkingSubscription}
-                  style={[secondaryBtn, checkingSubscription ? disabledBtn : null]}
+                  style={[
+                    secondaryBtn,
+                    checkingSubscription ? disabledBtn : null,
+                  ]}
                 >
                   <Text style={secondaryBtnText}>
                     {checkingSubscription ? "Lädt..." : "Abo verwalten"}
                   </Text>
                 </Pressable>
+              </View>
 
+              {isBasic ? (
+                <Pressable
+                  onPress={() =>
+                    router.push("/barber/subscription?mode=upgrade" as any)
+                  }
+                  style={[primaryBtn, { marginTop: 10 }]}
+                >
+                  <Text style={primaryBtnText}>Auf Pro upgraden</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={[card, { marginTop: 16 }]}>
+              <Text style={sectionTitle}>Konto</Text>
+              <Text style={sectionSub}>Sichere Aktionen für deinen Account.</Text>
+
+              <View style={{ gap: 10, marginTop: 16 }}>
                 <Pressable onPress={confirmLogout} style={secondaryBtn}>
                   <Text style={secondaryBtnText}>Ausloggen</Text>
                 </Pressable>
@@ -1074,537 +1203,749 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
         ) : tab === "SERVICES" ? (
           <>
             <View style={card}>
-              <Text style={sectionTitle}>Neuen Service anlegen</Text>
-              <Text style={sectionSub}>Name eingeben, Dauer auswählen.</Text>
+              <View style={serviceHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <View style={sectionTitleRow}>
+                    <Text style={sectionTitle}>Services</Text>
+                    <InfoButton
+                      title="Services"
+                      text="Hier verwaltest du alle Leistungen, die Kunden buchen können. Tippe auf einen Service, um Name, Dauer oder Status zu ändern."
+                    />
+                  </View>
+                  <Text style={sectionSub}>
+                    {services.length === 0
+                      ? "Noch keine Services angelegt."
+                      : `${services.length} Service${services.length === 1 ? "" : "s"} angelegt`}
+                  </Text>
+                </View>
 
-              <View style={fieldGap}>
-                <Field label="Service-Name">
-                  <TextInput
-                    value={newServiceName}
-                    onChangeText={setNewServiceName}
-                    placeholder="z. B. Haare"
-                    placeholderTextColor="#9a9a9a"
-                    style={input}
-                  />
-                </Field>
-
-                <SelectField
-                  label="Dauer"
-                  value={newServiceDuration}
-                  options={SERVICE_DURATION_OPTIONS.map((dur) => ({
-                    label: `${dur} min`,
-                    value: dur,
-                  }))}
-                  onChange={setNewServiceDuration}
-                />
+                <Pressable
+                  onPress={() => {
+                    setNewServiceName("");
+                    setNewServiceDuration(30);
+                    setShowNewServiceModal(true);
+                  }}
+                  style={addServiceButton}
+                >
+                  <Text style={addServicePlus}>＋</Text>
+                </Pressable>
               </View>
 
-              <Pressable
-                onPress={createService}
-                disabled={creatingService}
-                style={[primaryBtn, { marginTop: 16 }, creatingService ? disabledBtn : null]}
-              >
-                <Text style={primaryBtnText}>{creatingService ? "Speichert..." : "Service hinzufügen"}</Text>
-              </Pressable>
-            </View>
-
-            <View style={[card, { marginTop: 16 }]}>
-              <Text style={sectionTitle}>Deine Services</Text>
-              <Text style={sectionSub}>Dauer ändern, aktivieren oder löschen.</Text>
-
-              <View style={{ marginTop: 16, gap: 12 }}>
+              <View style={{ marginTop: 16, gap: 10 }}>
                 {services.length === 0 ? (
-                  <View style={linkCard}>
-                    <Text style={linkValue}>Noch keine Services vorhanden.</Text>
-                  </View>
+                  <Pressable
+                    onPress={() => setShowNewServiceModal(true)}
+                    style={emptyServiceCard}
+                  >
+                    <View style={emptyServicePlusCircle}>
+                      <Text style={emptyServicePlus}>＋</Text>
+                    </View>
+                    <Text style={emptyServiceTitle}>Ersten Service anlegen</Text>
+                    <Text style={emptyServiceText}>
+                      Zum Beispiel „Haare“, „Bart“ oder „Haare + Bart“
+                    </Text>
+                  </Pressable>
                 ) : (
                   services
                     .slice()
                     .sort((a, b) => a.id - b.id)
                     .map((service) => {
                       const isBusy = busyServiceId === service.id;
+                      const isExpanded = expandedServiceId === service.id;
 
                       return (
-                        <View key={service.id} style={serviceCard}>
-                          <TextInput
-                            defaultValue={service.name}
-                            onEndEditing={(e) => {
-                              const v = e.nativeEvent.text.trim();
-                              if (v && v !== service.name) {
-                                updateService(service.id, { name: v });
-                              }
-                            }}
-                            style={input}
-                            placeholder="Service-Name"
-                            placeholderTextColor="#9a9a9a"
-                          />
-
-                          <View style={{ marginTop: 12 }}>
-                            <SelectField
-                              label="Dauer"
-                              value={service.durationMin}
-                              options={SERVICE_DURATION_OPTIONS.map((dur) => ({
-                                label: `${dur} min`,
-                                value: dur,
-                              }))}
-                              onChange={(dur) => updateService(service.id, { durationMin: dur })}
-                            />
-                          </View>
-
-                          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-                            <Pressable
-                              onPress={() => updateService(service.id, { isActive: !service.isActive })}
-                              disabled={isBusy}
-                              style={[
-                                service.isActive ? primaryBtnSmall : secondaryBtnSmall,
-                                { flex: 1 },
-                                isBusy ? disabledBtn : null,
-                              ]}
-                            >
-                              <Text style={service.isActive ? primaryBtnSmallText : secondaryBtnSmallText}>
-                                {service.isActive ? "Aktiv" : "Inaktiv"}
+                        <View key={service.id} style={serviceAccordionCard}>
+                          <Pressable
+                            onPress={() =>
+                              setExpandedServiceId(isExpanded ? null : service.id)
+                            }
+                            style={serviceAccordionHeader}
+                          >
+                            <View style={serviceIconCircle}>
+                              <Text style={serviceIconText}>
+                                {service.name?.trim()?.[0]?.toUpperCase() || "S"}
                               </Text>
-                            </Pressable>
+                            </View>
 
-                            <Pressable
-                              onPress={() => deleteService(service.id)}
-                              disabled={isBusy}
-                              style={[dangerBtnSmall, { flex: 1 }, isBusy ? disabledBtn : null]}
-                            >
-                              <Text style={dangerBtnSmallText}>Löschen</Text>
-                            </Pressable>
-                          </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={serviceNameText}>{service.name}</Text>
+
+                              <View style={serviceMetaRow}>
+                                <Text style={serviceDurationText}>
+                                  {service.durationMin} min
+                                </Text>
+
+                                <View style={serviceMetaDivider} />
+
+                                <View style={serviceStatusRow}>
+                                  <View
+                                    style={[
+                                      serviceStatusDot,
+                                      service.isActive
+                                        ? serviceStatusDotActive
+                                        : serviceStatusDotInactive,
+                                    ]}
+                                  />
+                                  <Text
+                                    style={[
+                                      serviceStatusText,
+                                      !service.isActive
+                                        ? serviceStatusTextInactive
+                                        : null,
+                                    ]}
+                                  >
+                                    {service.isActive ? "Aktiv" : "Inaktiv"}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+
+                            <Text style={accordionChevron}>
+                              {isExpanded ? "▲" : "▼"}
+                            </Text>
+                          </Pressable>
+
+                          {isExpanded ? (
+                            <View style={serviceExpandedBody}>
+                              <Field label="Name">
+                                <TextInput
+                                  defaultValue={service.name}
+                                  onEndEditing={(e) => {
+                                    const v = e.nativeEvent.text.trim();
+                                    if (v && v !== service.name) {
+                                      updateService(service.id, { name: v });
+                                    }
+                                  }}
+                                  style={input}
+                                  placeholder="Service-Name"
+                                  placeholderTextColor="#9a9a9a"
+                                />
+                              </Field>
+
+                              <View style={{ marginTop: 12 }}>
+                                <SelectField
+                                  label="Dauer"
+                                  value={service.durationMin}
+                                  options={SERVICE_DURATION_OPTIONS.map((dur) => ({
+                                    label: `${dur} min`,
+                                    value: dur,
+                                  }))}
+                                  onChange={(dur) =>
+                                    updateService(service.id, {
+                                      durationMin: dur,
+                                    })
+                                  }
+                                />
+                              </View>
+
+                              <View style={serviceEditActionRow}>
+                                <View style={serviceActiveSwitchRow}>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={compactLabel}>Buchbar</Text>
+                                    <Text style={compactHint}>
+                                      {service.isActive
+                                        ? "Kunden können diesen Service buchen."
+                                        : "Dieser Service wird Kunden nicht angeboten."}
+                                    </Text>
+                                  </View>
+
+                                  <Switch
+                                    value={service.isActive}
+                                    disabled={isBusy}
+                                    onValueChange={(value) =>
+                                      updateService(service.id, {
+                                        isActive: value,
+                                      })
+                                    }
+                                  />
+                                </View>
+
+                                <Pressable
+                                  onPress={() => deleteService(service.id)}
+                                  disabled={isBusy}
+                                  style={[
+                                    serviceDeleteButton,
+                                    isBusy ? disabledBtn : null,
+                                  ]}
+                                >
+                                  <Text style={serviceDeleteText}>
+                                    Service löschen
+                                  </Text>
+                                </Pressable>
+                              </View>
+
+                              {isBusy ? (
+                                <View style={compactSavingRow}>
+                                  <ActivityIndicator size="small" />
+                                  <Text style={compactSavingText}>
+                                    Änderung wird gespeichert...
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
+                          ) : null}
                         </View>
                       );
                     })
                 )}
               </View>
             </View>
+
+            <Modal
+              visible={showNewServiceModal}
+              transparent
+              animationType="fade"
+              statusBarTranslucent
+              onRequestClose={() => {
+                if (!creatingService) setShowNewServiceModal(false);
+              }}
+            >
+              <KeyboardAvoidingView
+                style={modalKeyboardWrap}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 18 : 0}
+              >
+                <View style={modalBackdrop}>
+                  <Pressable
+                    style={modalDismissArea}
+                    onPress={() => {
+                      if (!creatingService) setShowNewServiceModal(false);
+                    }}
+                  />
+
+                  <View style={serviceModalCard}>
+                    <View style={modalHandle} />
+
+                    <View style={serviceModalHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={serviceModalTitle}>Neuer Service</Text>
+                        <Text style={serviceModalSub}>
+                          Name und Dauer festlegen.
+                        </Text>
+                      </View>
+
+                      <Pressable
+                        onPress={() => {
+                          if (!creatingService) setShowNewServiceModal(false);
+                        }}
+                        style={modalCloseButton}
+                      >
+                        <Text style={modalCloseText}>×</Text>
+                      </Pressable>
+                    </View>
+
+                    <ScrollView
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator={false}
+                      contentContainerStyle={{ paddingBottom: 4 }}
+                    >
+                      <View style={{ marginTop: 18, gap: 14 }}>
+                        <Field label="Service-Name">
+                          <TextInput
+                            value={newServiceName}
+                            onChangeText={setNewServiceName}
+                            placeholder="z. B. Haare + Bart"
+                            placeholderTextColor="#9a9a9a"
+                            style={input}
+                            returnKeyType="done"
+                          />
+                        </Field>
+
+                        <SelectField
+                          label="Dauer"
+                          value={newServiceDuration}
+                          options={SERVICE_DURATION_OPTIONS.map((dur) => ({
+                            label: `${dur} min`,
+                            value: dur,
+                          }))}
+                          onChange={setNewServiceDuration}
+                        />
+                      </View>
+
+                      <View style={modalActionRow}>
+                        <Pressable
+                          onPress={() => setShowNewServiceModal(false)}
+                          disabled={creatingService}
+                          style={[
+                            secondaryBtn,
+                            { flex: 1 },
+                            creatingService ? disabledBtn : null,
+                          ]}
+                        >
+                          <Text style={secondaryBtnText}>Abbrechen</Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={createService}
+                          disabled={creatingService || !newServiceName.trim()}
+                          style={[
+                            primaryBtn,
+                            { flex: 1 },
+                            creatingService || !newServiceName.trim()
+                              ? disabledBtn
+                              : null,
+                          ]}
+                        >
+                          <Text style={primaryBtnText}>
+                            {creatingService ? "Speichert..." : "Hinzufügen"}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </ScrollView>
+                  </View>
+                </View>
+              </KeyboardAvoidingView>
+            </Modal>
           </>
         ) : tab === "HOURS" ? (
-  <View style={card}>
-    <View style={hoursHeaderBox}>
-      <View style={{ flex: 1 }}>
-        <Text style={sectionTitle}>Zeiten & Slot-Logik</Text>
-        <Text style={sectionSub}>
-          Lege pro Tag fest, wann du arbeitest und welche Zeiten Kunden zuerst buchen können.
-        </Text>
-      </View>
-
-      <View style={planPill}>
-        <Text style={planPillText}>{isPro ? "PRO" : "BASIC"}</Text>
-      </View>
-    </View>
-
-    <View style={infoBox}>
-      <Text style={infoTitle}>So funktioniert es</Text>
-      <Text style={infoText}>
-        Arbeitszeit ist dein echter verfügbarer Zeitraum. Sichtbare Kundenzeit ist der Bereich,
-        den Kunden zuerst sehen. Mit Pro können automatisch frühere Slots geöffnet werden,
-        sobald die erste sichtbare Stunde voll ist.
-      </Text>
-    </View>
-
-    <View style={{ marginTop: 16, gap: 14 }}>
-      {workingHoursUi.map((row) => {
-        const dayName = WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
-
-        const workSummary = row.isOpen
-          ? `${minToHHMM(row.startMin)} - ${minToHHMM(row.endMin)}`
-          : "Geschlossen";
-
-        const visibleSummary = row.isOpen
-          ? `${minToHHMM(row.displayStartMin)} - ${minToHHMM(row.displayEndMin)}`
-          : "Keine Buchung";
-
-        return (
-          <View key={row.day} style={dayCard}>
-            <View style={dayCardTop}>
+          <View style={card}>
+            <View style={hoursHeaderBox}>
               <View style={{ flex: 1 }}>
-                <Text style={dayTitleLarge}>{dayName}</Text>
-
-                <View style={summaryRow}>
-                  <View style={summaryChip}>
-                    <Text style={summaryChipLabel}>Arbeitszeit</Text>
-                    <Text style={summaryChipValue}>{workSummary}</Text>
-                  </View>
-
-                  <View style={summaryChip}>
-                    <Text style={summaryChipLabel}>Kunden sehen</Text>
-                    <Text style={summaryChipValue}>{visibleSummary}</Text>
-                  </View>
+                <View style={sectionTitleRow}>
+                  <Text style={sectionTitle}>Zeiten & Slot-Logik</Text>
+                  <InfoButton
+                    title="Zeiten & Slot-Logik"
+                    text={
+                      "Arbeitszeit = der komplette Zeitraum, in dem du Termine annehmen kannst.\n\n" +
+                      "Kundenzeit = der Bereich, den Kunden zuerst sehen.\n\n" +
+                      "Mit Pro kann Salora automatisch frühere oder spätere Zeiten öffnen, wenn am Rand des sichtbaren Bereichs kein passender Termin mehr frei ist."
+                    }
+                  />
                 </View>
+                <Text style={sectionSub}>
+                  Tippe auf einen Wochentag, um ihn zu bearbeiten.
+                </Text>
               </View>
 
-              <Pressable
-                onPress={() => updateWorkingDay(row.day, { isOpen: !row.isOpen })}
-                style={[
-                  row.isOpen ? statusOpenBtn : statusClosedBtn,
-                  { minWidth: 104 },
-                ]}
-              >
-                <Text style={row.isOpen ? statusOpenText : statusClosedText}>
-                  {row.isOpen ? "Offen" : "Zu"}
-                </Text>
-              </Pressable>
+              <View style={planPill}>
+                <Text style={planPillText}>{isPro ? "PRO" : "BASIC"}</Text>
+              </View>
             </View>
 
-            {row.isOpen ? (
-              <View style={{ marginTop: 16, gap: 14 }}>
-                <View style={subSection}>
-                  <Text style={subSectionTitle}>1. Arbeitszeit</Text>
-                  <Text style={subSectionText}>
-                    In diesem Zeitraum kannst du grundsätzlich Termine annehmen.
-                  </Text>
+            <View style={{ marginTop: 16, gap: 10 }}>
+              {workingHoursUi.map((row) => {
+                const dayName =
+                  WEEKDAYS.find((d) => d.k === row.day)?.name ?? String(row.day);
+                const isExpanded = expandedDay === row.day;
 
-                  <View style={twoSelectRow}>
-                    <View style={{ flex: 1 }}>
-                      <SelectField
-                        label="Start"
-                        value={row.startMin}
-                        options={WORK_TIME_OPTIONS.map((value) => ({
-                          label: minToHHMM(value),
-                          value,
-                        }))}
-                        onChange={(value) => {
-                          const safeStart = clamp(value, 0, 1439);
-                          const safeEnd =
-                            row.endMin <= safeStart ? safeStart + 60 : row.endMin;
+                const workSummary = row.isOpen
+                  ? `${minToHHMM(row.startMin)}–${minToHHMM(row.endMin)}`
+                  : "Geschlossen";
 
-                          updateWorkingDay(row.day, {
-                            startMin: safeStart,
-                            endMin: clamp(safeEnd, safeStart + 1, 1440),
-                            displayStartMin: Math.max(row.displayStartMin, safeStart),
-                            displayEndMin: clamp(row.displayEndMin, safeStart + 1, safeEnd),
-                          });
-                        }}
-                      />
-                    </View>
+                const visibleSummary = row.isOpen
+                  ? `${minToHHMM(row.displayStartMin)}–${minToHHMM(row.displayEndMin)}`
+                  : "–";
 
-                    <View style={{ flex: 1 }}>
-                      <SelectField
-                        label="Ende"
-                        value={row.endMin}
-                        options={WORK_TIME_OPTIONS.filter((value) => value > row.startMin).map(
-                          (value) => ({
-                            label: minToHHMM(value),
-                            value,
-                          })
-                        )}
-                        onChange={(value) => {
-                          const safeEnd = clamp(value, row.startMin + 1, 1440);
+                const smartSummary =
+                  isPro && row.isOpen
+                    ? [
+                        row.extendIfFirstHourFull ? "früher" : null,
+                        row.extendIfLastHourFull ? "später" : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" + ") || "aus"
+                    : null;
 
-                          updateWorkingDay(row.day, {
-                            endMin: safeEnd,
-                            displayEndMin: Math.min(row.displayEndMin, safeEnd),
-                            displayStartMin: clamp(row.displayStartMin, row.startMin, safeEnd - 1),
-                          });
-                        }}
-                      />
-                    </View>
-                  </View>
-                </View>
+                return (
+                  <View key={row.day} style={dayCard}>
+                    <Pressable
+                      onPress={() => setExpandedDay(isExpanded ? null : row.day)}
+                      style={dayAccordionHeader}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <View style={dayNameRow}>
+                          <Text style={dayTitleLarge}>{dayName}</Text>
+                          <View
+                            style={[
+                              statusDot,
+                              row.isOpen ? statusDotOpen : statusDotClosed,
+                            ]}
+                          />
+                        </View>
 
-                <View style={subSection}>
-                  <Text style={subSectionTitle}>2. Sichtbare Kundenzeit</Text>
-                  <Text style={subSectionText}>
-                    Diese Zeiten sehen Kunden zuerst auf deiner Buchungsseite.
-                  </Text>
+                        <Text style={dayCompactSummary}>
+                          {workSummary}
+                          {row.isOpen ? `  •  Kunden ${visibleSummary}` : ""}
+                        </Text>
 
-                  <View style={twoSelectRow}>
-                    <View style={{ flex: 1 }}>
-                      <SelectField
-                        label="Von"
-                        value={row.displayStartMin}
-                        options={WORK_TIME_OPTIONS.filter(
-                          (value) => value >= row.startMin && value < row.endMin
-                        ).map((value) => ({
-                          label: minToHHMM(value),
-                          value,
-                        }))}
-                        onChange={(value) => {
-                          const nextStart = clamp(value, row.startMin, row.endMin - 1);
-                          const nextEnd =
-                            row.displayEndMin <= nextStart
-                              ? Math.min(row.endMin, nextStart + 60)
-                              : row.displayEndMin;
+                        {smartSummary ? (
+                          <Text style={smartCompactSummary}>
+                            Automatik: {smartSummary}
+                          </Text>
+                        ) : null}
+                      </View>
 
-                          updateWorkingDay(row.day, {
-                            displayStartMin: nextStart,
-                            displayEndMin: nextEnd,
-                          });
-                        }}
-                      />
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <SelectField
-                        label="Bis"
-                        value={row.displayEndMin}
-                        options={WORK_TIME_OPTIONS.filter(
-                          (value) => value > row.displayStartMin && value <= row.endMin
-                        ).map((value) => ({
-                          label: minToHHMM(value),
-                          value,
-                        }))}
-                        onChange={(value) => {
-                          updateWorkingDay(row.day, {
-                            displayEndMin: clamp(value, row.displayStartMin + 1, row.endMin),
-                          });
-                        }}
-                      />
-                    </View>
-                  </View>
-                </View>
-
-                <View style={[subSection, !isPro ? lockedSection : null]}>
-                  <View style={proHeaderRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={subSectionTitle}>3. Automatische Erweiterung</Text>
-                      <Text style={subSectionText}>
-                        Wenn die erste sichtbare Stunde voll ist, öffnet Salora automatisch frühere Zeiten.
+                      <Text style={accordionChevron}>
+                        {isExpanded ? "▲" : "▼"}
                       </Text>
-                    </View>
+                    </Pressable>
 
-                    {!isPro ? (
-                      <View style={smallProPill}>
-                        <Text style={smallProPillText}>PRO</Text>
+                    {isExpanded ? (
+                      <View style={expandedDayBody}>
+                        <View style={openToggleRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={compactLabel}>Tag aktiv</Text>
+                            <Text style={compactHint}>
+                              {row.isOpen
+                                ? "Kunden können an diesem Tag Termine buchen."
+                                : "An diesem Tag werden keine Termine angeboten."}
+                            </Text>
+                          </View>
+
+                          <Switch
+                            value={row.isOpen}
+                            onValueChange={(value) =>
+                              updateWorkingDay(row.day, { isOpen: value })
+                            }
+                          />
+                        </View>
+
+                        {row.isOpen ? (
+                          <View style={{ gap: 14 }}>
+                            <View style={subSection}>
+                              <View style={subSectionHeader}>
+                                <Text style={subSectionTitle}>Arbeitszeit</Text>
+                                <InfoButton
+                                  title="Arbeitszeit"
+                                  text="Das ist dein kompletter tatsächlicher Arbeitszeitraum. Salora wird niemals automatisch außerhalb dieser Zeiten buchen."
+                                />
+                              </View>
+
+                              <View style={twoSelectRow}>
+                                <View style={{ flex: 1 }}>
+                                  <SelectField
+                                    label="Von"
+                                    value={row.startMin}
+                                    options={WORK_TIME_OPTIONS.map((value) => ({
+                                      label: minToHHMM(value),
+                                      value,
+                                    }))}
+                                    onChange={(value) => {
+                                      const safeStart = clamp(value, 0, 1439);
+                                      const safeEnd =
+                                        row.endMin <= safeStart
+                                          ? safeStart + 60
+                                          : row.endMin;
+
+                                      updateWorkingDay(row.day, {
+                                        startMin: safeStart,
+                                        endMin: clamp(
+                                          safeEnd,
+                                          safeStart + 1,
+                                          1440
+                                        ),
+                                        displayStartMin: Math.max(
+                                          row.displayStartMin,
+                                          safeStart
+                                        ),
+                                        displayEndMin: clamp(
+                                          row.displayEndMin,
+                                          safeStart + 1,
+                                          safeEnd
+                                        ),
+                                      });
+                                    }}
+                                  />
+                                </View>
+
+                                <View style={{ flex: 1 }}>
+                                  <SelectField
+                                    label="Bis"
+                                    value={row.endMin}
+                                    options={WORK_TIME_OPTIONS.filter(
+                                      (value) => value > row.startMin
+                                    ).map((value) => ({
+                                      label: minToHHMM(value),
+                                      value,
+                                    }))}
+                                    onChange={(value) => {
+                                      const safeEnd = clamp(
+                                        value,
+                                        row.startMin + 1,
+                                        1440
+                                      );
+
+                                      updateWorkingDay(row.day, {
+                                        endMin: safeEnd,
+                                        displayEndMin: Math.min(
+                                          row.displayEndMin,
+                                          safeEnd
+                                        ),
+                                        displayStartMin: clamp(
+                                          row.displayStartMin,
+                                          row.startMin,
+                                          safeEnd - 1
+                                        ),
+                                      });
+                                    }}
+                                  />
+                                </View>
+                              </View>
+                            </View>
+
+                            <View style={subSection}>
+                              <View style={subSectionHeader}>
+                                <Text style={subSectionTitle}>Kundenzeit</Text>
+                                <InfoButton
+                                  title="Kundenzeit"
+                                  text="Diesen Zeitraum sehen Kunden zuerst. Beispiel: Du arbeitest 09:00–19:00, möchtest aber zunächst nur 11:00–17:00 anbieten."
+                                />
+                              </View>
+
+                              <View style={twoSelectRow}>
+                                <View style={{ flex: 1 }}>
+                                  <SelectField
+                                    label="Von"
+                                    value={row.displayStartMin}
+                                    options={WORK_TIME_OPTIONS.filter(
+                                      (value) =>
+                                        value >= row.startMin &&
+                                        value < row.endMin
+                                    ).map((value) => ({
+                                      label: minToHHMM(value),
+                                      value,
+                                    }))}
+                                    onChange={(value) => {
+                                      const nextStart = clamp(
+                                        value,
+                                        row.startMin,
+                                        row.endMin - 1
+                                      );
+                                      const nextEnd =
+                                        row.displayEndMin <= nextStart
+                                          ? Math.min(
+                                              row.endMin,
+                                              nextStart + 60
+                                            )
+                                          : row.displayEndMin;
+
+                                      updateWorkingDay(row.day, {
+                                        displayStartMin: nextStart,
+                                        displayEndMin: nextEnd,
+                                      });
+                                    }}
+                                  />
+                                </View>
+
+                                <View style={{ flex: 1 }}>
+                                  <SelectField
+                                    label="Bis"
+                                    value={row.displayEndMin}
+                                    options={WORK_TIME_OPTIONS.filter(
+                                      (value) =>
+                                        value > row.displayStartMin &&
+                                        value <= row.endMin
+                                    ).map((value) => ({
+                                      label: minToHHMM(value),
+                                      value,
+                                    }))}
+                                    onChange={(value) => {
+                                      updateWorkingDay(row.day, {
+                                        displayEndMin: clamp(
+                                          value,
+                                          row.displayStartMin + 1,
+                                          row.endMin
+                                        ),
+                                      });
+                                    }}
+                                  />
+                                </View>
+                              </View>
+                            </View>
+
+                            <View
+                              style={[
+                                subSection,
+                                !isPro ? lockedSection : null,
+                              ]}
+                            >
+                              <View style={subSectionHeader}>
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    flex: 1,
+                                  }}
+                                >
+                                  <Text style={subSectionTitle}>
+                                    Automatische Erweiterung
+                                  </Text>
+                                  {!isPro ? (
+                                    <View style={smallProPill}>
+                                      <Text style={smallProPillText}>PRO</Text>
+                                    </View>
+                                  ) : null}
+                                </View>
+
+                                <InfoButton
+                                  title="Automatische Erweiterung"
+                                  text={
+                                    "Beispiel: Arbeitszeit 09:00–19:00, Kundenzeit 11:00–17:00.\n\n" +
+                                    "Ist am Anfang nichts Passendes mehr frei, kann Salora 10:00–11:00 öffnen.\n\n" +
+                                    "Ist am Ende nichts Passendes mehr frei, kann Salora 17:00–18:00 öffnen.\n\n" +
+                                    "Die Arbeitszeit wird dabei nie überschritten."
+                                  }
+                                />
+                              </View>
+
+                              <View style={{ marginTop: 12, gap: 10 }}>
+                                <View style={smartToggleRow}>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={compactLabel}>
+                                      Früher öffnen
+                                    </Text>
+                                  </View>
+                                  <Switch
+                                    value={
+                                      isPro && row.extendIfFirstHourFull
+                                    }
+                                    disabled={!isPro}
+                                    onValueChange={(value) => {
+                                      if (!isPro) return;
+                                      updateWorkingDay(row.day, {
+                                        extendIfFirstHourFull: value,
+                                      });
+                                    }}
+                                  />
+                                </View>
+
+                                <View style={smartToggleRow}>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={compactLabel}>
+                                      Später öffnen
+                                    </Text>
+                                  </View>
+                                  <Switch
+                                    value={
+                                      isPro && row.extendIfLastHourFull
+                                    }
+                                    disabled={!isPro}
+                                    onValueChange={(value) => {
+                                      if (!isPro) return;
+                                      updateWorkingDay(row.day, {
+                                        extendIfLastHourFull: value,
+                                      });
+                                    }}
+                                  />
+                                </View>
+
+                                {isPro &&
+                                (row.extendIfFirstHourFull ||
+                                  row.extendIfLastHourFull) ? (
+                                  <SelectField
+                                    label="Schritt"
+                                    value={row.extendStepMin}
+                                    options={EXTEND_STEP_OPTIONS.map(
+                                      (value) => ({
+                                        label: `${value} min`,
+                                        value,
+                                      })
+                                    )}
+                                    onChange={(value) =>
+                                      updateWorkingDay(row.day, {
+                                        extendStepMin: value,
+                                      })
+                                    }
+                                  />
+                                ) : null}
+                              </View>
+                            </View>
+                          </View>
+                        ) : null}
                       </View>
                     ) : null}
                   </View>
+                );
+              })}
+            </View>
 
-                  <Pressable
-                    onPress={() => {
-                      if (!isPro) {
-                        Alert.alert(
-                          "Nur mit Pro",
-                          "Diese Funktion ist nur in Salora Pro verfügbar."
-                        );
-                        return;
-                      }
-
-                      updateWorkingDay(row.day, {
-                        extendIfFirstHourFull: !row.extendIfFirstHourFull,
-                      });
-                    }}
-                    style={[
-                      row.extendIfFirstHourFull && isPro ? primaryBtnSmall : secondaryBtnSmall,
-                      !isPro ? disabledBtn : null,
-                    ]}
-                  >
-                    <Text
-                      style={
-                        row.extendIfFirstHourFull && isPro
-                          ? primaryBtnSmallText
-                          : secondaryBtnSmallText
-                      }
-                    >
-                      {isPro ? (row.extendIfFirstHourFull ? "Aktiv" : "Aus") : "Pro-Funktion"}
-                    </Text>
-                  </Pressable>
-
-                  {isPro && row.extendIfFirstHourFull ? (
-                    <View style={{ marginTop: 12 }}>
-                      <SelectField
-                        label="Erweiterungsschritt"
-                        helperText="Beispiel: Bei 60 min öffnet Salora jeweils eine Stunde früher."
-                        value={row.extendStepMin}
-                        options={EXTEND_STEP_OPTIONS.map((value) => ({
-                          label: `${value} min`,
-                          value,
-                        }))}
-                        onChange={(value) =>
-                          updateWorkingDay(row.day, {
-                            extendStepMin: value,
-                          })
-                        }
-                      />
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            ) : (
-              <View style={closedBox}>
-                <Text style={closedBoxText}>
-                  An diesem Tag werden keine Termine angeboten.
-                </Text>
-              </View>
-            )}
+            <Pressable
+              onPress={saveHours}
+              disabled={savingHours}
+              style={[
+                primaryBtn,
+                { marginTop: 18 },
+                savingHours ? disabledBtn : null,
+              ]}
+            >
+              <Text style={primaryBtnText}>
+                {savingHours ? "Speichert..." : "Zeiten speichern"}
+              </Text>
+            </Pressable>
           </View>
-        );
-      })}
-    </View>
-
-    <Pressable
-      onPress={saveHours}
-      disabled={savingHours}
-      style={[primaryBtn, { marginTop: 18 }, savingHours ? disabledBtn : null]}
-    >
-      <Text style={primaryBtnText}>
-        {savingHours ? "Speichert..." : "Zeiten speichern"}
-      </Text>
-    </Pressable>
-  </View>
-) : (
+        ) : (
           <View style={card}>
-            <Text style={sectionTitle}>Buchungsregeln</Text>
-            <Text style={sectionSub}>Hier legst du fest, was Kunden zuerst sehen.</Text>
+            <View style={sectionTitleRow}>
+              <Text style={sectionTitle}>Buchungsregeln</Text>
+              <InfoButton
+                title="Buchungsregeln"
+                text="Hier stellst du nur allgemeine Regeln ein. Arbeitszeiten, Kundenzeiten und die automatische Slot-Erweiterung findest du ausschließlich im Bereich „Zeiten“."
+              />
+            </View>
 
             <View style={fieldGap}>
               <SelectField
                 label="Schrittweite"
-                helperText="Legt fest, in welchen Minutenabständen freie Termine angezeigt werden."
+                helperText="In welchen Minutenabständen Termine angeboten werden."
                 value={settings.stepMin}
                 options={STEP_MIN_OPTIONS.map((value) => ({
                   label: `${value} min`,
                   value,
                 }))}
-                onChange={(value) => setSettings({ ...settings, stepMin: value })}
+                onChange={(value) =>
+                  setSettings({ ...settings, stepMin: value })
+                }
               />
-
-              
-
-              <Field
-  label="Automatische Vorverlagerung"
-  helperText={
-  isPro
-    ? "Aktiviere diese Funktion, wenn Salora automatisch zusätzliche frühere Slots freigeben soll."
-    : "Diese Funktion ist in Basic gesperrt. Deine Kunden sehen feste Zeiten über deinen Buchungslink."
-}
->
-  <Pressable
-    onPress={() => {
-      if (!isPro) {
-        Alert.alert("Nur mit Pro", "Diese Funktion ist nur in Salora Pro verfügbar.");
-        return;
-      }
-
-      setSettings({
-        ...settings,
-        extendIfFirstHourFull: !settings.extendIfFirstHourFull,
-      });
-    }}
-    style={[
-      isPro && settings.extendIfFirstHourFull ? primaryBtnSmall : secondaryBtnSmall,
-      !isPro ? disabledBtn : null,
-    ]}
-  >
-    <Text style={isPro && settings.extendIfFirstHourFull ? primaryBtnSmallText : secondaryBtnSmallText}>
-      {isPro ? (settings.extendIfFirstHourFull ? "AN" : "AUS") : "PRO"}
-    </Text>
-  </Pressable>
-</Field>
-
-{isPro && settings.extendIfFirstHourFull ? (
-  <View
-    style={{
-      borderWidth: 1,
-      borderColor: "#ececef",
-      borderRadius: 18,
-      backgroundColor: "#fbfbfc",
-      padding: 14,
-      gap: 14,
-    }}
-  >
-    <Text
-      style={{
-        fontSize: 16,
-        fontWeight: "900",
-        color: "#111",
-      }}
-    >
-      Intelligentes Zeitfenster
-    </Text>
-
-    <Text
-      style={{
-        color: "#666",
-        fontSize: 13,
-        lineHeight: 18,
-      }}
-    >
-      Diese Werte nutzt Salora nur, wenn deine erste sichtbare Stunde voll ist.
-    </Text>
-
-    <SelectField
-      label="Zuerst sichtbarer Start"
-      helperText="Ab dieser Uhrzeit werden freie Slots Kunden zuerst angezeigt."
-      value={settings.displayStartMin}
-      options={DISPLAY_TIME_OPTIONS.map((value) => ({
-        label: minToHHMM(value),
-        value,
-      }))}
-      onChange={(value) => {
-        const nextStart = value;
-        const nextEnd =
-          settings.displayEndMin <= nextStart
-            ? Math.min(1440, nextStart + 60)
-            : settings.displayEndMin;
-
-        setSettings({
-          ...settings,
-          displayStartMin: nextStart,
-          displayEndMin: nextEnd,
-        });
-      }}
-    />
-
-    <SelectField
-      label="Zuerst sichtbares Ende"
-      helperText="Bis zu dieser Uhrzeit werden Slots standardmäßig angezeigt."
-      value={settings.displayEndMin}
-      options={DISPLAY_TIME_OPTIONS.filter((value) => value > settings.displayStartMin).map(
-        (value) => ({
-          label: minToHHMM(value),
-          value,
-        })
-      )}
-      onChange={(value) =>
-        setSettings({
-          ...settings,
-          displayEndMin: value,
-        })
-      }
-    />
-
-    <SelectField
-      label="Erweiterungsschritt"
-      helperText="Bestimmt, in welchen Schritten früher geöffnet wird."
-      value={settings.extendStepMin}
-      options={EXTEND_STEP_OPTIONS.map((value) => ({
-        label: `${value} min`,
-        value,
-      }))}
-      onChange={(value) => setSettings({ ...settings, extendStepMin: value })}
-    />
-  </View>
-) : null}
 
               <SelectField
                 label="Mindestabstand pro Kunde"
-                helperText="Legt fest, wie viele Tage ein Kunde nach einer Buchung mindestens warten muss, bis erneut gebucht werden kann."
+                helperText="Wie viele Tage ein Kunde nach einer Buchung mindestens bis zur nächsten Buchung warten muss."
                 value={settings.minDaysBetweenBookings ?? 0}
                 options={MIN_DAYS_OPTIONS.map((value) => ({
                   label: `${value} Tag${value === 1 ? "" : "e"}`,
                   value,
                 }))}
-                onChange={(value) => setSettings({ ...settings, minDaysBetweenBookings: value })}
+                onChange={(value) =>
+                  setSettings({
+                    ...settings,
+                    minDaysBetweenBookings: value,
+                  })
+                }
               />
             </View>
 
             <Pressable
               onPress={saveRules}
               disabled={savingRules}
-              style={[primaryBtn, { marginTop: 16 }, savingRules ? disabledBtn : null]}
+              style={[
+                primaryBtn,
+                { marginTop: 16 },
+                savingRules ? disabledBtn : null,
+              ]}
             >
               <Text style={primaryBtnText}>
-                {savingRules ? "Speichert..." : "Buchungsregeln speichern"}
+                {savingRules
+                  ? "Speichert..."
+                  : "Buchungsregeln speichern"}
               </Text>
             </Pressable>
           </View>
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function InfoButton(props: { title: string; text: string }) {
+  return (
+    <Pressable
+      onPress={() => Alert.alert(props.title, props.text)}
+      hitSlop={10}
+      style={infoButton}
+    >
+      <Text style={infoButtonText}>i</Text>
+    </Pressable>
   );
 }
 
@@ -2197,6 +2538,455 @@ const statusClosedText = {
   color: "#111",
   fontSize: 13,
   fontWeight: "900" as const,
+} as const;
+
+const serviceHeaderRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const addServiceButton = {
+  width: 48,
+  height: 48,
+  borderRadius: 16,
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const addServicePlus = {
+  color: "#fff",
+  fontSize: 27,
+  lineHeight: 30,
+  fontWeight: "500" as const,
+} as const;
+
+const emptyServiceCard = {
+  borderWidth: 1,
+  borderColor: "#e6e6e9",
+  borderRadius: 18,
+  backgroundColor: "#fafafa",
+  paddingVertical: 26,
+  paddingHorizontal: 18,
+  alignItems: "center" as const,
+} as const;
+
+const emptyServicePlusCircle = {
+  width: 48,
+  height: 48,
+  borderRadius: 999,
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const emptyServicePlus = {
+  color: "#fff",
+  fontSize: 25,
+  lineHeight: 28,
+} as const;
+
+const emptyServiceTitle = {
+  marginTop: 12,
+  color: "#111",
+  fontSize: 16,
+  lineHeight: 20,
+  fontWeight: "900" as const,
+} as const;
+
+const emptyServiceText = {
+  marginTop: 5,
+  color: "#777",
+  fontSize: 13,
+  lineHeight: 18,
+  textAlign: "center" as const,
+} as const;
+
+const serviceAccordionCard = {
+  borderWidth: 1,
+  borderColor: "#e7e7ea",
+  borderRadius: 18,
+  backgroundColor: "#fff",
+  overflow: "hidden" as const,
+} as const;
+
+const serviceAccordionHeader = {
+  minHeight: 76,
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const serviceIconCircle = {
+  width: 44,
+  height: 44,
+  borderRadius: 14,
+  backgroundColor: "#f2f2f4",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const serviceIconText = {
+  color: "#111",
+  fontSize: 18,
+  fontWeight: "900" as const,
+} as const;
+
+const serviceNameText = {
+  color: "#111",
+  fontSize: 16,
+  lineHeight: 20,
+  fontWeight: "900" as const,
+} as const;
+
+const serviceMetaRow = {
+  marginTop: 6,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 8,
+} as const;
+
+const serviceDurationText = {
+  color: "#666",
+  fontSize: 13,
+  fontWeight: "700" as const,
+} as const;
+
+const serviceMetaDivider = {
+  width: 1,
+  height: 12,
+  backgroundColor: "#dddddf",
+} as const;
+
+const serviceStatusRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 5,
+} as const;
+
+const serviceStatusDot = {
+  width: 7,
+  height: 7,
+  borderRadius: 999,
+} as const;
+
+const serviceStatusDotActive = {
+  backgroundColor: "#1f8f4e",
+} as const;
+
+const serviceStatusDotInactive = {
+  backgroundColor: "#b7b7bd",
+} as const;
+
+const serviceStatusText = {
+  color: "#3d6b4d",
+  fontSize: 12,
+  fontWeight: "800" as const,
+} as const;
+
+const serviceStatusTextInactive = {
+  color: "#888",
+} as const;
+
+const serviceExpandedBody = {
+  borderTopWidth: 1,
+  borderTopColor: "#eeeeef",
+  backgroundColor: "#fbfbfc",
+  padding: 14,
+} as const;
+
+const serviceEditActionRow = {
+  marginTop: 14,
+  gap: 12,
+} as const;
+
+const serviceActiveSwitchRow = {
+  minHeight: 52,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const serviceDeleteButton = {
+  minHeight: 46,
+  borderRadius: 13,
+  borderWidth: 1,
+  borderColor: "#e8caca",
+  backgroundColor: "#fff7f7",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  paddingHorizontal: 12,
+} as const;
+
+const serviceDeleteText = {
+  color: "#a22626",
+  fontSize: 13,
+  fontWeight: "900" as const,
+} as const;
+
+const modalKeyboardWrap = {
+  flex: 1,
+} as const;
+
+const modalBackdrop = {
+  flex: 1,
+  justifyContent: "flex-end" as const,
+  backgroundColor: "rgba(0,0,0,0.38)",
+} as const;
+
+const modalDismissArea = {
+  flex: 1,
+} as const;
+
+const serviceModalCard = {
+  maxHeight: "78%" as const,
+  backgroundColor: "#fff",
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 28,
+  paddingHorizontal: 20,
+  paddingTop: 10,
+  paddingBottom: 20,
+} as const;
+
+const modalHandle = {
+  alignSelf: "center" as const,
+  width: 44,
+  height: 5,
+  borderRadius: 999,
+  backgroundColor: "#d7d7dc",
+  marginBottom: 12,
+} as const;
+
+const serviceModalHeader = {
+  flexDirection: "row" as const,
+  alignItems: "flex-start" as const,
+  gap: 12,
+} as const;
+
+const serviceModalTitle = {
+  color: "#111",
+  fontSize: 24,
+  lineHeight: 28,
+  fontWeight: "900" as const,
+} as const;
+
+const serviceModalSub = {
+  marginTop: 5,
+  color: "#666",
+  fontSize: 14,
+  lineHeight: 19,
+} as const;
+
+const modalCloseButton = {
+  width: 38,
+  height: 38,
+  borderRadius: 999,
+  backgroundColor: "#f2f2f4",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const modalCloseText = {
+  color: "#333",
+  fontSize: 26,
+  lineHeight: 28,
+  fontWeight: "500" as const,
+} as const;
+
+const modalActionRow = {
+  marginTop: 20,
+  flexDirection: "row" as const,
+  gap: 10,
+} as const;
+
+const compactCard = {
+  borderWidth: 1,
+  borderColor: "#e8e8eb",
+  borderRadius: 18,
+  backgroundColor: "#fff",
+  padding: 14,
+} as const;
+
+const compactCardHeader = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const compactTitleRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 8,
+} as const;
+
+const compactCardTitle = {
+  color: "#111",
+  fontSize: 16,
+  lineHeight: 20,
+  fontWeight: "900" as const,
+} as const;
+
+const compactCardSub = {
+  marginTop: 5,
+  color: "#666",
+  fontSize: 13,
+  lineHeight: 18,
+} as const;
+
+const planStatusText = {
+  marginTop: 8,
+  color: "#111",
+  fontSize: 18,
+  lineHeight: 22,
+  fontWeight: "900" as const,
+} as const;
+
+const compactPlanPill = {
+  minHeight: 30,
+  paddingHorizontal: 10,
+  borderRadius: 999,
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const compactPlanPillText = {
+  color: "#fff",
+  fontSize: 11,
+  fontWeight: "900" as const,
+} as const;
+
+const compactSavingRow = {
+  marginTop: 10,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 8,
+} as const;
+
+const compactSavingText = {
+  color: "#666",
+  fontSize: 12,
+  fontWeight: "600" as const,
+} as const;
+
+const sectionTitleRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 10,
+} as const;
+
+const infoButton = {
+  width: 28,
+  height: 28,
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: "#d8d8dc",
+  backgroundColor: "#f7f7f8",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const infoButtonText = {
+  color: "#333",
+  fontSize: 15,
+  lineHeight: 18,
+  fontWeight: "900" as const,
+  fontStyle: "italic" as const,
+} as const;
+
+const dayAccordionHeader = {
+  minHeight: 72,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const dayNameRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 8,
+} as const;
+
+const statusDot = {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+} as const;
+
+const statusDotOpen = {
+  backgroundColor: "#1f8f4e",
+} as const;
+
+const statusDotClosed = {
+  backgroundColor: "#b7b7bd",
+} as const;
+
+const dayCompactSummary = {
+  marginTop: 5,
+  color: "#555",
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "700" as const,
+} as const;
+
+const smartCompactSummary = {
+  marginTop: 3,
+  color: "#777",
+  fontSize: 12,
+  lineHeight: 16,
+  fontWeight: "600" as const,
+} as const;
+
+const accordionChevron = {
+  color: "#555",
+  fontSize: 13,
+  fontWeight: "900" as const,
+} as const;
+
+const expandedDayBody = {
+  borderTopWidth: 1,
+  borderTopColor: "#eeeeef",
+  paddingTop: 14,
+  marginTop: 6,
+} as const;
+
+const openToggleRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  marginBottom: 14,
+} as const;
+
+const compactLabel = {
+  color: "#111",
+  fontSize: 14,
+  lineHeight: 18,
+  fontWeight: "800" as const,
+} as const;
+
+const compactHint = {
+  marginTop: 3,
+  color: "#777",
+  fontSize: 12,
+  lineHeight: 17,
+} as const;
+
+const subSectionHeader = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  justifyContent: "space-between" as const,
+  gap: 10,
+} as const;
+
+const smartToggleRow = {
+  minHeight: 46,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  justifyContent: "space-between" as const,
+  gap: 12,
 } as const;
 
 const subSection = {
