@@ -183,7 +183,7 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
   return aStart < bEnd && bStart < aEnd;
 }
 function signToken(payload: JwtPayload) {
-  return jwt.sign(payload, JWT_SECRET!, { expiresIn: "30d" });
+  return jwt.sign(payload, JWT_SECRET!, { expiresIn: "90d" });
 }
 function getBearerToken(req: express.Request): string | null {
   const auth = req.headers.authorization;

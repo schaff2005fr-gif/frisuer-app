@@ -7,6 +7,7 @@ import {
   ScrollView,
   Text,
   View,
+  Switch,
 } from "react-native";
 import { router } from "expo-router";
 
@@ -178,6 +179,10 @@ export default function BarberPausenScreen() {
   const [tempHour, setTempHour] = useState(12);
   const [tempMinute, setTempMinute] = useState(0);
 
+  const [showRecurringCreateModal, setShowRecurringCreateModal] = useState(false);
+  const [showOnceCreateModal, setShowOnceCreateModal] = useState(false);
+  const [expandedRecurringDay, setExpandedRecurringDay] = useState<number | null>(null);
+
   useEffect(() => {
     if (!token || !user) {
       router.replace("/login");
@@ -270,6 +275,8 @@ export default function BarberPausenScreen() {
       setRecurring((prev) =>
         [...prev, data.data.block].sort((a, b) => a.weekday - b.weekday || a.startMin - b.startMin)
       );
+      setShowRecurringCreateModal(false);
+      setExpandedRecurringDay(newWeekday);
       setMessage("Wiederkehrende Pause gespeichert.");
     } catch (e: any) {
       setError(e?.response?.data?.error || "Fehler");
@@ -308,6 +315,7 @@ export default function BarberPausenScreen() {
         }
       );
 
+      setShowOnceCreateModal(false);
       setMessage("Blockzeit gespeichert.");
       await loadDayBlocks(selectedDate);
     } catch (e: any) {
@@ -481,209 +489,420 @@ export default function BarberPausenScreen() {
         </View>
 
         {tab === "RECURRING" ? (
-          <>
-            <View style={card}>
-              <Text style={sectionTitle}>Neue Pause anlegen</Text>
-              <Text style={sectionSub}>Wähle Wochentag, Zeiten und Grund.</Text>
-
-              <View style={{ marginTop: 18, gap: 16 }}>
-                <Field label="Wochentag">
-                  <ChipGrid
-                    items={WEEKDAYS.map((d) => ({ key: String(d.k), label: d.name, active: newWeekday === d.k }))}
-                    onPress={(key) => setNewWeekday(Number(key))}
+          <View style={card}>
+            <View style={sectionHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <View style={titleWithInfo}>
+                  <Text style={sectionTitle}>Wiederkehrende Pausen</Text>
+                  <InfoButton
+                    title="Wiederkehrende Pausen"
+                    text={
+                      "Für Pausen, die jede Woche gleich sind – zum Beispiel jeden Montag von 13:00 bis 13:30.\n\n" +
+                      "Du kannst einzelne Pausen jederzeit deaktivieren, ohne sie zu löschen."
+                    }
                   />
-                </Field>
+                </View>
 
-                <Field label="Startzeit">
-                  <Pressable style={pickerField} onPress={() => openTimeModal("recurringStart")}>
-                    <Text style={pickerFieldText}>{pad2(newStartHour)}:{pad2(newStartMinute)}</Text>
-                  </Pressable>
-                </Field>
-
-                <Field label="Endzeit">
-                  <Pressable style={pickerField} onPress={() => openTimeModal("recurringEnd")}>
-                    <Text style={pickerFieldText}>{pad2(newEndHour)}:{pad2(newEndMinute)}</Text>
-                  </Pressable>
-                </Field>
-
-                <Field label="Grund">
-                  <ChipGrid
-                    items={REASONS.map((r) => ({
-                      key: r,
-                      label: r,
-                      active: newReason === r,
-                    }))}
-                    onPress={(key) => setNewReason(key as ReasonKey)}
-                  />
-                </Field>
-
-                <Pressable
-                  onPress={createRecurring}
-                  disabled={savingRecurring}
-                  style={[primaryBtn, savingRecurring ? disabledBtn : null]}
-                >
-                  <Text style={primaryBtnText}>
-                    {savingRecurring ? "Speichert..." : "Pause hinzufügen"}
-                  </Text>
-                </Pressable>
+                <Text style={sectionSub}>
+                  {recurring.length === 0
+                    ? "Noch keine regelmäßigen Pausen."
+                    : `${recurring.length} regelmäßige Pause${recurring.length === 1 ? "" : "n"}`}
+                </Text>
               </View>
+
             </View>
 
-            <View style={[card, { marginTop: 16 }]}>
-              <Text style={sectionTitle}>Vorhandene Pausen</Text>
-              <Text style={sectionSub}>Nur Tage mit Einträgen werden angezeigt.</Text>
-
-              <View style={{ marginTop: 16, gap: 12 }}>
-                {WEEKDAYS.map((d) => {
+            <View style={{ marginTop: 16, gap: 10 }}>
+              {recurring.length === 0 ? (
+                <Pressable
+                  onPress={() => setShowRecurringCreateModal(true)}
+                  style={emptyAddCard}
+                >
+                  <View style={emptyPlusCircle}>
+                    <Text style={emptyPlusText}>＋</Text>
+                  </View>
+                  <Text style={emptyAddTitle}>Erste Pause anlegen</Text>
+                  <Text style={emptyAddSub}>
+                    Zum Beispiel eine feste Mittagspause.
+                  </Text>
+                </Pressable>
+              ) : (
+                WEEKDAYS.map((d) => {
                   const list = recurringByDay.get(d.k) ?? [];
                   if (list.length === 0) return null;
 
+                  const isExpanded = expandedRecurringDay === d.k;
+                  const activeCount = list.filter((r) => r.enabled).length;
+                  const first = list[0];
+                  const last = list[list.length - 1];
+
                   return (
-                    <View key={d.k} style={innerCard}>
-                      <View style={rowBetween}>
-                        <Text style={dayTitle}>{d.name}</Text>
-                        <View style={countPill}>
-                          <Text style={countPillText}>{list.length}</Text>
-                        </View>
-                      </View>
-
-                      <View style={{ marginTop: 12, gap: 10 }}>
-                        {list.map((r) => (
-                          <View key={r.id} style={blockItem}>
-                            <View style={rowBetween}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={blockTime}>
-                                  {minToHHMM(r.startMin)} – {minToHHMM(r.endMin)}
-                                </Text>
-                                <Text style={blockReason}>{r.reason?.trim() || "Ohne Bezeichnung"}</Text>
-                              </View>
-
-                              <View style={[statusPill, r.enabled ? statusPillActive : statusPillInactive]}>
-                                <Text
-                                  style={[
-                                    statusPillText,
-                                    r.enabled ? statusPillTextActive : statusPillTextInactive,
-                                  ]}
-                                >
-                                  {r.enabled ? "Aktiv" : "Inaktiv"}
-                                </Text>
-                              </View>
-                            </View>
-
-                            <View style={{ marginTop: 12, flexDirection: "row", gap: 8 }}>
-                              <Pressable
-                                onPress={() => toggleRecurring(r.id, !r.enabled)}
-                                style={[secondaryBtn, { flex: 1 }]}
-                              >
-                                <Text style={secondaryBtnText}>
-                                  {r.enabled ? "Deaktivieren" : "Aktivieren"}
-                                </Text>
-                              </Pressable>
-
-                              <Pressable
-                                onPress={() => deleteRecurring(r.id)}
-                                style={[dangerBtn, { flex: 1 }]}
-                              >
-                                <Text style={dangerBtnText}>Löschen</Text>
-                              </Pressable>
+                    <View key={d.k} style={accordionCard}>
+                      <Pressable
+                        onPress={() =>
+                          setExpandedRecurringDay(isExpanded ? null : d.k)
+                        }
+                        style={accordionHeader}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <View style={dayNameRow}>
+                            <Text style={dayTitle}>{d.name}</Text>
+                            <View style={countPill}>
+                              <Text style={countPillText}>{list.length}</Text>
                             </View>
                           </View>
-                        ))}
-                      </View>
+
+                          <Text style={compactSummary}>
+                            {list.length === 1
+                              ? `${minToHHMM(first.startMin)}–${minToHHMM(first.endMin)}`
+                              : `${minToHHMM(first.startMin)}–${minToHHMM(last.endMin)} • ${list.length} Einträge`}
+                          </Text>
+
+                          <Text style={compactSubSummary}>
+                            {activeCount === list.length
+                              ? "Alle aktiv"
+                              : `${activeCount} von ${list.length} aktiv`}
+                          </Text>
+                        </View>
+
+                        <Text style={accordionChevron}>
+                          {isExpanded ? "▲" : "▼"}
+                        </Text>
+                      </Pressable>
+
+                      {isExpanded ? (
+                        <View style={accordionBody}>
+                          <View style={{ gap: 10 }}>
+                            {list.map((r) => (
+                              <View key={r.id} style={compactBlockCard}>
+                                <View style={compactBlockTop}>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={blockTime}>
+                                      {minToHHMM(r.startMin)} – {minToHHMM(r.endMin)}
+                                    </Text>
+                                    <Text style={blockReason}>
+                                      {r.reason?.trim() || "Ohne Bezeichnung"}
+                                    </Text>
+                                  </View>
+
+                                  <Switch
+                                    value={r.enabled}
+                                    onValueChange={(value) =>
+                                      toggleRecurring(r.id, value)
+                                    }
+                                  />
+                                </View>
+
+                                <Pressable
+                                  onPress={() => deleteRecurring(r.id)}
+                                  style={deleteTextButton}
+                                >
+                                  <Text style={deleteTextButtonLabel}>Löschen</Text>
+                                </Pressable>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      ) : null}
                     </View>
                   );
-                })}
-
-                {recurring.length === 0 ? (
-                  <View style={emptyCard}>
-                    <Text style={emptyTitle}>Noch keine wiederkehrenden Pausen</Text>
-                    <Text style={emptySub}>Lege oben eine Pause an.</Text>
-                  </View>
-                ) : null}
-              </View>
+                })
+              )}
             </View>
-          </>
+          </View>
         ) : (
-          <>
-            <View style={card}>
-              <Text style={sectionTitle}>Neue Blockzeit anlegen</Text>
-              <Text style={sectionSub}>Wähle Datum, Zeiten und Grund.</Text>
-
-              <View style={{ marginTop: 18, gap: 16 }}>
-                <Field label="Datum">
-                  <Pressable onPress={() => setShowDateModal(true)} style={pickerField}>
-                    <Text style={pickerFieldText}>{formatDateDE(selectedDate)}</Text>
-                  </Pressable>
-                </Field>
-
-                <Field label="Startzeit">
-                  <Pressable style={pickerField} onPress={() => openTimeModal("onceStart")}>
-                    <Text style={pickerFieldText}>{pad2(dayStartHour)}:{pad2(dayStartMinute)}</Text>
-                  </Pressable>
-                </Field>
-
-                <Field label="Endzeit">
-                  <Pressable style={pickerField} onPress={() => openTimeModal("onceEnd")}>
-                    <Text style={pickerFieldText}>{pad2(dayEndHour)}:{pad2(dayEndMinute)}</Text>
-                  </Pressable>
-                </Field>
-
-                <Field label="Grund">
-                  <ChipGrid
-                    items={REASONS.map((r) => ({
-                      key: r,
-                      label: r,
-                      active: dayReason === r,
-                    }))}
-                    onPress={(key) => setDayReason(key as ReasonKey)}
+          <View style={card}>
+            <View style={sectionHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <View style={titleWithInfo}>
+                  <Text style={sectionTitle}>Einmalige Blockzeiten</Text>
+                  <InfoButton
+                    title="Einmalige Blockzeiten"
+                    text={
+                      "Für einzelne Termine oder Sperrzeiten an einem bestimmten Datum – zum Beispiel Arzt, Urlaub oder private Termine.\n\n" +
+                      "Diese Blockzeit gilt nur für den ausgewählten Tag."
+                    }
                   />
-                </Field>
+                </View>
 
+                <Text style={sectionSub}>
+                  Sperrzeiten für einzelne Tage verwalten.
+                </Text>
+              </View>
+
+            </View>
+
+            <Pressable
+              onPress={() => setShowDateModal(true)}
+              style={dateSummaryCard}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={dateSummaryLabel}>Ausgewählter Tag</Text>
+                <Text style={dateSummaryValue}>{formatDateDE(selectedDate)}</Text>
+              </View>
+
+              <Text style={dateSummaryAction}>Ändern</Text>
+            </Pressable>
+
+            <View style={{ marginTop: 14 }}>
+              {oneDayBlocks.length === 0 ? (
                 <Pressable
-                  onPress={createDayBlock}
-                  disabled={savingDayBlock}
-                  style={[primaryBtn, savingDayBlock ? disabledBtn : null]}
+                  onPress={() => setShowOnceCreateModal(true)}
+                  style={emptyAddCard}
                 >
-                  <Text style={primaryBtnText}>
-                    {savingDayBlock ? "Speichert..." : "Blockzeit speichern"}
+                  <View style={emptyPlusCircle}>
+                    <Text style={emptyPlusText}>＋</Text>
+                  </View>
+                  <Text style={emptyAddTitle}>Keine Blockzeit</Text>
+                  <Text style={emptyAddSub}>
+                    Für diesen Tag ist noch nichts gesperrt.
                   </Text>
                 </Pressable>
-              </View>
-            </View>
-
-            <View style={[card, { marginTop: 16 }]}>
-              <Text style={sectionTitle}>Blockzeiten am gewählten Datum</Text>
-              <Text style={sectionSub}>{formatDateDE(selectedDate)}</Text>
-
-              <View style={{ marginTop: 16, gap: 10 }}>
-                {oneDayBlocks.length === 0 ? (
-                  <View style={emptyCard}>
-                    <Text style={emptyTitle}>Keine Blockzeiten vorhanden</Text>
-                    <Text style={emptySub}>Für dieses Datum ist noch nichts eingetragen.</Text>
-                  </View>
-                ) : (
-                  oneDayBlocks
+              ) : (
+                <View style={{ gap: 10 }}>
+                  {oneDayBlocks
                     .slice()
                     .sort((a, b) => a.startMin - b.startMin)
                     .map((b) => (
-                      <View key={b.id} style={blockItem}>
-                        <Text style={blockTime}>
-                          {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
-                        </Text>
-                        <Text style={blockReason}>{b.reason?.trim() || "Ohne Bezeichnung"}</Text>
+                      <View key={b.id} style={compactBlockCard}>
+                        <View style={compactBlockTop}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={blockTime}>
+                              {minToHHMM(b.startMin)} – {minToHHMM(b.endMin)}
+                            </Text>
+                            <Text style={blockReason}>
+                              {b.reason?.trim() || "Ohne Bezeichnung"}
+                            </Text>
+                          </View>
 
-                        <View style={{ marginTop: 12 }}>
-                          <Pressable onPress={() => deleteDayBlock(b.id)} style={dangerBtn}>
-                            <Text style={dangerBtnText}>Löschen</Text>
-                          </Pressable>
+                          <View style={onceBadge}>
+                            <Text style={onceBadgeText}>Einmalig</Text>
+                          </View>
                         </View>
+
+                        <Pressable
+                          onPress={() => deleteDayBlock(b.id)}
+                          style={deleteTextButton}
+                        >
+                          <Text style={deleteTextButtonLabel}>Löschen</Text>
+                        </Pressable>
                       </View>
-                    ))
-                )}
-              </View>
+                    ))}
+                </View>
+              )}
             </View>
-          </>
+          </View>
         )}
+
+        <Modal
+          visible={showRecurringCreateModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!savingRecurring) setShowRecurringCreateModal(false);
+          }}
+        >
+          <View style={modalBackdrop}>
+            <Pressable
+              style={modalDismissArea}
+              onPress={() => {
+                if (!savingRecurring) setShowRecurringCreateModal(false);
+              }}
+            />
+
+            <View style={createSheet}>
+              <View style={modalHandle} />
+
+              <View style={sheetHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={modalTitle}>Neue Pause</Text>
+                  <Text style={sheetSub}>
+                    Wiederkehrende Pause anlegen.
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => setShowRecurringCreateModal(false)}
+                  style={closeBtn}
+                >
+                  <Text style={closeBtnText}>×</Text>
+                </Pressable>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 4 }}
+              >
+                <View style={{ marginTop: 18, gap: 16 }}>
+                  <Field label="Wochentag">
+                    <ChipGrid
+                      items={WEEKDAYS.map((d) => ({
+                        key: String(d.k),
+                        label: d.name,
+                        active: newWeekday === d.k,
+                      }))}
+                      onPress={(key) => setNewWeekday(Number(key))}
+                    />
+                  </Field>
+
+                  <View style={twoColumnRow}>
+                    <View style={{ flex: 1 }}>
+                      <Field label="Von">
+                        <Pressable
+                          style={pickerField}
+                          onPress={() => openTimeModal("recurringStart")}
+                        >
+                          <Text style={pickerFieldText}>
+                            {pad2(newStartHour)}:{pad2(newStartMinute)}
+                          </Text>
+                        </Pressable>
+                      </Field>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Field label="Bis">
+                        <Pressable
+                          style={pickerField}
+                          onPress={() => openTimeModal("recurringEnd")}
+                        >
+                          <Text style={pickerFieldText}>
+                            {pad2(newEndHour)}:{pad2(newEndMinute)}
+                          </Text>
+                        </Pressable>
+                      </Field>
+                    </View>
+                  </View>
+
+                  <Field label="Grund">
+                    <ChipGrid
+                      items={REASONS.map((r) => ({
+                        key: r,
+                        label: r,
+                        active: newReason === r,
+                      }))}
+                      onPress={(key) => setNewReason(key as ReasonKey)}
+                    />
+                  </Field>
+
+                  <Pressable
+                    onPress={createRecurring}
+                    disabled={savingRecurring}
+                    style={[primaryBtn, savingRecurring ? disabledBtn : null]}
+                  >
+                    <Text style={primaryBtnText}>
+                      {savingRecurring ? "Speichert..." : "Pause hinzufügen"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={showOnceCreateModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!savingDayBlock) setShowOnceCreateModal(false);
+          }}
+        >
+          <View style={modalBackdrop}>
+            <Pressable
+              style={modalDismissArea}
+              onPress={() => {
+                if (!savingDayBlock) setShowOnceCreateModal(false);
+              }}
+            />
+
+            <View style={createSheet}>
+              <View style={modalHandle} />
+
+              <View style={sheetHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={modalTitle}>Neue Blockzeit</Text>
+                  <Text style={sheetSub}>
+                    Einmalige Sperrzeit anlegen.
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => setShowOnceCreateModal(false)}
+                  style={closeBtn}
+                >
+                  <Text style={closeBtnText}>×</Text>
+                </Pressable>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 4 }}
+              >
+                <View style={{ marginTop: 18, gap: 16 }}>
+                  <Field label="Datum">
+                    <Pressable
+                      onPress={() => setShowDateModal(true)}
+                      style={pickerField}
+                    >
+                      <Text style={pickerFieldText}>
+                        {formatDateDE(selectedDate)}
+                      </Text>
+                    </Pressable>
+                  </Field>
+
+                  <View style={twoColumnRow}>
+                    <View style={{ flex: 1 }}>
+                      <Field label="Von">
+                        <Pressable
+                          style={pickerField}
+                          onPress={() => openTimeModal("onceStart")}
+                        >
+                          <Text style={pickerFieldText}>
+                            {pad2(dayStartHour)}:{pad2(dayStartMinute)}
+                          </Text>
+                        </Pressable>
+                      </Field>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Field label="Bis">
+                        <Pressable
+                          style={pickerField}
+                          onPress={() => openTimeModal("onceEnd")}
+                        >
+                          <Text style={pickerFieldText}>
+                            {pad2(dayEndHour)}:{pad2(dayEndMinute)}
+                          </Text>
+                        </Pressable>
+                      </Field>
+                    </View>
+                  </View>
+
+                  <Field label="Grund">
+                    <ChipGrid
+                      items={REASONS.map((r) => ({
+                        key: r,
+                        label: r,
+                        active: dayReason === r,
+                      }))}
+                      onPress={(key) => setDayReason(key as ReasonKey)}
+                    />
+                  </Field>
+
+                  <Pressable
+                    onPress={createDayBlock}
+                    disabled={savingDayBlock}
+                    style={[primaryBtn, savingDayBlock ? disabledBtn : null]}
+                  >
+                    <Text style={primaryBtnText}>
+                      {savingDayBlock ? "Speichert..." : "Blockzeit speichern"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         <Modal visible={showDateModal} transparent animationType="slide">
           <View style={modalBackdrop}>
@@ -826,6 +1045,21 @@ export default function BarberPausenScreen() {
   );
 }
 
+function InfoButton(props: { title: string; text: string }) {
+  return (
+    <Pressable
+      onPress={() => {
+        const { Alert } = require("react-native");
+        Alert.alert(props.title, props.text);
+      }}
+      hitSlop={10}
+      style={infoButton}
+    >
+      <Text style={infoButtonText}>i</Text>
+    </Pressable>
+  );
+}
+
 function Field(props: { label: string; children: React.ReactNode }) {
   return (
     <View>
@@ -855,6 +1089,258 @@ function ChipGrid(props: {
     </View>
   );
 }
+
+const sectionHeaderRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const titleWithInfo = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 9,
+} as const;
+
+const infoButton = {
+  width: 28,
+  height: 28,
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: "#d8d8dc",
+  backgroundColor: "#f7f7f8",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const infoButtonText = {
+  color: "#333",
+  fontSize: 15,
+  lineHeight: 18,
+  fontWeight: "900" as const,
+  fontStyle: "italic" as const,
+} as const;
+
+const addButton = {
+  width: 48,
+  height: 48,
+  borderRadius: 16,
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const addButtonText = {
+  color: "#fff",
+  fontSize: 27,
+  lineHeight: 30,
+  fontWeight: "500" as const,
+} as const;
+
+const emptyAddCard = {
+  borderWidth: 1,
+  borderColor: "#e6e6e9",
+  borderRadius: 18,
+  backgroundColor: "#fafafa",
+  paddingVertical: 24,
+  paddingHorizontal: 18,
+  alignItems: "center" as const,
+} as const;
+
+const emptyPlusCircle = {
+  width: 46,
+  height: 46,
+  borderRadius: 999,
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const emptyPlusText = {
+  color: "#fff",
+  fontSize: 24,
+  lineHeight: 27,
+} as const;
+
+const emptyAddTitle = {
+  marginTop: 12,
+  color: "#111",
+  fontSize: 16,
+  lineHeight: 20,
+  fontWeight: "900" as const,
+} as const;
+
+const emptyAddSub = {
+  marginTop: 5,
+  color: "#777",
+  fontSize: 13,
+  lineHeight: 18,
+  textAlign: "center" as const,
+} as const;
+
+const accordionCard = {
+  borderWidth: 1,
+  borderColor: "#e7e7ea",
+  borderRadius: 18,
+  backgroundColor: "#fff",
+  overflow: "hidden" as const,
+} as const;
+
+const accordionHeader = {
+  minHeight: 72,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+} as const;
+
+const accordionBody = {
+  borderTopWidth: 1,
+  borderTopColor: "#eeeeef",
+  backgroundColor: "#fbfbfc",
+  padding: 12,
+} as const;
+
+const accordionChevron = {
+  color: "#555",
+  fontSize: 13,
+  fontWeight: "900" as const,
+} as const;
+
+const dayNameRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 8,
+} as const;
+
+const compactSummary = {
+  marginTop: 5,
+  color: "#555",
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "700" as const,
+} as const;
+
+const compactSubSummary = {
+  marginTop: 2,
+  color: "#888",
+  fontSize: 12,
+  lineHeight: 16,
+} as const;
+
+const compactBlockCard = {
+  borderWidth: 1,
+  borderColor: "#e7e7ea",
+  borderRadius: 15,
+  backgroundColor: "#fff",
+  padding: 12,
+} as const;
+
+const compactBlockTop = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const deleteTextButton = {
+  alignSelf: "flex-start" as const,
+  marginTop: 10,
+  paddingVertical: 4,
+} as const;
+
+const deleteTextButtonLabel = {
+  color: "#a22626",
+  fontSize: 13,
+  fontWeight: "800" as const,
+} as const;
+
+const onceBadge = {
+  paddingHorizontal: 9,
+  paddingVertical: 5,
+  borderRadius: 999,
+  backgroundColor: "#f1f1f3",
+} as const;
+
+const onceBadgeText = {
+  color: "#666",
+  fontSize: 11,
+  fontWeight: "900" as const,
+} as const;
+
+const dateSummaryCard = {
+  marginTop: 16,
+  minHeight: 66,
+  borderWidth: 1,
+  borderColor: "#e7e7ea",
+  borderRadius: 16,
+  backgroundColor: "#fbfbfc",
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  paddingHorizontal: 14,
+  paddingVertical: 10,
+} as const;
+
+const dateSummaryLabel = {
+  color: "#777",
+  fontSize: 12,
+  fontWeight: "800" as const,
+} as const;
+
+const dateSummaryValue = {
+  marginTop: 4,
+  color: "#111",
+  fontSize: 15,
+  fontWeight: "900" as const,
+} as const;
+
+const dateSummaryAction = {
+  color: "#111",
+  fontSize: 13,
+  fontWeight: "900" as const,
+} as const;
+
+const modalDismissArea = {
+  flex: 1,
+} as const;
+
+const createSheet = {
+  maxHeight: "82%" as const,
+  backgroundColor: "#fff",
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 28,
+  paddingHorizontal: 18,
+  paddingTop: 10,
+  paddingBottom: 22,
+} as const;
+
+const modalHandle = {
+  alignSelf: "center" as const,
+  width: 44,
+  height: 5,
+  borderRadius: 999,
+  backgroundColor: "#d7d7dc",
+  marginBottom: 12,
+} as const;
+
+const sheetHeader = {
+  flexDirection: "row" as const,
+  alignItems: "flex-start" as const,
+  gap: 12,
+} as const;
+
+const sheetSub = {
+  marginTop: 5,
+  color: "#666",
+  fontSize: 14,
+  lineHeight: 19,
+} as const;
+
+const twoColumnRow = {
+  flexDirection: "row" as const,
+  gap: 10,
+} as const;
 
 const card = {
   borderWidth: 1,
