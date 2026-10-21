@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
       displayStartMin: 12 * 60,
       displayEndMin: 17 * 60,
       extendIfFirstHourFull: true,
+      extendIfLastHourFull: true,
       extendStepMin: 60,
     },
     {
@@ -30,6 +31,7 @@ const DEFAULT_SETTINGS = {
       displayStartMin: 12 * 60,
       displayEndMin: 17 * 60,
       extendIfFirstHourFull: true,
+      extendIfLastHourFull: true,
       extendStepMin: 60,
     },
     {
@@ -40,6 +42,7 @@ const DEFAULT_SETTINGS = {
       displayStartMin: 12 * 60,
       displayEndMin: 17 * 60,
       extendIfFirstHourFull: true,
+      extendIfLastHourFull: true,
       extendStepMin: 60,
     },
     {
@@ -50,6 +53,7 @@ const DEFAULT_SETTINGS = {
       displayStartMin: 12 * 60,
       displayEndMin: 17 * 60,
       extendIfFirstHourFull: true,
+      extendIfLastHourFull: true,
       extendStepMin: 60,
     },
     {
@@ -60,6 +64,7 @@ const DEFAULT_SETTINGS = {
       displayStartMin: 12 * 60,
       displayEndMin: 17 * 60,
       extendIfFirstHourFull: true,
+      extendIfLastHourFull: true,
       extendStepMin: 60,
     },
     {
@@ -70,6 +75,7 @@ const DEFAULT_SETTINGS = {
       displayStartMin: 12 * 60,
       displayEndMin: 17 * 60,
       extendIfFirstHourFull: true,
+      extendIfLastHourFull: true,
       extendStepMin: 60,
     },
     {
@@ -80,6 +86,7 @@ const DEFAULT_SETTINGS = {
       displayStartMin: 12 * 60,
       displayEndMin: 17 * 60,
       extendIfFirstHourFull: true,
+      extendIfLastHourFull: true,
       extendStepMin: 60,
     },
   ],
@@ -88,6 +95,7 @@ const DEFAULT_SETTINGS = {
   displayStartMin: 12 * 60,
   displayEndMin: 17 * 60,
   extendIfFirstHourFull: true,
+  extendIfLastHourFull: true,
   extendStepMin: 60,
 };
 
@@ -110,6 +118,7 @@ type WorkingHoursRow = {
   displayStartMin: number;
   displayEndMin: number;
   extendIfFirstHourFull: boolean;
+  extendIfLastHourFull: boolean;
   extendStepMin: number;
 };
 
@@ -119,6 +128,7 @@ type AppSettings = {
   displayStartMin: number;
   displayEndMin: number;
   extendIfFirstHourFull: boolean;
+  extendIfLastHourFull: boolean;
   extendStepMin: number;
   minDaysBetweenBookings: number;
 };
@@ -173,7 +183,7 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
   return aStart < bEnd && bStart < aEnd;
 }
 function signToken(payload: JwtPayload) {
-  return jwt.sign(payload, JWT_SECRET!, { expiresIn: "30d" });
+  return jwt.sign(payload, JWT_SECRET!, { expiresIn: "90d" });
 }
 function getBearerToken(req: express.Request): string | null {
   const auth = req.headers.authorization;
@@ -591,6 +601,10 @@ function normalizeSettings(raw: any): AppSettings {
     raw?.extendIfFirstHourFull ?? fb.extendIfFirstHourFull
   );
 
+  const globalExtendIfLastHourFull = Boolean(
+    raw?.extendIfLastHourFull ?? fb.extendIfLastHourFull
+  );
+
   const globalExtendStepMin = Number(raw?.extendStepMin ?? fb.extendStepMin);
 
   const globalDisplayStartMin = Number(
@@ -656,6 +670,9 @@ function normalizeSettings(raw: any): AppSettings {
         extendIfFirstHourFull: Boolean(
           r?.extendIfFirstHourFull ?? globalExtendIfFirstHourFull
         ),
+        extendIfLastHourFull: Boolean(
+          r?.extendIfLastHourFull ?? globalExtendIfLastHourFull
+        ),
         extendStepMin:
           Number.isFinite(extendStepMinRaw) && extendStepMinRaw > 0
             ? Math.floor(extendStepMinRaw)
@@ -683,6 +700,7 @@ function normalizeSettings(raw: any): AppSettings {
         displayStartMin: 12 * 60,
         displayEndMin: 17 * 60,
         extendIfFirstHourFull: true,
+        extendIfLastHourFull: true,
         extendStepMin: 60,
       };
 
@@ -710,6 +728,7 @@ function normalizeSettings(raw: any): AppSettings {
     displayStartMin: safeGlobalDisplayStartMin,
     displayEndMin: safeGlobalDisplayEndMin,
     extendIfFirstHourFull: globalExtendIfFirstHourFull,
+    extendIfLastHourFull: globalExtendIfLastHourFull,
     extendStepMin:
       Number.isFinite(globalExtendStepMin) && globalExtendStepMin > 0
         ? Math.floor(globalExtendStepMin)
@@ -892,20 +911,27 @@ async function computeAvailableTimes(opts: {
       ? Boolean((dayCfg as any).extendIfFirstHourFull)
       : Boolean(settingsRaw.extendIfFirstHourFull));
 
+  const dayExtendIfLastHourFull =
+    allowSmartScheduling &&
+    (typeof (dayCfg as any).extendIfLastHourFull === "boolean"
+      ? Boolean((dayCfg as any).extendIfLastHourFull)
+      : Boolean(settingsRaw.extendIfLastHourFull));
+
   const dayExtendStepMin =
     Number.isFinite((dayCfg as any).extendStepMin) &&
     Number((dayCfg as any).extendStepMin) > 0
       ? Math.floor(Number((dayCfg as any).extendStepMin))
-      : Number.isFinite(settingsRaw.extendStepMin) && settingsRaw.extendStepMin > 0
+      : Number.isFinite(settingsRaw.extendStepMin) &&
+        settingsRaw.extendStepMin > 0
       ? Math.floor(settingsRaw.extendStepMin)
       : 60;
 
   let baseWindowStartMin = Math.max(dayDisplayStartMin, realStartMin);
-  let windowEndMin = Math.min(dayDisplayEndMin, realEndMin);
+  let baseWindowEndMin = Math.min(dayDisplayEndMin, realEndMin);
 
-  if (windowEndMin <= baseWindowStartMin) {
+  if (baseWindowEndMin <= baseWindowStartMin) {
     baseWindowStartMin = realStartMin;
-    windowEndMin = realEndMin;
+    baseWindowEndMin = realEndMin;
   }
 
   const bookings = await getDayBookings(barberId, dateStr);
@@ -925,7 +951,11 @@ async function computeAvailableTimes(opts: {
   const berlinNow = getBerlinNowParts();
   const isTodayBerlin = dateStr === berlinNow.dateStr;
 
-  function buildTimes(startMin: number, endMin: number, durationMin: number) {
+  function buildTimes(
+    startMin: number,
+    endMin: number,
+    durationMin: number
+  ) {
     const times: number[] = [];
 
     const safeStart = Math.max(realStartMin, startMin);
@@ -939,8 +969,13 @@ async function computeAvailableTimes(opts: {
       if (t < realStartMin || tEnd > realEndMin) continue;
       if (isTodayBerlin && t <= berlinNow.minuteOfDay) continue;
 
-      const conflict = busy.some((b) => overlaps(t, tEnd, b.start, b.end));
-      if (!conflict) times.push(t);
+      const conflict = busy.some((b) =>
+        overlaps(t, tEnd, b.start, b.end)
+      );
+
+      if (!conflict) {
+        times.push(t);
+      }
     }
 
     return times;
@@ -963,7 +998,10 @@ async function computeAvailableTimes(opts: {
 
   const durationsToCheck = Array.from(
     new Set(
-      [serviceDurationMin, ...activeServices.map((s) => Number(s.durationMin))]
+      [
+        serviceDurationMin,
+        ...activeServices.map((s) => Number(s.durationMin)),
+      ]
         .filter((n) => Number.isFinite(n) && n > 0)
         .map((n) => Math.floor(n))
     )
@@ -978,7 +1016,10 @@ async function computeAvailableTimes(opts: {
 
     while (true) {
       const firstHourStart = candidateStart;
-      const firstHourEnd = Math.min(candidateStart + 60, windowEndMin);
+      const firstHourEnd = Math.min(
+        candidateStart + 60,
+        baseWindowEndMin
+      );
 
       const freeInFirstHour = buildTimes(
         firstHourStart,
@@ -986,12 +1027,16 @@ async function computeAvailableTimes(opts: {
         durationMin
       );
 
-      if (freeInFirstHour.length > 0) break;
+      if (freeInFirstHour.length > 0) {
+        break;
+      }
 
-      const nextStart = candidateStart - dayExtendStepMin;
+      const nextStart = Math.max(
+        realStartMin,
+        candidateStart - dayExtendStepMin
+      );
 
-      if (nextStart < realStartMin) {
-        candidateStart = realStartMin;
+      if (nextStart >= candidateStart) {
         break;
       }
 
@@ -1001,20 +1046,70 @@ async function computeAvailableTimes(opts: {
     return candidateStart;
   }
 
-  /*
-    Wichtiger Fix:
-    Die Öffnung früherer Slots wird nicht mehr nur anhand des gerade gewählten
-    Services entschieden. Stattdessen berechnen wir für alle aktiven Services,
-    wie weit der Tag geöffnet werden müsste, und nehmen den frühesten Start.
+  function calculateWindowEndForDuration(durationMin: number) {
+    let candidateEnd = baseWindowEndMin;
 
-    Dadurch kann ein 30-Minuten-Service nicht frühere Zeiten bekommen,
-    während ein 20-Minuten-Service diese Zeiten nicht bekommt.
+    if (!dayExtendIfLastHourFull) {
+      return candidateEnd;
+    }
+
+    while (true) {
+      const lastHourStart = Math.max(
+        baseWindowStartMin,
+        candidateEnd - 60
+      );
+
+      const freeInLastHour = buildTimes(
+        lastHourStart,
+        candidateEnd,
+        durationMin
+      );
+
+      if (freeInLastHour.length > 0) {
+        break;
+      }
+
+      const nextEnd = Math.min(
+        realEndMin,
+        candidateEnd + dayExtendStepMin
+      );
+
+      if (nextEnd <= candidateEnd) {
+        break;
+      }
+
+      candidateEnd = nextEnd;
+    }
+
+    return candidateEnd;
+  }
+
+  /*
+    Smart Scheduling wird für alle aktiven Service-Dauern geprüft.
+
+    Dadurch erhält z.B. ein 20-Minuten-Service nicht ein anderes
+    Erweiterungsverhalten als ein 30-Minuten-Service.
+
+    Die sichtbare Kundenzeit kann sowohl nach vorne als auch nach hinten
+    erweitert werden, bleibt aber immer innerhalb der echten Arbeitszeit.
   */
   const windowStartMin = dayExtendIfFirstHourFull
-    ? Math.min(...durationsToCheck.map(calculateWindowStartForDuration))
+    ? Math.min(
+        ...durationsToCheck.map(calculateWindowStartForDuration)
+      )
     : baseWindowStartMin;
 
-  const times = buildTimes(windowStartMin, windowEndMin, serviceDurationMin)
+  const windowEndMin = dayExtendIfLastHourFull
+    ? Math.max(
+        ...durationsToCheck.map(calculateWindowEndForDuration)
+      )
+    : baseWindowEndMin;
+
+  const times = buildTimes(
+    windowStartMin,
+    windowEndMin,
+    serviceDurationMin
+  )
     .filter((t, index, arr) => arr.indexOf(t) === index)
     .sort((a, b) => a - b);
 
@@ -1218,6 +1313,7 @@ trialEndsAt: true,
   displayStartMin: settings.displayStartMin,
   displayEndMin: settings.displayEndMin,
   extendIfFirstHourFull: settings.extendIfFirstHourFull,
+  extendIfLastHourFull: settings.extendIfLastHourFull,
   extendStepMin: settings.extendStepMin,
 },
     });
@@ -2519,6 +2615,7 @@ app.put("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
         // Basic darf keine Pro-Slotlogik speichern.
         if (!isPro) {
           delete copy.extendIfFirstHourFull;
+          delete copy.extendIfLastHourFull;
           delete copy.extendStepMin;
         }
 
@@ -2528,6 +2625,7 @@ app.put("/admin/settings", requireAuth, requireRole("BARBER"), async (req, res) 
 
     if (!isPro) {
       delete body.extendIfFirstHourFull;
+      delete body.extendIfLastHourFull;
       delete body.extendStepMin;
     }
 

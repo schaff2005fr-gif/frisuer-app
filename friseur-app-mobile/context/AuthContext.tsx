@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import { setUnauthorizedHandler } from "../lib/api";
 
 type Role = "CUSTOMER" | "BARBER";
 
@@ -28,6 +30,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadAuth();
   }, []);
 
+  useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      await signOut();
+      router.replace("/login");
+    });
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
+
   async function loadAuth() {
     try {
       const savedToken = await AsyncStorage.getItem("token");
@@ -37,6 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (savedUser) setUser(JSON.parse(savedUser));
     } catch (e) {
       console.log("Auth load error:", e);
+      await AsyncStorage.removeItem("token");
+      await AsyncStorage.removeItem("user");
+      setToken(null);
+      setUser(null);
     } finally {
       setLoading(false);
     }
