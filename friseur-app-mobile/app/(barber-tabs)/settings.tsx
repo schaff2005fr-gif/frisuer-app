@@ -22,7 +22,7 @@ import { getCustomerInfo } from "../../lib/purchases";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
-type TabKey = "PROFILE" | "SERVICES" | "HOURS" | "RULES";
+type TabKey = "PROFILE" | "STAFF" | "SERVICES" | "HOURS" | "RULES";
 
 type BarberProfile = {
   id: number;
@@ -43,6 +43,26 @@ type Service = {
   key: string;
   name: string;
   durationMin: number;
+  isActive: boolean;
+};
+
+type StaffMember = {
+  id: number;
+  name: string;
+  slug: string;
+  phone: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  isSalonOwner: boolean;
+  hasLogin: boolean;
+  email: string | null;
+  createdAt: string;
+};
+
+type SalonSummary = {
+  id: number;
+  name: string;
+  slug: string;
   isActive: boolean;
 };
 
@@ -200,6 +220,16 @@ const isBasic = activePlan === "basic_monthly";
   const [showNewServiceModal, setShowNewServiceModal] = useState(false);
   const [expandedServiceId, setExpandedServiceId] = useState<number | null>(null);
 
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [salon, setSalon] = useState<SalonSummary | null>(null);
+  const [canManageStaff, setCanManageStaff] = useState(false);
+  const [showNewStaffModal, setShowNewStaffModal] = useState(false);
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffPhone, setNewStaffPhone] = useState("");
+  const [creatingStaff, setCreatingStaff] = useState(false);
+  const [busyStaffId, setBusyStaffId] = useState<number | null>(null);
+  const [expandedStaffId, setExpandedStaffId] = useState<number | null>(null);
+
   // Auf dem Handy bleibt immer nur ein Wochentag aufgeklappt.
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
 
@@ -216,6 +246,31 @@ const isBasic = activePlan === "basic_monthly";
 
     Promise.all([loadAll(), loadSubscriptionStatus()]);
   }, [token, user]);
+
+  async function loadStaff() {
+    try {
+      const res = await api.get("/admin/staff", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setSalon((res.data?.salon ?? null) as SalonSummary | null);
+      setStaff(Array.isArray(res.data?.staff) ? res.data.staff : []);
+      setCanManageStaff(true);
+    } catch (e: any) {
+      if (e?.response?.status === 403) {
+        setSalon(null);
+        setStaff([]);
+        setCanManageStaff(false);
+
+        if (tab === "STAFF") {
+          setTab("PROFILE");
+        }
+        return;
+      }
+
+      throw e;
+    }
+  }
 
   async function loadAll() {
     try {
@@ -263,6 +318,8 @@ const isBasic = activePlan === "basic_monthly";
       } else {
         setSettings(null);
       }
+
+      await loadStaff();
     } catch (e: any) {
       setError(e?.response?.data?.error || "Einstellungen konnten nicht geladen werden.");
     } finally {
@@ -503,6 +560,116 @@ const isBasic = activePlan === "basic_monthly";
     } finally {
       setUploadingImg(false);
     }
+  }
+
+  async function createStaffMember() {
+    const name = newStaffName.trim();
+    const phone = newStaffPhone.trim();
+
+    if (!name) {
+      setError("Bitte einen Namen für den Mitarbeiter eingeben.");
+      return;
+    }
+
+    try {
+      setCreatingStaff(true);
+      setError("");
+      setMessage("");
+
+      const res = await api.post(
+        "/admin/staff",
+        {
+          name,
+          phone: phone || null,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const created = res.data?.staffMember as StaffMember;
+      setStaff((prev) => [...prev, created]);
+      setNewStaffName("");
+      setNewStaffPhone("");
+      setShowNewStaffModal(false);
+      setExpandedStaffId(created.id);
+      setMessage("Mitarbeiter hinzugefügt.");
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Mitarbeiter konnte nicht angelegt werden.");
+    } finally {
+      setCreatingStaff(false);
+    }
+  }
+
+  async function updateStaffMember(
+    id: number,
+    patch: Partial<Pick<StaffMember, "name" | "phone" | "imageUrl" | "isActive">>
+  ) {
+    try {
+      setBusyStaffId(id);
+      setError("");
+      setMessage("");
+
+      const res = await api.patch(`/admin/staff/${id}`, patch, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const updated = res.data?.staffMember as StaffMember;
+      setStaff((prev) => prev.map((member) => (member.id === id ? updated : member)));
+      setMessage("Mitarbeiter aktualisiert.");
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Mitarbeiter konnte nicht aktualisiert werden.");
+    } finally {
+      setBusyStaffId(null);
+    }
+  }
+
+  function deactivateStaffMember(id: number, name: string) {
+    Alert.alert(
+      "Mitarbeiter deaktivieren",
+      `${name} wird nicht gelöscht. Bestehende Daten bleiben erhalten, aber der Mitarbeiter ist nicht mehr aktiv.`,
+      [
+        { text: "Abbrechen", style: "cancel" },
+        {
+          text: "Deaktivieren",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setBusyStaffId(id);
+              setError("");
+              setMessage("");
+
+              await api.delete(`/admin/staff/${id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+
+              setStaff((prev) =>
+                prev.map((member) =>
+                  member.id === id ? { ...member, isActive: false } : member
+                )
+              );
+              setMessage("Mitarbeiter deaktiviert.");
+            } catch (e: any) {
+              setError(
+                e?.response?.data?.error || "Mitarbeiter konnte nicht deaktiviert werden."
+              );
+            } finally {
+              setBusyStaffId(null);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  async function reactivateStaffMember(id: number) {
+    await updateStaffMember(id, { isActive: true });
   }
 
   async function createService() {
@@ -856,7 +1023,7 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 36 }}>
         <View style={{ marginBottom: 16 }}>
           <Text style={pageTitle}>Einstellungen</Text>
-          <Text style={pageSub}>Profil, Services, Arbeitszeiten und Buchungsregeln verwalten.</Text>
+          <Text style={pageSub}>Profil, Team, Services, Arbeitszeiten und Buchungsregeln verwalten.</Text>
         </View>
 
         {message ? (
@@ -871,10 +1038,21 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
           </View>
         ) : null}
 
-        <View style={tabWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={tabWrap}
+          style={{ marginBottom: 16 }}
+        >
           <Pressable onPress={() => setTab("PROFILE")} style={[tabBtn, tab === "PROFILE" ? tabBtnActive : null]}>
             <Text style={[tabBtnText, tab === "PROFILE" ? tabBtnTextActive : null]}>Profil</Text>
           </Pressable>
+
+          {canManageStaff ? (
+            <Pressable onPress={() => setTab("STAFF")} style={[tabBtn, tab === "STAFF" ? tabBtnActive : null]}>
+              <Text style={[tabBtnText, tab === "STAFF" ? tabBtnTextActive : null]}>Mitarbeiter</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable onPress={() => setTab("SERVICES")} style={[tabBtn, tab === "SERVICES" ? tabBtnActive : null]}>
             <Text style={[tabBtnText, tab === "SERVICES" ? tabBtnTextActive : null]}>Services</Text>
@@ -887,7 +1065,7 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
           <Pressable onPress={() => setTab("RULES")} style={[tabBtn, tab === "RULES" ? tabBtnActive : null]}>
             <Text style={[tabBtnText, tab === "RULES" ? tabBtnTextActive : null]}>Regeln</Text>
           </Pressable>
-        </View>
+        </ScrollView>
 
         {tab === "PROFILE" ? (
           <>
@@ -1199,6 +1377,332 @@ function updateWorkingDay(day: number, patch: Partial<WorkingHoursRow>) {
                 </Pressable>
               </View>
             </View>
+          </>
+        ) : tab === "STAFF" ? (
+          <>
+            <View style={card}>
+              <View style={serviceHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <View style={sectionTitleRow}>
+                    <Text style={sectionTitle}>Mitarbeiter</Text>
+                    <InfoButton
+                      title="Mitarbeiter"
+                      text={
+                        "Wenn du alleine arbeitest, musst du hier nichts weiter einrichten.\n\n" +
+                        "Sobald mehrere Personen im Salon Termine übernehmen, kannst du sie hier anlegen und verwalten."
+                      }
+                    />
+                  </View>
+                  <Text style={sectionSub}>
+                    {salon?.name
+                      ? `${salon.name} • ${staff.filter((member) => member.isActive).length} aktiv`
+                      : `${staff.filter((member) => member.isActive).length} aktiv`}
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => {
+                    setNewStaffName("");
+                    setNewStaffPhone("");
+                    setShowNewStaffModal(true);
+                  }}
+                  style={addServiceButton}
+                >
+                  <Text style={addServicePlus}>＋</Text>
+                </Pressable>
+              </View>
+
+              <View style={staffSoloHint}>
+                <Text style={staffSoloHintTitle}>
+                  {staff.filter((member) => member.isActive).length <= 1
+                    ? "Du arbeitest aktuell alleine"
+                    : "Mehrere Mitarbeiter aktiv"}
+                </Text>
+                <Text style={staffSoloHintText}>
+                  {staff.filter((member) => member.isActive).length <= 1
+                    ? "Salora funktioniert weiterhin genau wie bisher. Eine Mitarbeiterauswahl für Kunden wird erst relevant, wenn mehrere Personen Termine übernehmen."
+                    : "Im nächsten Schritt ordnen wir Services, Zeiten und Pausen den einzelnen Mitarbeitern zu."}
+                </Text>
+              </View>
+
+              <View style={{ marginTop: 14, gap: 10 }}>
+                {staff.map((member) => {
+                  const isExpanded = expandedStaffId === member.id;
+                  const isBusy = busyStaffId === member.id;
+
+                  return (
+                    <View key={member.id} style={staffCard}>
+                      <Pressable
+                        onPress={() =>
+                          setExpandedStaffId(isExpanded ? null : member.id)
+                        }
+                        style={staffCardHeader}
+                      >
+                        <View style={staffAvatar}>
+                          {cleanUrl(member.imageUrl) ? (
+                            <Image
+                              source={{ uri: cleanUrl(member.imageUrl) }}
+                              style={staffAvatarImage}
+                            />
+                          ) : (
+                            <Text style={staffAvatarText}>
+                              {member.name?.trim()?.[0]?.toUpperCase() || "M"}
+                            </Text>
+                          )}
+                        </View>
+
+                        <View style={{ flex: 1 }}>
+                          <View style={staffNameRow}>
+                            <Text style={staffName}>{member.name}</Text>
+                            {member.isSalonOwner ? (
+                              <View style={ownerPill}>
+                                <Text style={ownerPillText}>INHABER</Text>
+                              </View>
+                            ) : null}
+                          </View>
+
+                          <View style={serviceMetaRow}>
+                            <View style={serviceStatusRow}>
+                              <View
+                                style={[
+                                  serviceStatusDot,
+                                  member.isActive
+                                    ? serviceStatusDotActive
+                                    : serviceStatusDotInactive,
+                                ]}
+                              />
+                              <Text
+                                style={[
+                                  serviceStatusText,
+                                  !member.isActive
+                                    ? serviceStatusTextInactive
+                                    : null,
+                                ]}
+                              >
+                                {member.isActive ? "Aktiv" : "Inaktiv"}
+                              </Text>
+                            </View>
+
+                            {member.phone ? (
+                              <>
+                                <View style={serviceMetaDivider} />
+                                <Text style={staffPhoneText}>{member.phone}</Text>
+                              </>
+                            ) : null}
+                          </View>
+                        </View>
+
+                        <Text style={accordionChevron}>
+                          {isExpanded ? "▲" : "▼"}
+                        </Text>
+                      </Pressable>
+
+                      {isExpanded ? (
+                        <View style={serviceExpandedBody}>
+                          {member.isSalonOwner ? (
+                            <View style={ownerInfoBox}>
+                              <Text style={compactLabel}>Saloninhaber</Text>
+                              <Text style={compactHint}>
+                                Dein eigenes Profil bearbeitest du im Tab „Profil“.
+                                {member.hasLogin && member.email
+                                  ? `\nLogin: ${member.email}`
+                                  : ""}
+                              </Text>
+                            </View>
+                          ) : (
+                            <>
+                              <Field label="Name">
+                                <TextInput
+                                  defaultValue={member.name}
+                                  onEndEditing={(e) => {
+                                    const value = e.nativeEvent.text.trim();
+                                    if (value && value !== member.name) {
+                                      updateStaffMember(member.id, { name: value });
+                                    }
+                                  }}
+                                  style={input}
+                                  placeholder="Name"
+                                  placeholderTextColor="#9a9a9a"
+                                />
+                              </Field>
+
+                              <View style={{ marginTop: 12 }}>
+                                <Field label="Telefon (optional)">
+                                  <TextInput
+                                    defaultValue={member.phone ?? ""}
+                                    onEndEditing={(e) => {
+                                      const value = e.nativeEvent.text.trim();
+                                      if (value !== (member.phone ?? "")) {
+                                        updateStaffMember(member.id, {
+                                          phone: value || null,
+                                        });
+                                      }
+                                    }}
+                                    style={input}
+                                    keyboardType="phone-pad"
+                                    placeholder="z. B. 0176..."
+                                    placeholderTextColor="#9a9a9a"
+                                  />
+                                </Field>
+                              </View>
+
+                              <View style={{ marginTop: 14 }}>
+                                {member.isActive ? (
+                                  <Pressable
+                                    onPress={() =>
+                                      deactivateStaffMember(member.id, member.name)
+                                    }
+                                    disabled={isBusy}
+                                    style={[
+                                      serviceDeleteButton,
+                                      isBusy ? disabledBtn : null,
+                                    ]}
+                                  >
+                                    <Text style={serviceDeleteText}>
+                                      Mitarbeiter deaktivieren
+                                    </Text>
+                                  </Pressable>
+                                ) : (
+                                  <Pressable
+                                    onPress={() =>
+                                      reactivateStaffMember(member.id)
+                                    }
+                                    disabled={isBusy}
+                                    style={[
+                                      primaryBtn,
+                                      isBusy ? disabledBtn : null,
+                                    ]}
+                                  >
+                                    <Text style={primaryBtnText}>
+                                      Mitarbeiter reaktivieren
+                                    </Text>
+                                  </Pressable>
+                                )}
+                              </View>
+
+                              {isBusy ? (
+                                <View style={compactSavingRow}>
+                                  <ActivityIndicator size="small" />
+                                  <Text style={compactSavingText}>
+                                    Änderung wird gespeichert...
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </>
+                          )}
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            <Modal
+              visible={showNewStaffModal}
+              transparent
+              animationType="fade"
+              statusBarTranslucent
+              onRequestClose={() => {
+                if (!creatingStaff) setShowNewStaffModal(false);
+              }}
+            >
+              <KeyboardAvoidingView
+                style={modalKeyboardWrap}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 18 : 0}
+              >
+                <View style={modalBackdrop}>
+                  <Pressable
+                    style={modalDismissArea}
+                    onPress={() => {
+                      if (!creatingStaff) setShowNewStaffModal(false);
+                    }}
+                  />
+
+                  <View style={serviceModalCard}>
+                    <View style={modalHandle} />
+
+                    <View style={serviceModalHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={serviceModalTitle}>Neuer Mitarbeiter</Text>
+                        <Text style={serviceModalSub}>
+                          Name und optional Telefonnummer eintragen.
+                        </Text>
+                      </View>
+
+                      <Pressable
+                        onPress={() => {
+                          if (!creatingStaff) setShowNewStaffModal(false);
+                        }}
+                        style={modalCloseButton}
+                      >
+                        <Text style={modalCloseText}>×</Text>
+                      </Pressable>
+                    </View>
+
+                    <ScrollView
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator={false}
+                      contentContainerStyle={{ paddingBottom: 4 }}
+                    >
+                      <View style={{ marginTop: 18, gap: 14 }}>
+                        <Field label="Name">
+                          <TextInput
+                            value={newStaffName}
+                            onChangeText={setNewStaffName}
+                            placeholder="z. B. Sarah"
+                            placeholderTextColor="#9a9a9a"
+                            style={input}
+                          />
+                        </Field>
+
+                        <Field label="Telefon (optional)">
+                          <TextInput
+                            value={newStaffPhone}
+                            onChangeText={setNewStaffPhone}
+                            placeholder="z. B. 0176..."
+                            placeholderTextColor="#9a9a9a"
+                            keyboardType="phone-pad"
+                            style={input}
+                          />
+                        </Field>
+                      </View>
+
+                      <View style={modalActionRow}>
+                        <Pressable
+                          onPress={() => setShowNewStaffModal(false)}
+                          disabled={creatingStaff}
+                          style={[
+                            secondaryBtn,
+                            { flex: 1 },
+                            creatingStaff ? disabledBtn : null,
+                          ]}
+                        >
+                          <Text style={secondaryBtnText}>Abbrechen</Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={createStaffMember}
+                          disabled={creatingStaff || !newStaffName.trim()}
+                          style={[
+                            primaryBtn,
+                            { flex: 1 },
+                            creatingStaff || !newStaffName.trim()
+                              ? disabledBtn
+                              : null,
+                          ]}
+                        >
+                          <Text style={primaryBtnText}>
+                            {creatingStaff ? "Speichert..." : "Hinzufügen"}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </ScrollView>
+                  </View>
+                </View>
+              </KeyboardAvoidingView>
+            </Modal>
           </>
         ) : tab === "SERVICES" ? (
           <>
@@ -2050,15 +2554,15 @@ const tabWrap = {
   borderRadius: 18,
   padding: 5,
   gap: 5,
-  marginBottom: 16,
 } as const;
 
 const tabBtn = {
-  flex: 1,
+  minWidth: 88,
   minHeight: 44,
   borderRadius: 14,
   alignItems: "center" as const,
   justifyContent: "center" as const,
+  paddingHorizontal: 12,
 } as const;
 
 const tabBtnActive = {
@@ -3042,6 +3546,109 @@ const smallProPillText = {
 
 const lockedSection = {
   opacity: 0.72,
+} as const;
+
+const staffSoloHint = {
+  marginTop: 14,
+  borderWidth: 1,
+  borderColor: "#e8e8eb",
+  borderRadius: 16,
+  backgroundColor: "#fafafa",
+  padding: 13,
+} as const;
+
+const staffSoloHintTitle = {
+  color: "#111",
+  fontSize: 14,
+  fontWeight: "900" as const,
+} as const;
+
+const staffSoloHintText = {
+  marginTop: 5,
+  color: "#666",
+  fontSize: 12,
+  lineHeight: 17,
+} as const;
+
+const staffCard = {
+  borderWidth: 1,
+  borderColor: "#e7e7ea",
+  borderRadius: 18,
+  backgroundColor: "#fff",
+  overflow: "hidden" as const,
+} as const;
+
+const staffCardHeader = {
+  minHeight: 76,
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+} as const;
+
+const staffAvatar = {
+  width: 44,
+  height: 44,
+  borderRadius: 999,
+  backgroundColor: "#f2f2f4",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  overflow: "hidden" as const,
+} as const;
+
+const staffAvatarImage = {
+  width: "100%" as const,
+  height: "100%" as const,
+} as const;
+
+const staffAvatarText = {
+  color: "#111",
+  fontSize: 17,
+  fontWeight: "900" as const,
+} as const;
+
+const staffNameRow = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  flexWrap: "wrap" as const,
+  gap: 7,
+} as const;
+
+const staffName = {
+  color: "#111",
+  fontSize: 16,
+  lineHeight: 20,
+  fontWeight: "900" as const,
+} as const;
+
+const staffPhoneText = {
+  color: "#666",
+  fontSize: 12,
+  fontWeight: "700" as const,
+} as const;
+
+const ownerPill = {
+  minHeight: 22,
+  paddingHorizontal: 8,
+  borderRadius: 999,
+  backgroundColor: "#111",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+} as const;
+
+const ownerPillText = {
+  color: "#fff",
+  fontSize: 9,
+  fontWeight: "900" as const,
+} as const;
+
+const ownerInfoBox = {
+  borderWidth: 1,
+  borderColor: "#e9e9ec",
+  borderRadius: 14,
+  backgroundColor: "#fff",
+  padding: 13,
 } as const;
 
 const closedBox = {
