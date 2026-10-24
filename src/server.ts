@@ -511,6 +511,18 @@ async function uniqueSlug(base: string) {
   }
 }
 
+async function uniqueSalonSlug(base: string) {
+  const s = slugify(base) || "salon";
+  let i = 0;
+
+  while (true) {
+    const candidate = i === 0 ? s : `${s}-${i}`;
+    const exists = await prisma.salon.findUnique({ where: { slug: candidate } });
+    if (!exists) return candidate;
+    i++;
+  }
+}
+
 async function uniqueServiceKey(barberId: number, name: string, ignoreServiceId?: number) {
   const base = slugify(name) || "service";
 
@@ -550,11 +562,29 @@ async function getBarberIdFromUser(userId: number) {
 
   if (user.barberId) return user.barberId;
 
+  // Fallback für alte/unvollständige BARBER-Accounts:
+  // direkt einen eigenen Salon + Saloninhaber anlegen.
   const base = (user.email?.split("@")[0] || "barber").trim();
-  const slug = await uniqueSlug(base);
+  const barberSlug = await uniqueSlug(base);
+  const salonSlug = await uniqueSalonSlug(base);
+
+  const salon = await prisma.salon.create({
+    data: {
+      name: user.email ?? "Salon",
+      slug: salonSlug,
+      isActive: true,
+    },
+  });
 
   const barber = await prisma.barber.create({
-    data: { name: user.email ?? "Barber", slug, phone: null, isActive: true },
+    data: {
+      name: user.email ?? "Barber",
+      slug: barberSlug,
+      phone: null,
+      isActive: true,
+      salonId: salon.id,
+      isSalonOwner: true,
+    },
   });
 
   await prisma.user.update({
@@ -572,6 +602,24 @@ async function getBarberIdFromUser(userId: number) {
   });
 
   return barber.id;
+}
+
+async function getSalonOwnerContext(userId: number) {
+  const barberId = await getBarberIdFromUser(userId);
+
+  const barber = await prisma.barber.findUnique({
+    where: { id: barberId },
+    select: {
+      id: true,
+      name: true,
+      salonId: true,
+      isSalonOwner: true,
+    },
+  });
+
+  if (!barber) throw new Error("Barber profile missing");
+
+  return barber;
 }
 
 async function getCustomerIdFromUser(userId: number) {
@@ -1458,6 +1506,7 @@ app.post("/auth/register-barber", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const slug = await uniqueSlug(name);
+    const salonSlug = await uniqueSalonSlug(name);
 
     const user = await prisma.user.create({
       data: {
@@ -1469,12 +1518,23 @@ app.post("/auth/register-barber", async (req, res) => {
 
     const revenueCatAppUserId = `barber-${user.id}`;
 
+    const salon = await prisma.salon.create({
+      data: {
+        name,
+        slug: salonSlug,
+        phone: phone || null,
+        isActive: true,
+      },
+    });
+
     const barber = await prisma.barber.create({
       data: {
         name,
         slug,
         phone: phone || null,
         isActive: true,
+        salonId: salon.id,
+        isSalonOwner: true,
         revenueCatAppUserId,
       },
     });
@@ -2214,6 +2274,297 @@ app.post("/admin/manual-bookings", requireAuth, requireRole("BARBER"), async (re
     });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? "Server error" });
+  }
+});
+
+/* ---------- ADMIN: salon staff ---------- */
+
+app.get("/admin/staff", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const owner = await getSalonOwnerContext(userId);
+
+    if (!owner.isSalonOwner) {
+      return res.status(403).json({ error: "Nur der Saloninhaber kann Mitarbeiter verwalten." });
+    }
+
+    if (!owner.salonId) {
+      return res.status(400).json({ error: "Salon fehlt für diesen Account." });
+    }
+
+    const salon = await prisma.salon.findUnique({
+      where: { id: owner.salonId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        isActive: true,
+        barbers: {
+          orderBy: [{ isSalonOwner: "desc" }, { createdAt: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            phone: true,
+            imageUrl: true,
+            isActive: true,
+            isSalonOwner: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!salon) {
+      return res.status(404).json({ error: "Salon nicht gefunden." });
+    }
+
+    const staff = salon.barbers.map((member) => ({
+      id: member.id,
+      name: member.name,
+      slug: member.slug,
+      phone: member.phone,
+      imageUrl: member.imageUrl,
+      isActive: member.isActive,
+      isSalonOwner: member.isSalonOwner,
+      hasLogin: !!member.user,
+      email: member.user?.email ?? null,
+      createdAt: member.createdAt,
+    }));
+
+    return res.json({
+      ok: true,
+      salon: {
+        id: salon.id,
+        name: salon.name,
+        slug: salon.slug,
+        isActive: salon.isActive,
+      },
+      staff,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Mitarbeiter konnten nicht geladen werden." });
+  }
+});
+
+app.post("/admin/staff", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const owner = await getSalonOwnerContext(userId);
+
+    if (!owner.isSalonOwner) {
+      return res.status(403).json({ error: "Nur der Saloninhaber kann Mitarbeiter anlegen." });
+    }
+
+    if (!owner.salonId) {
+      return res.status(400).json({ error: "Salon fehlt für diesen Account." });
+    }
+
+    const name = String(req.body?.name ?? "").trim();
+    const phone = req.body?.phone != null ? String(req.body.phone).trim() : "";
+    const imageUrl = req.body?.imageUrl != null ? String(req.body.imageUrl).trim() : "";
+
+    if (!name) {
+      return res.status(400).json({ error: "Name des Mitarbeiters ist erforderlich." });
+    }
+
+    if (name.length > 100) {
+      return res.status(400).json({ error: "Name ist zu lang." });
+    }
+
+    const salon = await prisma.salon.findUnique({
+      where: { id: owner.salonId },
+      select: { id: true, slug: true },
+    });
+
+    if (!salon) {
+      return res.status(404).json({ error: "Salon nicht gefunden." });
+    }
+
+    const slug = await uniqueSlug(`${salon.slug}-${name}`);
+
+    const member = await prisma.barber.create({
+      data: {
+        name,
+        slug,
+        phone: phone || null,
+        imageUrl: imageUrl || null,
+        isActive: true,
+        isSalonOwner: false,
+        salonId: salon.id,
+        publicDiscoveryEnabled: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        phone: true,
+        imageUrl: true,
+        isActive: true,
+        isSalonOwner: true,
+        createdAt: true,
+      },
+    });
+
+    return res.status(201).json({
+      ok: true,
+      staffMember: {
+        ...member,
+        hasLogin: false,
+        email: null,
+      },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Mitarbeiter konnte nicht angelegt werden." });
+  }
+});
+
+app.patch("/admin/staff/:id", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const owner = await getSalonOwnerContext(userId);
+    const id = Number(req.params.id);
+
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Ungültige Mitarbeiter-ID." });
+    }
+
+    if (!owner.isSalonOwner) {
+      return res.status(403).json({ error: "Nur der Saloninhaber kann Mitarbeiter bearbeiten." });
+    }
+
+    if (!owner.salonId) {
+      return res.status(400).json({ error: "Salon fehlt für diesen Account." });
+    }
+
+    const existing = await prisma.barber.findFirst({
+      where: { id, salonId: owner.salonId },
+      select: { id: true, isSalonOwner: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Mitarbeiter nicht gefunden." });
+    }
+
+    if (existing.isSalonOwner) {
+      return res.status(400).json({ error: "Den Saloninhaber bitte über das Profil bearbeiten." });
+    }
+
+    const data: any = {};
+
+    if (req.body?.name !== undefined) {
+      const name = String(req.body.name ?? "").trim();
+      if (!name) {
+        return res.status(400).json({ error: "Name darf nicht leer sein." });
+      }
+      if (name.length > 100) {
+        return res.status(400).json({ error: "Name ist zu lang." });
+      }
+      data.name = name;
+    }
+
+    if (req.body?.phone !== undefined) {
+      const phone = String(req.body.phone ?? "").trim();
+      data.phone = phone || null;
+    }
+
+    if (req.body?.imageUrl !== undefined) {
+      const imageUrl = String(req.body.imageUrl ?? "").trim();
+      data.imageUrl = imageUrl || null;
+    }
+
+    if (req.body?.isActive !== undefined) {
+      data.isActive = Boolean(req.body.isActive);
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: "Keine Änderungen angegeben." });
+    }
+
+    const member = await prisma.barber.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        phone: true,
+        imageUrl: true,
+        isActive: true,
+        isSalonOwner: true,
+        createdAt: true,
+        user: { select: { id: true, email: true } },
+      },
+    });
+
+    return res.json({
+      ok: true,
+      staffMember: {
+        id: member.id,
+        name: member.name,
+        slug: member.slug,
+        phone: member.phone,
+        imageUrl: member.imageUrl,
+        isActive: member.isActive,
+        isSalonOwner: member.isSalonOwner,
+        hasLogin: !!member.user,
+        email: member.user?.email ?? null,
+        createdAt: member.createdAt,
+      },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Mitarbeiter konnte nicht aktualisiert werden." });
+  }
+});
+
+app.delete("/admin/staff/:id", requireAuth, requireRole("BARBER"), async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const owner = await getSalonOwnerContext(userId);
+    const id = Number(req.params.id);
+
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Ungültige Mitarbeiter-ID." });
+    }
+
+    if (!owner.isSalonOwner) {
+      return res.status(403).json({ error: "Nur der Saloninhaber kann Mitarbeiter deaktivieren." });
+    }
+
+    if (!owner.salonId) {
+      return res.status(400).json({ error: "Salon fehlt für diesen Account." });
+    }
+
+    const existing = await prisma.barber.findFirst({
+      where: { id, salonId: owner.salonId },
+      select: { id: true, isSalonOwner: true, isActive: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Mitarbeiter nicht gefunden." });
+    }
+
+    if (existing.isSalonOwner) {
+      return res.status(400).json({ error: "Der Saloninhaber kann nicht als Mitarbeiter deaktiviert werden." });
+    }
+
+    await prisma.barber.update({
+      where: { id },
+      data: {
+        isActive: false,
+        publicDiscoveryEnabled: false,
+      },
+    });
+
+    return res.json({ ok: true, deactivated: true, id });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? "Mitarbeiter konnte nicht deaktiviert werden." });
   }
 });
 
