@@ -850,26 +850,31 @@ async function getBlocksForDay(barberId: number, dateStr: string) {
   };
 }
 
-async function computeAvailableTimes(opts: { barberId: number; dateStr: string; serviceDurationMin: number }) {
+async function computeAvailableTimes(opts: {
+  barberId: number;
+  dateStr: string;
+  serviceDurationMin: number;
+}) {
   const { barberId, dateStr, serviceDurationMin } = opts;
+
   const settingsRaw = await getSettings(barberId);
 
-const barberPlan = await prisma.barber.findUnique({
-  where: { id: barberId },
-  select: {
-    subscriptionStatus: true,
-    subscriptionPlan: true,
-    subscriptionExpiresAt: true,
-    trialEndsAt: true,
-  },
-});
+  const barberPlan = await prisma.barber.findUnique({
+    where: { id: barberId },
+    select: {
+      subscriptionStatus: true,
+      subscriptionPlan: true,
+      subscriptionExpiresAt: true,
+      trialEndsAt: true,
+    },
+  });
 
-const allowSmartScheduling = barberPlan ? isProPlan(barberPlan) : false;
-
-const settings = settingsRaw;
+  const allowSmartScheduling = barberPlan ? isProPlan(barberPlan) : false;
 
   const wd = weekdayFromDateStr(dateStr);
-  const dayCfg = settings.workingHours.find((x) => x.day === wd) ?? DEFAULT_SETTINGS.workingHours[wd];
+  const dayCfg =
+    settingsRaw.workingHours.find((x) => x.day === wd) ??
+    DEFAULT_SETTINGS.workingHours[wd];
 
   if (!dayCfg.isOpen) {
     return {
@@ -881,21 +886,52 @@ const settings = settingsRaw;
   }
 
   const realStartMin = dayCfg.startMin;
-const realEndMin = dayCfg.endMin;
+  const realEndMin = dayCfg.endMin;
 
-const dayDisplayStartMin = Number.isFinite(dayCfg.displayStartMin)
-  ? dayCfg.displayStartMin
-  : settings.displayStartMin;
+  const stepMin =
+    Number.isFinite(settingsRaw.stepMin) && settingsRaw.stepMin > 0
+      ? Math.floor(settingsRaw.stepMin)
+      : 10;
 
-const dayDisplayEndMin = Number.isFinite(dayCfg.displayEndMin)
-  ? dayCfg.displayEndMin
-  : settings.displayEndMin;
+  const dayDisplayStartMin = Number.isFinite((dayCfg as any).displayStartMin)
+    ? Number((dayCfg as any).displayStartMin)
+    : Number.isFinite(settingsRaw.displayStartMin)
+    ? Number(settingsRaw.displayStartMin)
+    : realStartMin;
 
-let windowStartMin = Math.max(dayDisplayStartMin, realStartMin);
-let windowEndMin = Math.min(dayDisplayEndMin, realEndMin);
+  const dayDisplayEndMin = Number.isFinite((dayCfg as any).displayEndMin)
+    ? Number((dayCfg as any).displayEndMin)
+    : Number.isFinite(settingsRaw.displayEndMin)
+    ? Number(settingsRaw.displayEndMin)
+    : realEndMin;
 
-  if (windowEndMin <= windowStartMin) {
-    windowEndMin = realEndMin;
+  const dayExtendIfFirstHourFull =
+    allowSmartScheduling &&
+    (typeof (dayCfg as any).extendIfFirstHourFull === "boolean"
+      ? Boolean((dayCfg as any).extendIfFirstHourFull)
+      : Boolean(settingsRaw.extendIfFirstHourFull));
+
+  const dayExtendIfLastHourFull =
+    allowSmartScheduling &&
+    (typeof (dayCfg as any).extendIfLastHourFull === "boolean"
+      ? Boolean((dayCfg as any).extendIfLastHourFull)
+      : Boolean(settingsRaw.extendIfLastHourFull));
+
+  const dayExtendStepMin =
+    Number.isFinite((dayCfg as any).extendStepMin) &&
+    Number((dayCfg as any).extendStepMin) > 0
+      ? Math.floor(Number((dayCfg as any).extendStepMin))
+      : Number.isFinite(settingsRaw.extendStepMin) &&
+        settingsRaw.extendStepMin > 0
+      ? Math.floor(settingsRaw.extendStepMin)
+      : 60;
+
+  let baseWindowStartMin = Math.max(dayDisplayStartMin, realStartMin);
+  let baseWindowEndMin = Math.min(dayDisplayEndMin, realEndMin);
+
+  if (baseWindowEndMin <= baseWindowStartMin) {
+    baseWindowStartMin = realStartMin;
+    baseWindowEndMin = realEndMin;
   }
 
   const bookings = await getDayBookings(barberId, dateStr);
@@ -904,7 +940,7 @@ let windowEndMin = Math.min(dayDisplayEndMin, realEndMin);
     .filter((b) => b.exactTime != null && b.status !== "CANCELLED")
     .map((b) => {
       const start = b.exactTime as number;
-      const dur = (b.durationMin ?? serviceDurationMin) as number;
+      const dur = Number(b.durationMin ?? serviceDurationMin);
       return { start, end: start + dur };
     });
 
@@ -915,73 +951,167 @@ let windowEndMin = Math.min(dayDisplayEndMin, realEndMin);
   const berlinNow = getBerlinNowParts();
   const isTodayBerlin = dateStr === berlinNow.dateStr;
 
-  const buildTimesForWindow = (startMin: number, endMin: number) => {
+  function buildTimes(
+    startMin: number,
+    endMin: number,
+    durationMin: number
+  ) {
     const times: number[] = [];
-    const lastStart = endMin - serviceDurationMin;
 
-    for (let t = startMin; t <= lastStart; t += settings.stepMin) {
-      const tEnd = t + serviceDurationMin;
-      if (tEnd > endMin) continue;
+    const safeStart = Math.max(realStartMin, startMin);
+    const safeEnd = Math.min(realEndMin, endMin);
+    const lastStart = safeEnd - durationMin;
 
+    for (let t = safeStart; t <= lastStart; t += stepMin) {
+      const tEnd = t + durationMin;
+
+      if (tEnd > safeEnd) continue;
+      if (t < realStartMin || tEnd > realEndMin) continue;
       if (isTodayBerlin && t <= berlinNow.minuteOfDay) continue;
 
-      const conflict = busy.some((b) => overlaps(t, tEnd, b.start, b.end));
-      if (!conflict) times.push(t);
+      const conflict = busy.some((b) =>
+        overlaps(t, tEnd, b.start, b.end)
+      );
+
+      if (!conflict) {
+        times.push(t);
+      }
     }
 
     return times;
-  };
-
-  let times = buildTimesForWindow(windowStartMin, windowEndMin);
-
-  const dayExtendIfFirstHourFull = allowSmartScheduling
-    ? Boolean(dayCfg.extendIfFirstHourFull)
-    : false;
-
-  const dayExtendIfLastHourFull = allowSmartScheduling
-    ? Boolean(dayCfg.extendIfLastHourFull)
-    : false;
-
-  const dayExtendStepMin =
-    Number.isFinite(dayCfg.extendStepMin) && dayCfg.extendStepMin > 0
-      ? dayCfg.extendStepMin
-      : settings.extendStepMin;
-
-  if (dayExtendIfFirstHourFull) {
-    while (true) {
-      const firstHourStart = windowStartMin;
-      const firstHourEnd = Math.min(windowStartMin + 60, windowEndMin);
-
-      const hasAnyInFirstHour = times.some(
-        (t) => t >= firstHourStart && t < firstHourEnd
-      );
-      if (hasAnyInFirstHour) break;
-
-      const nextStart = Math.max(realStartMin, windowStartMin - dayExtendStepMin);
-      if (nextStart >= windowStartMin) break;
-
-      windowStartMin = nextStart;
-      times = buildTimesForWindow(windowStartMin, windowEndMin);
-    }
   }
 
-  if (dayExtendIfLastHourFull) {
-    while (true) {
-      const lastHourStart = Math.max(windowStartMin, windowEndMin - 60);
-      const lastHourEnd = windowEndMin;
+  const activeServices = await prisma.service.findMany({
+    where: {
+      barberId,
+      isActive: true,
+      key: {
+        not: {
+          startsWith: "deleted-",
+        },
+      },
+    },
+    select: {
+      durationMin: true,
+    },
+  });
 
-      const hasAnyInLastHour = times.some(
-        (t) => t >= lastHourStart && t < lastHourEnd
-      );
-      if (hasAnyInLastHour) break;
+  const durationsToCheck = Array.from(
+    new Set(
+      [
+        serviceDurationMin,
+        ...activeServices.map((s) => Number(s.durationMin)),
+      ]
+        .filter((n) => Number.isFinite(n) && n > 0)
+        .map((n) => Math.floor(n))
+    )
+  );
 
-      const nextEnd = Math.min(realEndMin, windowEndMin + dayExtendStepMin);
-      if (nextEnd <= windowEndMin) break;
+  function calculateWindowStartForDuration(durationMin: number) {
+    let candidateStart = baseWindowStartMin;
 
-      windowEndMin = nextEnd;
-      times = buildTimesForWindow(windowStartMin, windowEndMin);
+    if (!dayExtendIfFirstHourFull) {
+      return candidateStart;
     }
+
+    while (true) {
+      const firstHourStart = candidateStart;
+      const firstHourEnd = Math.min(
+        candidateStart + 60,
+        baseWindowEndMin
+      );
+
+      const freeInFirstHour = buildTimes(
+        firstHourStart,
+        firstHourEnd,
+        durationMin
+      );
+
+      if (freeInFirstHour.length > 0) {
+        break;
+      }
+
+      const nextStart = Math.max(
+        realStartMin,
+        candidateStart - dayExtendStepMin
+      );
+
+      if (nextStart >= candidateStart) {
+        break;
+      }
+
+      candidateStart = nextStart;
+    }
+
+    return candidateStart;
   }
+
+  function calculateWindowEndForDuration(durationMin: number) {
+    let candidateEnd = baseWindowEndMin;
+
+    if (!dayExtendIfLastHourFull) {
+      return candidateEnd;
+    }
+
+    while (true) {
+      const lastHourStart = Math.max(
+        baseWindowStartMin,
+        candidateEnd - 60
+      );
+
+      const freeInLastHour = buildTimes(
+        lastHourStart,
+        candidateEnd,
+        durationMin
+      );
+
+      if (freeInLastHour.length > 0) {
+        break;
+      }
+
+      const nextEnd = Math.min(
+        realEndMin,
+        candidateEnd + dayExtendStepMin
+      );
+
+      if (nextEnd <= candidateEnd) {
+        break;
+      }
+
+      candidateEnd = nextEnd;
+    }
+
+    return candidateEnd;
+  }
+
+  /*
+    Smart Scheduling wird für alle aktiven Service-Dauern geprüft.
+
+    Dadurch erhält z.B. ein 20-Minuten-Service nicht ein anderes
+    Erweiterungsverhalten als ein 30-Minuten-Service.
+
+    Die sichtbare Kundenzeit kann sowohl nach vorne als auch nach hinten
+    erweitert werden, bleibt aber immer innerhalb der echten Arbeitszeit.
+  */
+  const windowStartMin = dayExtendIfFirstHourFull
+    ? Math.min(
+        ...durationsToCheck.map(calculateWindowStartForDuration)
+      )
+    : baseWindowStartMin;
+
+  const windowEndMin = dayExtendIfLastHourFull
+    ? Math.max(
+        ...durationsToCheck.map(calculateWindowEndForDuration)
+      )
+    : baseWindowEndMin;
+
+  const times = buildTimes(
+    windowStartMin,
+    windowEndMin,
+    serviceDurationMin
+  )
+    .filter((t, index, arr) => arr.indexOf(t) === index)
+    .sort((a, b) => a - b);
 
   return {
     isOpen: true,
