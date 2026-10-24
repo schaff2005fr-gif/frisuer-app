@@ -2,7 +2,7 @@
   "expo": {
     "name": "Salora",
     "slug": "friseur-app-mobile",
-    "version": "1.0.5",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "friseurappmobile",
@@ -54,9 +54,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0014730c-5be8-4504-b79a-944143bf9ffe"
+        "projectId": "165cf900-bfbb-4099-a577-9e2715d7c485"
       }
     },
-    "owner": "schafik.frt"
+    "owner": "schafikfrt"
   }
 }
